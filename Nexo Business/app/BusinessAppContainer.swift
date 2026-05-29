@@ -19,6 +19,7 @@ public final class BusinessAppContainer: @unchecked Sendable {
     public let documentsRepository: BusinessDocumentsRepository
     public let pendingOperationsRepository: PendingOperationsRepository
     public let dailyReportRepository: BusinessDailyReportRepository
+    public let salesHistoryRepository: SalesHistoryRepository
 
     public init(
         tokenStore: AuthTokenStoring,
@@ -31,7 +32,8 @@ public final class BusinessAppContainer: @unchecked Sendable {
         receivablesRepository: ReceivablesRepository,
         documentsRepository: BusinessDocumentsRepository,
         pendingOperationsRepository: PendingOperationsRepository,
-        dailyReportRepository: BusinessDailyReportRepository
+        dailyReportRepository: BusinessDailyReportRepository,
+        salesHistoryRepository: SalesHistoryRepository
     ) {
         self.tokenStore = tokenStore
         self.authRepository = authRepository
@@ -44,6 +46,7 @@ public final class BusinessAppContainer: @unchecked Sendable {
         self.documentsRepository = documentsRepository
         self.pendingOperationsRepository = pendingOperationsRepository
         self.dailyReportRepository = dailyReportRepository
+        self.salesHistoryRepository = salesHistoryRepository
     }
 
     static func live(config: BusinessRuntimeConfig) -> BusinessAppContainer {
@@ -72,7 +75,8 @@ public final class BusinessAppContainer: @unchecked Sendable {
             receivablesRepository: ReceivablesAPIRepository(apiClient: apiClient),
             documentsRepository: BusinessDocumentsAPIRepository(apiClient: apiClient),
             pendingOperationsRepository: PendingOperationsAPIRepository(apiClient: apiClient),
-            dailyReportRepository: BusinessDailyReportAPIRepository(apiClient: apiClient)
+            dailyReportRepository: BusinessDailyReportAPIRepository(apiClient: apiClient),
+            salesHistoryRepository: SalesHistoryAPIRepository(apiClient: apiClient)
         )
     }
 }

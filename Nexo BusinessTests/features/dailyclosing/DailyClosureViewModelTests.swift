@@ -108,9 +108,9 @@ final class DailyClosureViewModelTests: XCTestCase {
 
         await viewModel.load()
 
-        XCTAssertEqual( //Conflicting arguments to generic parameter 'T' ('AsyncViewState<BusinessDailyReport?>' vs. 'AsyncViewState<BusinessDailyReport>')
+        XCTAssertEqual(
             viewModel.reportState,
-            AsyncViewState<BusinessDailyReport>.loaded(report)
+            AsyncViewState<BusinessDailyReport?>.loaded(report)
         )
 
         XCTAssertEqual(

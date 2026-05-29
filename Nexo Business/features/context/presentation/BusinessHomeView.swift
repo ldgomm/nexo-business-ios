@@ -94,6 +94,28 @@ public struct BusinessHomeView: View {
                         .foregroundStyle(.secondary)
                 }
 
+                if moduleGate.allows(.coreSales), hasSalesHistoryAccess(permissionGate) {
+                    NavigationLink("Historial de ventas") {
+                        SalesHistoryView(
+                            viewModel: SalesHistoryViewModel(
+                                organizationId: context.organization.id,
+                                branchId: branchId,
+                                revisions: context.revisions,
+                                effectivePermissions: context.effectivePermissions,
+                                historyRepository: container.salesHistoryRepository
+                            ),
+                            salesRepository: container.salesRepository,
+                            cashRepository: container.cashRepository,
+                            paymentsRepository: container.paymentsRepository,
+                            receivablesRepository: container.receivablesRepository,
+                            documentsRepository: container.documentsRepository
+                        )
+                    }
+                } else {
+                    Label("Historial de ventas no habilitado para este usuario", systemImage: "lock")
+                        .foregroundStyle(.secondary)
+                }
+
                 if moduleGate.allows(.coreCash), hasCashAccess(permissionGate) {
                     NavigationLink("Caja operativa") {
                         CashDashboardView(
@@ -149,6 +171,13 @@ public struct BusinessHomeView: View {
         permissionGate.allows("sales.create") ||
         permissionGate.allows("business.sales.preview") ||
         permissionGate.allows("sales.preview")
+    }
+
+    private func hasSalesHistoryAccess(_ permissionGate: PermissionGate) -> Bool {
+        permissionGate.allows("business.sales.view") ||
+        permissionGate.allows("sales.view") ||
+        permissionGate.allows("business.reports.sales") ||
+        permissionGate.allows("reports.sales")
     }
 
     private func hasCashAccess(_ permissionGate: PermissionGate) -> Bool {

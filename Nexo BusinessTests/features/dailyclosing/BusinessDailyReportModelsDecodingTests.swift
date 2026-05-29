@@ -28,18 +28,18 @@ final class BusinessDailyReportModelsDecodingTests: XCTestCase {
           }
         }
         """#.data(using: .utf8)!
-
+        
         let response = try JSONDecoder.nexoDefault.decode(
             BusinessDailyReportResponse.self,
             from: json
         )
-
+        
         XCTAssertEqual(response.report.businessDate, "2026-05-29")
         XCTAssertEqual(response.report.salesCount, 7)
         XCTAssertEqual(response.report.salesTotal?.amount, "125.50")
         XCTAssertEqual(response.report.cashStatus, "open")
     }
-
+    
     func testDecodesDailyReportWithoutEnvelope() throws {
         let json = #"""
         {
@@ -50,12 +50,12 @@ final class BusinessDailyReportModelsDecodingTests: XCTestCase {
           "cashStatus": "closed"
         }
         """#.data(using: .utf8)!
-
+        
         let response = try JSONDecoder.nexoDefault.decode(
             BusinessDailyReportResponse.self,
             from: json
         )
-
+        
         XCTAssertEqual(response.report.businessDate, "2026-05-29")
         XCTAssertEqual(response.report.cashStatus, "closed")
     }
