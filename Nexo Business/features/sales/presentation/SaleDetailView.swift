@@ -9,6 +9,7 @@ import SwiftUI
 
 public struct SaleDetailView: View {
     @Bindable private var viewModel: SaleDetailViewModel
+    private let customersRepository: CustomersRepository
     private let cashRepository: CashRepository
     private let paymentsRepository: PaymentsRepository
     private let receivablesRepository: ReceivablesRepository
@@ -16,12 +17,14 @@ public struct SaleDetailView: View {
 
     public init(
         viewModel: SaleDetailViewModel,
+        customersRepository: CustomersRepository = UnavailableCustomersRepository(),
         cashRepository: CashRepository,
         paymentsRepository: PaymentsRepository,
         receivablesRepository: ReceivablesRepository,
         documentsRepository: BusinessDocumentsRepository
     ) {
         self.viewModel = viewModel
+        self.customersRepository = customersRepository
         self.cashRepository = cashRepository
         self.paymentsRepository = paymentsRepository
         self.receivablesRepository = receivablesRepository
@@ -73,6 +76,13 @@ public struct SaleDetailView: View {
         Section("Venta") {
             LabeledContent("ID", value: sale.id)
             SaleStatusLabel(status: sale.status)
+
+            if let customerId = sale.customerId, !customerId.isEmpty {
+                LabeledContent("Cliente", value: customerId)
+            } else {
+                LabeledContent("Cliente", value: "Consumidor final")
+            }
+
             if let createdAt = sale.createdAt {
                 LabeledContent("Creada", value: createdAt.formatted(date: .abbreviated, time: .shortened))
             }
@@ -163,7 +173,8 @@ public struct SaleDetailView: View {
                             cashRepository: cashRepository,
                             paymentsRepository: paymentsRepository,
                             receivablesRepository: receivablesRepository
-                        )
+                        ),
+                        customersRepository: customersRepository
                     )
                 } label: {
                     Label("Cobrar venta", systemImage: "dollarsign.circle")
@@ -228,6 +239,7 @@ public struct SaleDetailView: View {
                 effectivePermissions: PreviewData.businessContext.effectivePermissions,
                 salesRepository: PreviewSalesRepository()
             ),
+            customersRepository: PreviewCustomersRepository(),
             cashRepository: PreviewCashRepository(),
             paymentsRepository: PreviewPaymentsRepository(),
             receivablesRepository: PreviewReceivablesRepository(),

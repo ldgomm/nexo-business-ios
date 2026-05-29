@@ -38,6 +38,7 @@ public final class SaleCartViewModel {
     public private(set) var isSearching = false
     public private(set) var isPreviewing = false
     public private(set) var isCreatingSale = false
+    public private(set) var selectedCustomer: BusinessCustomer?
     public var errorMessage: String?
     public var infoMessage: String?
 
@@ -46,6 +47,7 @@ public final class SaleCartViewModel {
     public let activityId: String
     public private(set) var revisions: BusinessRevisions
     public let effectivePermissions: Set<String>
+
     private let catalogRepository: CatalogRepository
     private let salesRepository: SalesRepository
 
@@ -73,6 +75,25 @@ public final class SaleCartViewModel {
 
     public var canCreateSale: Bool {
         !cartItems.isEmpty && !isPreviewing && !isCreatingSale
+    }
+
+    public var customerIdForRequest: String? {
+        guard let selectedCustomer else { return nil }
+        return selectedCustomer.identificationType == .finalConsumer ? nil : selectedCustomer.id
+    }
+
+    public func selectCustomer(_ customer: BusinessCustomer) {
+        selectedCustomer = customer
+        preview = nil
+        createdSale = nil
+        errorMessage = nil
+        infoMessage = nil
+    }
+
+    public func clearCustomer() {
+        selectedCustomer = nil
+        preview = nil
+        createdSale = nil
     }
 
     public func searchCatalog() async {
@@ -177,6 +198,7 @@ public final class SaleCartViewModel {
                 request: SalesPreviewRequest(
                     branchId: branchId,
                     activityId: activityId,
+                    customerId: customerIdForRequest,
                     items: draftItems()
                 )
             )
@@ -212,6 +234,7 @@ public final class SaleCartViewModel {
                 request: QuickSaleRequest(
                     branchId: branchId,
                     activityId: activityId,
+                    customerId: customerIdForRequest,
                     items: draftItems()
                 )
             )
@@ -226,7 +249,6 @@ public final class SaleCartViewModel {
             errorMessage = error.localizedDescription
         }
     }
-
 
     public func makeSaleDetailViewModel(for sale: BusinessSale) -> SaleDetailViewModel {
         SaleDetailViewModel(

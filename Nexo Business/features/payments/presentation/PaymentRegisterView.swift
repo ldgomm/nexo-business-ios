@@ -9,9 +9,14 @@ import SwiftUI
 
 public struct PaymentRegisterView: View {
     @Bindable private var viewModel: PaymentRegisterViewModel
+    private let customersRepository: CustomersRepository
 
-    public init(viewModel: PaymentRegisterViewModel) {
+    public init(
+        viewModel: PaymentRegisterViewModel,
+        customersRepository: CustomersRepository = UnavailableCustomersRepository()
+    ) {
         self.viewModel = viewModel
+        self.customersRepository = customersRepository
     }
 
     public var body: some View {
@@ -95,8 +100,39 @@ public struct PaymentRegisterView: View {
     @ViewBuilder
     private var creditSection: some View {
         if viewModel.selectedMode == .credit {
-            Section("Cuenta por cobrar") {
-                TextField("Cliente ID", text: $viewModel.customerId)
+            Section("Cliente para crédito") {
+                if let customer = viewModel.selectedCustomer {
+                    CustomerRowView(customer: customer)
+
+                    Button(role: .destructive) {
+                        viewModel.clearCustomer()
+                    } label: {
+                        Label("Quitar cliente", systemImage: "xmark.circle")
+                    }
+                } else if !viewModel.customerId.isEmpty {
+                    LabeledContent("Cliente ID", value: viewModel.customerId)
+                } else {
+                    Label("Selecciona un cliente identificado para dejar una cuenta por cobrar.", systemImage: "person.crop.circle.badge.questionmark")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+
+                NavigationLink {
+                    CustomerPickerView(
+                        viewModel: CustomerPickerViewModel(
+                            organizationId: viewModel.organizationId,
+                            effectivePermissions: viewModel.effectivePermissions,
+                            customersRepository: customersRepository
+                        ),
+                        onSelect: { customer in
+                            viewModel.selectCustomer(customer)
+                        }
+                    )
+                } label: {
+                    Label("Seleccionar cliente", systemImage: "person.text.rectangle")
+                }
+
+                TextField("Cliente ID manual", text: $viewModel.customerId)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
 
@@ -199,7 +235,8 @@ public struct PaymentRegisterView: View {
                 cashRepository: PreviewCashRepository(),
                 paymentsRepository: PreviewPaymentsRepository(),
                 receivablesRepository: PreviewReceivablesRepository()
-            )
+            ),
+            customersRepository: PreviewCustomersRepository()
         )
     }
 }

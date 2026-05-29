@@ -9,6 +9,7 @@ import SwiftUI
 
 public struct SaleCartView: View {
     @Bindable private var viewModel: SaleCartViewModel
+    private let customersRepository: CustomersRepository
     private let cashRepository: CashRepository
     private let paymentsRepository: PaymentsRepository
     private let receivablesRepository: ReceivablesRepository
@@ -16,12 +17,14 @@ public struct SaleCartView: View {
 
     public init(
         viewModel: SaleCartViewModel,
+        customersRepository: CustomersRepository = UnavailableCustomersRepository(),
         cashRepository: CashRepository,
         paymentsRepository: PaymentsRepository,
         receivablesRepository: ReceivablesRepository,
         documentsRepository: BusinessDocumentsRepository
     ) {
         self.viewModel = viewModel
+        self.customersRepository = customersRepository
         self.cashRepository = cashRepository
         self.paymentsRepository = paymentsRepository
         self.receivablesRepository = receivablesRepository
@@ -30,6 +33,7 @@ public struct SaleCartView: View {
 
     public var body: some View {
         Form {
+            customerSection
             searchSection
             resultsSection
             cartSection
@@ -39,6 +43,38 @@ public struct SaleCartView: View {
             actionsSection
         }
         .navigationTitle("Venta rápida")
+    }
+
+    private var customerSection: some View {
+        Section("Cliente") {
+            if let customer = viewModel.selectedCustomer {
+                CustomerRowView(customer: customer)
+
+                Button(role: .destructive) {
+                    viewModel.clearCustomer()
+                } label: {
+                    Label("Quitar cliente", systemImage: "xmark.circle")
+                }
+            } else {
+                Label("Sin cliente identificado", systemImage: "person.crop.circle.badge.questionmark")
+                    .foregroundStyle(.secondary)
+            }
+
+            NavigationLink {
+                CustomerPickerView(
+                    viewModel: CustomerPickerViewModel(
+                        organizationId: viewModel.organizationId,
+                        effectivePermissions: viewModel.effectivePermissions,
+                        customersRepository: customersRepository
+                    ),
+                    onSelect: { customer in
+                        viewModel.selectCustomer(customer)
+                    }
+                )
+            } label: {
+                Label("Seleccionar cliente", systemImage: "person.text.rectangle")
+            }
+        }
     }
 
     private var searchSection: some View {
@@ -142,6 +178,7 @@ public struct SaleCartView: View {
                 NavigationLink("Abrir detalle de venta") {
                     SaleDetailView(
                         viewModel: viewModel.makeSaleDetailViewModel(for: sale),
+                        customersRepository: customersRepository,
                         cashRepository: cashRepository,
                         paymentsRepository: paymentsRepository,
                         receivablesRepository: receivablesRepository,
@@ -328,6 +365,7 @@ private struct SaleCartRow: View {
                 catalogRepository: PreviewCatalogRepository(),
                 salesRepository: PreviewSalesRepository()
             ),
+            customersRepository: PreviewCustomersRepository(),
             cashRepository: PreviewCashRepository(),
             paymentsRepository: PreviewPaymentsRepository(),
             receivablesRepository: PreviewReceivablesRepository(),

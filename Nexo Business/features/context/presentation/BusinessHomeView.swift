@@ -83,6 +83,7 @@ public struct BusinessHomeView: View {
                                 catalogRepository: container.catalogRepository,
                                 salesRepository: container.salesRepository
                             ),
+                            customersRepository: container.customersRepository,
                             cashRepository: container.cashRepository,
                             paymentsRepository: container.paymentsRepository,
                             receivablesRepository: container.receivablesRepository,
@@ -94,25 +95,18 @@ public struct BusinessHomeView: View {
                         .foregroundStyle(.secondary)
                 }
 
-                if moduleGate.allows(.coreSales), hasSalesHistoryAccess(permissionGate) {
-                    NavigationLink("Historial de ventas") {
-                        SalesHistoryView(
-                            viewModel: SalesHistoryViewModel(
+                if hasCustomerAccess(permissionGate) {
+                    NavigationLink("Clientes") {
+                        CustomerDirectoryView(
+                            viewModel: CustomerDirectoryViewModel(
                                 organizationId: context.organization.id,
-                                branchId: branchId,
-                                revisions: context.revisions,
                                 effectivePermissions: context.effectivePermissions,
-                                historyRepository: container.salesHistoryRepository
-                            ),
-                            salesRepository: container.salesRepository,
-                            cashRepository: container.cashRepository,
-                            paymentsRepository: container.paymentsRepository,
-                            receivablesRepository: container.receivablesRepository,
-                            documentsRepository: container.documentsRepository
+                                customersRepository: container.customersRepository
+                            )
                         )
                     }
                 } else {
-                    Label("Historial de ventas no habilitado para este usuario", systemImage: "lock")
+                    Label("Clientes no habilitado para este usuario", systemImage: "lock")
                         .foregroundStyle(.secondary)
                 }
 
@@ -129,30 +123,6 @@ public struct BusinessHomeView: View {
                     }
                 } else {
                     Label("Caja no habilitada para este usuario", systemImage: "lock")
-                        .foregroundStyle(.secondary)
-                }
-
-                if hasDailyClosureAccess(permissionGate) {
-                    NavigationLink("Pendientes y cierre diario") {
-                        DailyClosureView(
-                            viewModel: DailyClosureViewModel(
-                                organizationId: context.organization.id,
-                                branchId: branchId,
-                                revisions: context.revisions,
-                                effectivePermissions: context.effectivePermissions,
-                                pendingRepository: container.pendingOperationsRepository,
-                                dailyReportRepository: container.dailyReportRepository,
-                                cashRepository: container.cashRepository
-                            ),
-                            salesRepository: container.salesRepository,
-                            cashRepository: container.cashRepository,
-                            paymentsRepository: container.paymentsRepository,
-                            receivablesRepository: container.receivablesRepository,
-                            documentsRepository: container.documentsRepository
-                        )
-                    }
-                } else {
-                    Label("Cierre diario no habilitado para este usuario", systemImage: "lock")
                         .foregroundStyle(.secondary)
                 }
             }
@@ -173,11 +143,11 @@ public struct BusinessHomeView: View {
         permissionGate.allows("sales.preview")
     }
 
-    private func hasSalesHistoryAccess(_ permissionGate: PermissionGate) -> Bool {
-        permissionGate.allows("business.sales.view") ||
-        permissionGate.allows("sales.view") ||
-        permissionGate.allows("business.reports.sales") ||
-        permissionGate.allows("reports.sales")
+    private func hasCustomerAccess(_ permissionGate: PermissionGate) -> Bool {
+        permissionGate.allows("business.customers.view") ||
+        permissionGate.allows("customers.view") ||
+        permissionGate.allows("business.customers.create") ||
+        permissionGate.allows("customers.create")
     }
 
     private func hasCashAccess(_ permissionGate: PermissionGate) -> Bool {
@@ -188,20 +158,8 @@ public struct BusinessHomeView: View {
         permissionGate.allows("cash.close") ||
         permissionGate.allows("business.cash.close")
     }
-
-    private func hasDailyClosureAccess(_ permissionGate: PermissionGate) -> Bool {
-        permissionGate.allows("business.reports.today") ||
-        permissionGate.allows("reports.today") ||
-        permissionGate.allows("business.reports.daily") ||
-        permissionGate.allows("reports.daily") ||
-        permissionGate.allows("business.sales.view") ||
-        permissionGate.allows("sales.view") ||
-        permissionGate.allows("business.receivables.view") ||
-        permissionGate.allows("receivables.view") ||
-        permissionGate.allows("business.documents.view") ||
-        permissionGate.allows("documents.view")
-    }
 }
+
 
 #Preview {
     BusinessHomeView(

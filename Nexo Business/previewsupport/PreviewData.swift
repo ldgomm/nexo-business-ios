@@ -60,6 +60,10 @@ public enum PreviewData {
             "sales.create",
             "sales.confirm",
             "sales.cancel",
+            "business.customers.view",
+            "business.customers.create",
+            "customers.view",
+            "customers.create",
             "cash.open",
             "cash.close",
             "cash.view_current",
@@ -76,15 +80,7 @@ public enum PreviewData {
             "business.documents.issue_internal_ticket",
             "documents.issue_internal_ticket",
             "business.documents.register_physical_sale_note",
-            "documents.register_physical_sale_note",
-            "business.reports.today",
-            "reports.today",
-            "business.reports.daily",
-            "reports.daily",
-            "business.sales.view",
-            "sales.view",
-            "business.receivables.view",
-            "receivables.view"
+            "documents.register_physical_sale_note"
         ],
         revisions: revisions,
         readiness: BusinessReadiness(
@@ -158,6 +154,7 @@ public enum PreviewData {
             organizationId: businessContext.organization.id,
             branchId: businessContext.branches[0].id,
             activityId: businessContext.activities[0].id,
+            customerId: PreviewCustomersData.customers[1].id,
             status: "pending",
             paymentStatus: "unpaid",
             documentStatus: "not_required",
@@ -174,6 +171,7 @@ public enum PreviewData {
             organizationId: businessContext.organization.id,
             branchId: businessContext.branches[0].id,
             activityId: businessContext.activities[0].id,
+            customerId: PreviewCustomersData.customers[1].id,
             status: "confirmed",
             paymentStatus: "unpaid",
             documentStatus: "not_required",
@@ -191,6 +189,7 @@ public enum PreviewData {
             organizationId: businessContext.organization.id,
             branchId: businessContext.branches[0].id,
             activityId: businessContext.activities[0].id,
+            customerId: PreviewCustomersData.customers[1].id,
             status: "canceled",
             paymentStatus: "unpaid",
             documentStatus: "not_required",
@@ -201,7 +200,6 @@ public enum PreviewData {
         ),
         idempotencyReplayed: false
     )
-
 
     public static let paymentResponse = PaymentResponse(
         payment: PaymentRecord(
@@ -217,7 +215,7 @@ public enum PreviewData {
             organizationId: businessContext.organization.id,
             branchId: businessContext.branches[0].id,
             activityId: businessContext.activities[0].id,
-            customerId: "cus_preview",
+            customerId: PreviewCustomersData.customers[1].id,
             status: "confirmed",
             paymentStatus: "paid",
             documentStatus: "not_required",
@@ -233,7 +231,7 @@ public enum PreviewData {
         receivable: ReceivableRecord(
             id: "recv_preview",
             saleId: confirmedSaleResponse.sale.id,
-            customerId: "cus_preview",
+            customerId: PreviewCustomersData.customers[1].id,
             status: "pending",
             amount: confirmedSaleResponse.sale.totals.grandTotal,
             balance: confirmedSaleResponse.sale.totals.grandTotal,
@@ -243,7 +241,6 @@ public enum PreviewData {
         sale: confirmedSaleResponse.sale,
         idempotencyReplayed: false
     )
-
 
     public static let internalTicketDocument = BusinessDocument(
         id: "doc_preview_ticket",
@@ -277,7 +274,7 @@ public enum PreviewData {
             organizationId: businessContext.organization.id,
             branchId: businessContext.branches[0].id,
             activityId: businessContext.activities[0].id,
-            customerId: "cus_preview",
+            customerId: PreviewCustomersData.customers[1].id,
             status: confirmedSaleResponse.sale.status,
             paymentStatus: confirmedSaleResponse.sale.paymentStatus,
             documentStatus: "generated",
@@ -296,7 +293,7 @@ public enum PreviewData {
             organizationId: businessContext.organization.id,
             branchId: businessContext.branches[0].id,
             activityId: businessContext.activities[0].id,
-            customerId: "cus_preview",
+            customerId: PreviewCustomersData.customers[1].id,
             status: confirmedSaleResponse.sale.status,
             paymentStatus: confirmedSaleResponse.sale.paymentStatus,
             documentStatus: "registered",
@@ -307,65 +304,4 @@ public enum PreviewData {
         ),
         idempotencyReplayed: false
     )
-
-
-    public static let rejectedDocument = BusinessDocument(
-        id: "doc_preview_rejected",
-        saleId: confirmedSaleResponse.sale.id,
-        type: "electronic_invoice",
-        status: "rejected",
-        number: "001-001-000000124",
-        authorizationNumber: nil,
-        accessKey: "2905202601999999999999900110010010000001241234567811",
-        customerEmail: "cliente@nexo.test",
-        pdfUrl: nil,
-        xmlUrl: nil,
-        createdAt: Date().addingTimeInterval(-900),
-        authorizedAt: nil,
-        rejectedAt: Date().addingTimeInterval(-600)
-    )
-
-    public static let pendingSalesResponse = PendingSalesResponse(
-        sales: [
-            quickSaleResponse.sale,
-            confirmedSaleResponse.sale
-        ],
-        total: 2
-    )
-
-    public static let pendingReceivablesResponse = PendingReceivablesResponse(
-        receivables: [
-            receivableResponse.receivable
-        ],
-        total: 1
-    )
-
-    public static let pendingDocumentsResponse = PendingDocumentsResponse(
-        documents: [
-            rejectedDocument,
-            internalTicketDocument
-        ],
-        total: 2
-    )
-
-    public static let dailyReport = BusinessDailyReport(
-        businessDate: BusinessDayFormatter.string(from: Date()),
-        branchId: businessContext.branches[0].id,
-        salesCount: 7,
-        salesTotal: MoneyAmount(amount: "125.50"),
-        paymentsCount: 6,
-        paymentsTotal: MoneyAmount(amount: "108.00"),
-        cashExpectedAmount: MoneyAmount(amount: "78.00"),
-        receivablesPendingCount: 1,
-        receivablesPendingTotal: MoneyAmount(amount: "17.50"),
-        pendingSalesCount: 2,
-        pendingDocumentsCount: 2,
-        cashStatus: "open",
-        generatedAt: Date()
-    )
-
-    public static let dailyReportResponse = BusinessDailyReportResponse(
-        report: dailyReport
-    )
-
 }

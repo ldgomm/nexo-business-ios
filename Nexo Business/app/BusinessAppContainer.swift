@@ -17,9 +17,11 @@ public final class BusinessAppContainer: @unchecked Sendable {
     public let paymentsRepository: PaymentsRepository
     public let receivablesRepository: ReceivablesRepository
     public let documentsRepository: BusinessDocumentsRepository
+    public let customersRepository: CustomersRepository
     public let pendingOperationsRepository: PendingOperationsRepository
     public let dailyReportRepository: BusinessDailyReportRepository
     public let salesHistoryRepository: SalesHistoryRepository
+    public let inventoryRepository: InventoryRepository
 
     public init(
         tokenStore: AuthTokenStoring,
@@ -31,9 +33,11 @@ public final class BusinessAppContainer: @unchecked Sendable {
         paymentsRepository: PaymentsRepository,
         receivablesRepository: ReceivablesRepository,
         documentsRepository: BusinessDocumentsRepository,
+        customersRepository: CustomersRepository,
         pendingOperationsRepository: PendingOperationsRepository,
         dailyReportRepository: BusinessDailyReportRepository,
-        salesHistoryRepository: SalesHistoryRepository
+        salesHistoryRepository: SalesHistoryRepository,
+        inventoryRepository: InventoryRepository
     ) {
         self.tokenStore = tokenStore
         self.authRepository = authRepository
@@ -44,9 +48,11 @@ public final class BusinessAppContainer: @unchecked Sendable {
         self.paymentsRepository = paymentsRepository
         self.receivablesRepository = receivablesRepository
         self.documentsRepository = documentsRepository
+        self.customersRepository = customersRepository
         self.pendingOperationsRepository = pendingOperationsRepository
         self.dailyReportRepository = dailyReportRepository
         self.salesHistoryRepository = salesHistoryRepository
+        self.inventoryRepository = inventoryRepository
     }
 
     static func live(config: BusinessRuntimeConfig) -> BusinessAppContainer {
@@ -74,9 +80,11 @@ public final class BusinessAppContainer: @unchecked Sendable {
             paymentsRepository: PaymentsAPIRepository(apiClient: apiClient),
             receivablesRepository: ReceivablesAPIRepository(apiClient: apiClient),
             documentsRepository: BusinessDocumentsAPIRepository(apiClient: apiClient),
+            customersRepository: CustomersAPIRepository(apiClient: apiClient),
             pendingOperationsRepository: PendingOperationsAPIRepository(apiClient: apiClient),
             dailyReportRepository: BusinessDailyReportAPIRepository(apiClient: apiClient),
-            salesHistoryRepository: SalesHistoryAPIRepository(apiClient: apiClient)
+            salesHistoryRepository: SalesHistoryAPIRepository(apiClient: apiClient),
+            inventoryRepository: InventoryAPIRepository(apiClient: apiClient)
         )
     }
 }

@@ -27,9 +27,11 @@ public extension BusinessAppContainer {
             paymentsRepository: PreviewPaymentsRepository(),
             receivablesRepository: PreviewReceivablesRepository(),
             documentsRepository: PreviewBusinessDocumentsRepository(),
+            customersRepository: PreviewCustomersRepository(),
             pendingOperationsRepository: PreviewPendingOperationsRepository(),
             dailyReportRepository: PreviewBusinessDailyReportRepository(),
-            salesHistoryRepository: PreviewSalesHistoryRepository()
+            salesHistoryRepository: PreviewSalesHistoryRepository(),
+            inventoryRepository: PreviewInventoryRepository()
         )
     }
 }

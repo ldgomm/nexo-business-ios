@@ -61,6 +61,7 @@ public enum PaymentRegisterMode: String, CaseIterable, Identifiable, Sendable, H
 public final class PaymentRegisterViewModel {
     public let sale: BusinessSale
     public private(set) var currentCashSession: CashSession?
+    public private(set) var selectedCustomer: BusinessCustomer?
     public private(set) var isLoadingCash = false
     public private(set) var isSubmitting = false
     public private(set) var paymentResult: PaymentRecord?
@@ -75,9 +76,10 @@ public final class PaymentRegisterViewModel {
     public var errorMessage: String?
     public var infoMessage: String?
 
-    private let organizationId: String
-    private let branchId: String
-    private let effectivePermissions: Set<String>
+    public let organizationId: String
+    public let branchId: String
+    public let effectivePermissions: Set<String>
+
     private let cashRepository: CashRepository
     private let paymentsRepository: PaymentsRepository
     private let receivablesRepository: ReceivablesRepository
@@ -89,7 +91,8 @@ public final class PaymentRegisterViewModel {
         effectivePermissions: Set<String>,
         cashRepository: CashRepository,
         paymentsRepository: PaymentsRepository,
-        receivablesRepository: ReceivablesRepository
+        receivablesRepository: ReceivablesRepository,
+        customersRepository: CustomersRepository = UnavailableCustomersRepository()
     ) {
         self.organizationId = organizationId
         self.branchId = branchId
@@ -149,6 +152,18 @@ public final class PaymentRegisterViewModel {
 
     public var amountMoney: String {
         "\(sale.totals.grandTotal.currency) \(amount)"
+    }
+
+    public func selectCustomer(_ customer: BusinessCustomer) {
+        selectedCustomer = customer
+        customerId = customer.identificationType == .finalConsumer ? "" : customer.id
+        resetResultMessages()
+    }
+
+    public func clearCustomer() {
+        selectedCustomer = nil
+        customerId = sale.customerId ?? ""
+        resetResultMessages()
     }
 
     public func load() async {
