@@ -1,0 +1,41 @@
+# Xcode
+DerivedData/
+build/
+*.xcuserstate
+*.xcuserdata/
+*.moved-aside
+*.xccheckout
+*.xcscmblueprint
+
+# Swift Package Manager
+.build/
+.swiftpm/
+
+# CocoaPods
+Pods/
+
+# Carthage
+Carthage/Build/
+
+# Fastlane
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots/**/*.png
+fastlane/test_output/
+
+# macOS
+.DS_Store
+
+# Secrets
+.env
+*.env
+*.p12
+*.pfx
+*.cer
+*.mobileprovision
+*.apikey
+GoogleService-Info.plist
+
+export_swift_to_md.sh
+project_swift_files.md
+add_swift_header.sh

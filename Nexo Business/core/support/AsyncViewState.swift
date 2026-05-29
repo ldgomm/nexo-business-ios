@@ -1,0 +1,15 @@
+//
+//  AsyncViewState.swift
+//  Nexo Admin
+//
+//  Created by José Ruiz on 29/5/26.
+//
+
+import Foundation
+
+public enum AsyncViewState<Value: Equatable>: Equatable {
+    case idle
+    case loading
+    case loaded(Value)
+    case failed(String)
+}
