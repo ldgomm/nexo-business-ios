@@ -9,21 +9,17 @@ import SwiftUI
 
 public struct BusinessRootView: View {
     private let container: BusinessAppContainer
-    private let organizationId: String
 
     @State private var sessionViewModel: BusinessSessionViewModel
     @State private var loginViewModel: LoginViewModel
 
-    public init(
-        container: BusinessAppContainer,
-        organizationId: String
-    ) {
+    public init(container: BusinessAppContainer) {
         self.container = container
-        self.organizationId = organizationId
 
         let sessionViewModel = BusinessSessionViewModel(
-            organizationId: organizationId,
             tokenStore: container.tokenStore,
+            selectionStore: container.selectionStore,
+            organizationAccessRepository: container.organizationAccessRepository,
             contextRepository: container.contextRepository
         )
 
@@ -32,7 +28,7 @@ public struct BusinessRootView: View {
             initialValue: LoginViewModel(
                 authRepository: container.authRepository,
                 onLoginSucceeded: {
-                    await sessionViewModel.loadContextAfterLogin()
+                    await sessionViewModel.loadOrganizationsAfterLogin()
                 }
             )
         )
@@ -50,18 +46,56 @@ public struct BusinessRootView: View {
     @ViewBuilder
     private var content: some View {
         switch sessionViewModel.state {
-        case .bootstrapping, .loadingContext:
+        case .bootstrapping, .loadingOrganizations, .loadingContext:
             BusinessSessionLoadingView()
 
         case let .signedOut(message):
             signedOutContent(message: message)
 
-        case let .signedIn(context):
+        case let .needsOrganizationSelection(organizations):
+            BusinessOrganizationSelectionView(
+                organizations: organizations,
+                selectAction: { organization in
+                    Task { await sessionViewModel.selectOrganization(organization) }
+                },
+                logoutAction: {
+                    Task { await sessionViewModel.logout() }
+                }
+            )
+
+        case let .needsOperationalSelection(context, reason):
+            BusinessOperationalSelectionView(
+                context: context,
+                reason: reason,
+                continueAction: { branchId, activityId in
+                    Task {
+                        await sessionViewModel.selectOperationalContext(
+                            branchId: branchId,
+                            activityId: activityId
+                        )
+                    }
+                },
+                changeOrganizationAction: {
+                    Task { await sessionViewModel.changeOrganization() }
+                },
+                logoutAction: {
+                    Task { await sessionViewModel.logout() }
+                }
+            )
+
+        case let .signedIn(context, selection):
             BusinessHomeView(
                 context: context,
+                operationalSelection: selection,
                 container: container,
                 onRefresh: {
                     Task { await sessionViewModel.refreshContext() }
+                },
+                onChangeOrganization: {
+                    Task { await sessionViewModel.changeOrganization() }
+                },
+                onChangeOperation: {
+                    Task { await sessionViewModel.changeOperationalContext() }
                 },
                 onLogout: {
                     Task { await sessionViewModel.logout() }
@@ -98,8 +132,5 @@ public struct BusinessRootView: View {
 }
 
 #Preview("Signed out") {
-    BusinessRootView(
-        container: .preview,
-        organizationId: PreviewData.businessContext.organization.id
-    )
+    BusinessRootView(container: .preview)
 }

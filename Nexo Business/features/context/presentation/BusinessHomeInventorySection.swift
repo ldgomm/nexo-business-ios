@@ -8,32 +8,39 @@
 import SwiftUI
 
 public struct BusinessHomeInventorySection: View {
-    private let context: BusinessContextResponse
+    private let organizationId: String
+    private let branchId: String
+    private let activityId: String
+    private let catalogRevision: String
+    private let effectivePermissions: Set<String>
     private let inventoryRepository: InventoryRepository
 
     public init(
-        context: BusinessContextResponse,
+        organizationId: String,
+        branchId: String,
+        activityId: String,
+        catalogRevision: String,
+        effectivePermissions: Set<String>,
         inventoryRepository: InventoryRepository
     ) {
-        self.context = context
+        self.organizationId = organizationId
+        self.branchId = branchId
+        self.activityId = activityId
+        self.catalogRevision = catalogRevision
+        self.effectivePermissions = effectivePermissions
         self.inventoryRepository = inventoryRepository
     }
 
     public var body: some View {
-        let moduleGate = ModuleGate(activeModules: context.activeModules)
-        let permissionGate = PermissionGate(effectivePermissions: context.effectivePermissions)
-        let branchId = context.branches.first?.id ?? ""
-        let activityId = context.activities.first?.id ?? ""
-
-        if allowsInventory(moduleGate: moduleGate, permissionGate: permissionGate) {
+        if allowsInventory {
             NavigationLink("Inventario") {
                 InventoryDashboardView(
                     viewModel: InventoryDashboardViewModel(
-                        organizationId: context.organization.id,
+                        organizationId: organizationId,
                         branchId: branchId,
                         activityId: activityId,
-                        catalogRevision: context.revisions.catalogRevision,
-                        effectivePermissions: context.effectivePermissions,
+                        catalogRevision: catalogRevision,
+                        effectivePermissions: effectivePermissions,
                         inventoryRepository: inventoryRepository
                     )
                 )
@@ -44,16 +51,10 @@ public struct BusinessHomeInventorySection: View {
         }
     }
 
-    private func allowsInventory(
-        moduleGate: ModuleGate,
-        permissionGate: PermissionGate
-    ) -> Bool {
-        let moduleEnabled = moduleGate.allows("core.inventory") || moduleGate.allows("inventory.basic")
-        let hasPermission = permissionGate.allows("business.inventory.view") ||
-            permissionGate.allows("inventory.view") ||
-            permissionGate.allows("business.inventory.adjust") ||
-            permissionGate.allows("inventory.adjust")
-
-        return moduleEnabled || hasPermission
+    private var allowsInventory: Bool {
+        effectivePermissions.contains("business.inventory.view") ||
+        effectivePermissions.contains("inventory.view") ||
+        effectivePermissions.contains("business.inventory.adjust") ||
+        effectivePermissions.contains("inventory.adjust")
     }
 }

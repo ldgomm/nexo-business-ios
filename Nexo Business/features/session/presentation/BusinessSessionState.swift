@@ -10,7 +10,10 @@ import Foundation
 public enum BusinessSessionState: Equatable {
     case bootstrapping
     case signedOut(message: String? = nil)
+    case loadingOrganizations
+    case needsOrganizationSelection([BusinessOrganizationAccess])
     case loadingContext
-    case signedIn(BusinessContextResponse)
+    case needsOperationalSelection(context: BusinessContextResponse, reason: String? = nil)
+    case signedIn(BusinessContextResponse, BusinessOperationalSelection)
     case failed(String)
 }

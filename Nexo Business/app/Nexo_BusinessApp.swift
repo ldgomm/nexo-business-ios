@@ -1,6 +1,6 @@
 //
 //  Nexo_BusinessApp.swift
-//  Nexo Admin
+//  Nexo Business
 //
 //  Created by José Ruiz on 29/5/26.
 //
@@ -20,10 +20,7 @@ struct Nexo_BusinessApp: App {
 
     var body: some Scene {
         WindowGroup {
-            ContentView(
-                container: container,
-                organizationId: config.organizationId
-            )
+            ContentView(container: container)
         }
     }
 }

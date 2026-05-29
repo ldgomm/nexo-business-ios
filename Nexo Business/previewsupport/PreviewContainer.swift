@@ -17,9 +17,21 @@ public extension BusinessAppContainer {
             )
         )
 
+        let selectionStore = InMemoryBusinessSelectionStore(
+            snapshot: BusinessSelectionSnapshot(
+                organizationId: PreviewData.businessContext.organization.id,
+                branchId: PreviewData.businessContext.branches.first?.id,
+                activityId: PreviewData.businessContext.activities.first?.id
+            )
+        )
+
         return BusinessAppContainer(
             tokenStore: tokenStore,
+            selectionStore: selectionStore,
+            networkStatusProvider: StaticNetworkStatusProvider(status: .satisfied),
+            operationGate: AsyncOperationGate(),
             authRepository: PreviewAuthRepository(),
+            organizationAccessRepository: PreviewBusinessOrganizationAccessRepository(),
             contextRepository: PreviewBusinessContextRepository(),
             catalogRepository: PreviewCatalogRepository(),
             salesRepository: PreviewSalesRepository(),
@@ -27,10 +39,10 @@ public extension BusinessAppContainer {
             paymentsRepository: PreviewPaymentsRepository(),
             receivablesRepository: PreviewReceivablesRepository(),
             documentsRepository: PreviewBusinessDocumentsRepository(),
-            customersRepository: PreviewCustomersRepository(),
             pendingOperationsRepository: PreviewPendingOperationsRepository(),
             dailyReportRepository: PreviewBusinessDailyReportRepository(),
             salesHistoryRepository: PreviewSalesHistoryRepository(),
+            customersRepository: PreviewCustomersRepository(),
             inventoryRepository: PreviewInventoryRepository()
         )
     }

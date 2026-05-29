@@ -1,6 +1,6 @@
 //
 //  BusinessRuntimeConfig.swift
-//  Nexo Admin
+//  Nexo Business
 //
 //  Created by José Ruiz on 29/5/26.
 //
@@ -9,7 +9,7 @@ import Foundation
 
 struct BusinessRuntimeConfig: Equatable, Sendable {
     let environment: AppEnvironment
-    let organizationId: String
+    let organizationId: String?
     let deviceId: String
 
     static var current: BusinessRuntimeConfig {
@@ -26,14 +26,14 @@ struct BusinessRuntimeConfig: Equatable, Sendable {
 
         return BusinessRuntimeConfig(
             environment: environment,
-            organizationId: organizationId?.isEmpty == false ? organizationId! : "org_altos",
-            deviceId: deviceId?.isEmpty == false ? deviceId! : "ios-business-15a"
+            organizationId: organizationId?.isEmpty == false ? organizationId : nil,
+            deviceId: deviceId?.isEmpty == false ? deviceId! : "ios-business-15k"
         )
     }
 
     static let staging = BusinessRuntimeConfig(
         environment: .staging,
-        organizationId: "org_altos",
-        deviceId: "ios-business-15a"
+        organizationId: nil,
+        deviceId: "ios-business-15k"
     )
 }
