@@ -28,12 +28,6 @@ public extension PreviewData {
             status: "active"
         )
     ]
-
-    static let operationalSelection = BusinessOperationalSelection(
-        organizationId: businessContext.organization.id,
-        branchId: businessContext.branches.first?.id ?? "br_001",
-        activityId: businessContext.activities.first?.id ?? "act_restaurant"
-    )
 }
 
 public final class PreviewBusinessOrganizationAccessRepository: BusinessOrganizationAccessRepository, @unchecked Sendable {

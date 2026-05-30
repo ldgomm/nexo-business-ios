@@ -248,18 +248,19 @@ public final class PreviewReceivablesRepository: ReceivablesRepository, @uncheck
         idempotencyKey: IdempotencyKey,
         request: CreateReceivableRequest
     ) async throws -> ReceivableResponse {
-        ReceivableResponse(
+        let amount = previewAmount(request.amount)
+
+        return ReceivableResponse(
             receivable: ReceivableRecord(
                 id: "recv_preview",
                 saleId: request.saleId,
                 customerId: request.customerId,
                 status: "pending",
-                amount: MoneyAmount(amount: request.amount),
-                balance: MoneyAmount(amount: request.amount),
+                amount: MoneyAmount(amount: amount),
+                balance: MoneyAmount(amount: amount),
                 dueDate: request.dueDate,
                 createdAt: Date()
             ),
-            sale: PreviewData.confirmedSaleResponse.sale,
             idempotencyReplayed: false
         )
     }
@@ -269,12 +270,13 @@ public final class PreviewReceivablesRepository: ReceivablesRepository, @uncheck
         idempotencyKey: IdempotencyKey,
         request: CollectReceivableRequest
     ) async throws -> ReceivableCollectionResponse {
+        let amount = previewAmount(request.amount)
         let payment = PaymentRecord(
             id: "pay_recv_preview",
             saleId: PreviewData.confirmedSaleResponse.sale.id,
             status: "registered",
             method: request.method,
-            amount: MoneyAmount(amount: request.amount),
+            amount: MoneyAmount(amount: amount),
             reference: request.reference,
             note: request.note,
             registeredAt: Date()
@@ -286,17 +288,65 @@ public final class PreviewReceivablesRepository: ReceivablesRepository, @uncheck
                 saleId: PreviewData.confirmedSaleResponse.sale.id,
                 customerId: "cus_preview",
                 status: "collected",
-                amount: MoneyAmount(amount: request.amount),
+                amount: MoneyAmount(amount: amount),
                 balance: MoneyAmount(amount: "0.00"),
                 createdAt: Date().addingTimeInterval(-3600)
             ),
             payment: payment,
-            sale: PreviewData.paymentResponse.sale,
             idempotencyReplayed: false
         )
     }
-}
 
+    private func previewAmount(_ value: Any?) -> String {
+        let fallback = PreviewData.confirmedSaleResponse.sale.totals.grandTotal.amount
+
+        guard let value else {
+            return fallback
+        }
+
+        if let amount = value as? MoneyAmount {
+            return amount.amount.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                ? fallback
+                : amount.amount
+        }
+
+        if let string = value as? String {
+            let trimmed = string.trimmingCharacters(in: .whitespacesAndNewlines)
+            return trimmed.isEmpty ? fallback : trimmed
+        }
+
+        let mirror = Mirror(reflecting: value)
+        if mirror.displayStyle == .optional {
+            guard let child = mirror.children.first else {
+                return fallback
+            }
+            return previewAmount(child.value)
+        }
+
+        let raw = String(describing: value)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard !raw.isEmpty else {
+            return fallback
+        }
+
+        if raw == "nil" || raw == "Optional(nil)" {
+            return fallback
+        }
+
+        if raw.hasPrefix("Optional(\"") && raw.hasSuffix("\")") {
+            let inner = raw.dropFirst("Optional(\"".count).dropLast(2)
+            return inner.isEmpty ? fallback : String(inner)
+        }
+
+        if raw.hasPrefix("Optional(") && raw.hasSuffix(")") {
+            let inner = raw.dropFirst("Optional(".count).dropLast()
+            return inner.isEmpty ? fallback : String(inner)
+        }
+
+        return raw
+    }
+}
 
 public final class PreviewPendingOperationsRepository: PendingOperationsRepository, @unchecked Sendable {
     public init() {}

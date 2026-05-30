@@ -24,6 +24,31 @@ public struct SaleDraftItem: Codable, Equatable, Identifiable, Sendable {
         self.quantity = quantity
         self.note = note
     }
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case catalogItemId
+        case quantity
+        case note
+        case notes
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decodeIfPresent(String.self, forKey: .id) ?? UUID().uuidString
+        catalogItemId = try container.decode(String.self, forKey: .catalogItemId)
+        quantity = try container.decodeIfPresent(String.self, forKey: .quantity)
+            ?? String(try container.decodeIfPresent(Double.self, forKey: .quantity) ?? 1)
+        note = try container.decodeIfPresent(String.self, forKey: .note)
+            ?? container.decodeIfPresent(String.self, forKey: .notes)
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(catalogItemId, forKey: .catalogItemId)
+        try container.encode(quantity, forKey: .quantity)
+        try container.encodeIfPresent(note, forKey: .notes)
+    }
 }
 
 public struct SalesPreviewRequest: Encodable, Equatable, Sendable {
@@ -50,233 +75,377 @@ public struct QuickSaleRequest: Encodable, Equatable, Sendable {
     public let activityId: String
     public let customerId: String?
     public let items: [SaleDraftItem]
-    public let note: String?
+    public let notes: String?
 
     public init(
         branchId: String,
         activityId: String,
         customerId: String? = nil,
         items: [SaleDraftItem],
-        note: String? = nil
+        notes: String? = nil
     ) {
         self.branchId = branchId
         self.activityId = activityId
         self.customerId = customerId
         self.items = items
-        self.note = note
+        self.notes = notes
+    }
+
+    public init(
+        branchId: String,
+        activityId: String,
+        customerId: String? = nil,
+        items: [SaleDraftItem],
+        note: String?
+    ) {
+        self.init(
+            branchId: branchId,
+            activityId: activityId,
+            customerId: customerId,
+            items: items,
+            notes: note
+        )
     }
 }
 
 public struct ConfirmSaleRequest: Encodable, Equatable, Sendable {
-    public let note: String?
+    public let notes: String?
 
-    public init(note: String? = nil) {
-        self.note = note
+    public init(notes: String? = nil) {
+        self.notes = notes
+    }
+
+    public init(note: String?) {
+        self.notes = note
     }
 }
 
 public struct CancelSaleRequest: Encodable, Equatable, Sendable {
-    public let reason: String?
+    public let reason: String
+    public let notes: String?
 
-    public init(reason: String? = nil) {
+    public init(reason: String, notes: String? = nil) {
         self.reason = reason
+        self.notes = notes
+    }
+
+    public init(reason: String, note: String?) {
+        self.reason = reason
+        self.notes = note
     }
 }
 
-public struct SaleTotals: Decodable, Equatable, Sendable {
-    public let subtotalWithoutTaxes: MoneyAmount
-    public let discountTotal: MoneyAmount
-    public let taxTotal: MoneyAmount
-    public let grandTotal: MoneyAmount
+public struct BusinessSaleCustomer: Decodable, Equatable, Sendable {
+    public let id: String?
+    public let displayName: String
+    public let identification: String?
+
+    public init(id: String? = nil, displayName: String, identification: String? = nil) {
+        self.id = id
+        self.displayName = displayName
+        self.identification = identification
+    }
+}
+
+public struct BusinessSaleTotals: Decodable, Equatable, Sendable {
+    public let subtotal: MoneyAmount
+    public let discount: MoneyAmount
+    public let tax: MoneyAmount
+    public let total: MoneyAmount
 
     public init(
+        subtotal: MoneyAmount,
+        discount: MoneyAmount,
+        tax: MoneyAmount,
+        total: MoneyAmount
+    ) {
+        self.subtotal = subtotal
+        self.discount = discount
+        self.tax = tax
+        self.total = total
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case subtotal
+        case subtotalWithoutTaxes
+        case discount
+        case discountTotal
+        case tax
+        case taxTotal
+        case total
+        case grandTotal
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        subtotal = try container.decodeIfPresent(MoneyAmount.self, forKey: .subtotal)
+            ?? container.decodeIfPresent(MoneyAmount.self, forKey: .subtotalWithoutTaxes)
+            ?? MoneyAmount(amount: "0.00")
+        discount = try container.decodeIfPresent(MoneyAmount.self, forKey: .discount)
+            ?? container.decodeIfPresent(MoneyAmount.self, forKey: .discountTotal)
+            ?? MoneyAmount(amount: "0.00")
+        tax = try container.decodeIfPresent(MoneyAmount.self, forKey: .tax)
+            ?? container.decodeIfPresent(MoneyAmount.self, forKey: .taxTotal)
+            ?? MoneyAmount(amount: "0.00")
+        total = try container.decodeIfPresent(MoneyAmount.self, forKey: .total)
+            ?? container.decodeIfPresent(MoneyAmount.self, forKey: .grandTotal)
+            ?? MoneyAmount(amount: "0.00")
+    }
+}
+
+
+public extension BusinessSaleTotals {
+    var subtotalWithoutTaxes: MoneyAmount { subtotal }
+    var discountTotal: MoneyAmount { discount }
+    var taxTotal: MoneyAmount { tax }
+    var grandTotal: MoneyAmount { total }
+
+    init(
         subtotalWithoutTaxes: MoneyAmount,
         discountTotal: MoneyAmount,
         taxTotal: MoneyAmount,
         grandTotal: MoneyAmount
     ) {
-        self.subtotalWithoutTaxes = subtotalWithoutTaxes
-        self.discountTotal = discountTotal
-        self.taxTotal = taxTotal
-        self.grandTotal = grandTotal
+        self.init(
+            subtotal: subtotalWithoutTaxes,
+            discount: discountTotal,
+            tax: taxTotal,
+            total: grandTotal
+        )
     }
 }
 
-public struct SaleLinePreview: Decodable, Equatable, Identifiable, Sendable {
+public typealias SaleTotals = BusinessSaleTotals
+
+public struct BusinessSaleItem: Decodable, Equatable, Identifiable, Sendable {
     public let id: String
-    public let catalogItemId: String
+    public let catalogItemId: String?
     public let name: String
     public let quantity: String
-    public let unitPrice: MoneyAmount
-    public let lineSubtotal: MoneyAmount
-    public let taxTotal: MoneyAmount
-    public let lineTotal: MoneyAmount
+    public let unitPrice: MoneyAmount?
+    public let subtotal: MoneyAmount?
+    public let total: MoneyAmount?
+    public let note: String?
 
     public init(
         id: String,
-        catalogItemId: String,
+        catalogItemId: String? = nil,
         name: String,
         quantity: String,
-        unitPrice: MoneyAmount,
-        lineSubtotal: MoneyAmount,
-        taxTotal: MoneyAmount,
-        lineTotal: MoneyAmount
+        unitPrice: MoneyAmount? = nil,
+        subtotal: MoneyAmount? = nil,
+        total: MoneyAmount? = nil,
+        note: String? = nil
     ) {
         self.id = id
         self.catalogItemId = catalogItemId
         self.name = name
         self.quantity = quantity
         self.unitPrice = unitPrice
-        self.lineSubtotal = lineSubtotal
-        self.taxTotal = taxTotal
-        self.lineTotal = lineTotal
+        self.subtotal = subtotal
+        self.total = total
+        self.note = note
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case catalogItemId
+        case name
+        case description
+        case quantity
+        case unitPrice
+        case subtotal
+        case total
+        case note
+        case notes
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decodeIfPresent(String.self, forKey: .id) ?? UUID().uuidString
+        catalogItemId = try container.decodeIfPresent(String.self, forKey: .catalogItemId)
+        name = try container.decodeIfPresent(String.self, forKey: .name)
+            ?? container.decodeIfPresent(String.self, forKey: .description)
+            ?? "Ítem"
+        quantity = try container.decodeIfPresent(String.self, forKey: .quantity)
+            ?? String(try container.decodeIfPresent(Double.self, forKey: .quantity) ?? 1)
+        unitPrice = try container.decodeIfPresent(MoneyAmount.self, forKey: .unitPrice)
+        subtotal = try container.decodeIfPresent(MoneyAmount.self, forKey: .subtotal)
+        total = try container.decodeIfPresent(MoneyAmount.self, forKey: .total)
+        note = try container.decodeIfPresent(String.self, forKey: .note)
+            ?? container.decodeIfPresent(String.self, forKey: .notes)
     }
 }
 
-public struct SalesPreviewResponse: Decodable, Equatable, Sendable {
-    public let previewId: String?
-    public let totals: SaleTotals
-    public let items: [SaleLinePreview]
-    public let warnings: [String]
-    public let revisions: BusinessRevisions?
-
-    public init(
-        previewId: String? = nil,
-        totals: SaleTotals,
-        items: [SaleLinePreview],
-        warnings: [String] = [],
-        revisions: BusinessRevisions? = nil
-    ) {
-        self.previewId = previewId
-        self.totals = totals
-        self.items = items
-        self.warnings = warnings
-        self.revisions = revisions
-    }
-}
+public typealias SalePreviewItem = BusinessSaleItem
 
 public struct BusinessSale: Decodable, Equatable, Identifiable, Sendable {
     public let id: String
-    public let organizationId: String
+    public let number: String?
+    public let organizationId: String?
     public let branchId: String
-    public let activityId: String
+    public let activityId: String?
     public let customerId: String?
+    public let customerName: String?
+    public let customer: BusinessSaleCustomer?
     public let status: String
     public let paymentStatus: String?
     public let documentStatus: String?
-    public let totals: SaleTotals
-    public let items: [SaleLinePreview]
-    public let note: String?
+    public let totals: BusinessSaleTotals
+    public let items: [BusinessSaleItem]
     public let createdAt: Date?
     public let confirmedAt: Date?
-    public let canceledAt: Date?
     public let closedAt: Date?
     public let updatedAt: Date?
 
     public init(
         id: String,
-        organizationId: String,
+        number: String? = nil,
+        organizationId: String? = nil,
         branchId: String,
-        activityId: String,
+        activityId: String? = nil,
         customerId: String? = nil,
+        customerName: String? = nil,
+        customer: BusinessSaleCustomer? = nil,
         status: String,
         paymentStatus: String? = nil,
         documentStatus: String? = nil,
-        totals: SaleTotals,
-        items: [SaleLinePreview] = [],
-        note: String? = nil,
+        totals: BusinessSaleTotals,
+        items: [BusinessSaleItem] = [],
         createdAt: Date? = nil,
         confirmedAt: Date? = nil,
-        canceledAt: Date? = nil,
         closedAt: Date? = nil,
         updatedAt: Date? = nil
     ) {
         self.id = id
+        self.number = number
         self.organizationId = organizationId
         self.branchId = branchId
         self.activityId = activityId
         self.customerId = customerId
+        self.customerName = customerName
+        self.customer = customer
         self.status = status
         self.paymentStatus = paymentStatus
         self.documentStatus = documentStatus
         self.totals = totals
         self.items = items
-        self.note = note
         self.createdAt = createdAt
         self.confirmedAt = confirmedAt
-        self.canceledAt = canceledAt
         self.closedAt = closedAt
         self.updatedAt = updatedAt
     }
 
     private enum CodingKeys: String, CodingKey {
         case id
-        case mongoId = "_id"
+        case number
         case organizationId
         case branchId
         case activityId
         case customerId
+        case customerName
+        case customer
         case status
         case paymentStatus
         case documentStatus
         case totals
+        case total
         case items
-        case lines
-        case note
         case createdAt
         case confirmedAt
-        case canceledAt
         case closedAt
         case updatedAt
     }
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-
-        id = try container.decodeFirstString(for: [.id, .mongoId])
-        organizationId = try container.decodeIfPresent(String.self, forKey: .organizationId) ?? ""
+        id = try container.decode(String.self, forKey: .id)
+        number = try container.decodeIfPresent(String.self, forKey: .number)
+        organizationId = try container.decodeIfPresent(String.self, forKey: .organizationId)
         branchId = try container.decodeIfPresent(String.self, forKey: .branchId) ?? ""
-        activityId = try container.decodeIfPresent(String.self, forKey: .activityId) ?? ""
+        activityId = try container.decodeIfPresent(String.self, forKey: .activityId)
         customerId = try container.decodeIfPresent(String.self, forKey: .customerId)
-        status = try container.decodeIfPresent(String.self, forKey: .status) ?? "unknown"
+        customerName = try container.decodeIfPresent(String.self, forKey: .customerName)
+        customer = try container.decodeIfPresent(BusinessSaleCustomer.self, forKey: .customer)
+        status = try container.decodeIfPresent(String.self, forKey: .status) ?? "pending"
         paymentStatus = try container.decodeIfPresent(String.self, forKey: .paymentStatus)
         documentStatus = try container.decodeIfPresent(String.self, forKey: .documentStatus)
-        totals = try container.decode(SaleTotals.self, forKey: .totals)
-        items = try container.decodeFirstLinesIfPresent(for: [.items, .lines]) ?? []
-        note = try container.decodeIfPresent(String.self, forKey: .note)
+        if let totals = try container.decodeIfPresent(BusinessSaleTotals.self, forKey: .totals) {
+            self.totals = totals
+        } else if let total = try container.decodeIfPresent(MoneyAmount.self, forKey: .total) {
+            self.totals = BusinessSaleTotals(
+                subtotal: total,
+                discount: MoneyAmount(amount: "0.00"),
+                tax: MoneyAmount(amount: "0.00"),
+                total: total
+            )
+        } else {
+            self.totals = BusinessSaleTotals(
+                subtotal: MoneyAmount(amount: "0.00"),
+                discount: MoneyAmount(amount: "0.00"),
+                tax: MoneyAmount(amount: "0.00"),
+                total: MoneyAmount(amount: "0.00")
+            )
+        }
+        items = try container.decodeIfPresent([BusinessSaleItem].self, forKey: .items) ?? []
         createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt)
         confirmedAt = try container.decodeIfPresent(Date.self, forKey: .confirmedAt)
-        canceledAt = try container.decodeIfPresent(Date.self, forKey: .canceledAt)
         closedAt = try container.decodeIfPresent(Date.self, forKey: .closedAt)
         updatedAt = try container.decodeIfPresent(Date.self, forKey: .updatedAt)
     }
 }
 
-private extension KeyedDecodingContainer {
-    func decodeFirstString(for keys: [Key]) throws -> String {
-        for key in keys {
-            if let value = try decodeIfPresent(String.self, forKey: key), !value.isEmpty {
-                return value
-            }
-        }
+public typealias BusinessSaleSummary = BusinessSale
 
-        throw DecodingError.keyNotFound(
-            keys[0],
-            DecodingError.Context(
-                codingPath: codingPath,
-                debugDescription: "Expected one of keys: \(keys.map(\.stringValue).joined(separator: ", "))"
-            )
-        )
+public struct SalesPreviewResponse: Decodable, Equatable, Sendable {
+    public let items: [BusinessSaleItem]
+    public let totals: BusinessSaleTotals
+    public let warnings: [String]
+
+    public init(
+        items: [BusinessSaleItem],
+        totals: BusinessSaleTotals,
+        warnings: [String] = []
+    ) {
+        self.items = items
+        self.totals = totals
+        self.warnings = warnings
     }
 
-    func decodeFirstLinesIfPresent(for keys: [Key]) throws -> [SaleLinePreview]? {
-        for key in keys {
-            if let value = try decodeIfPresent([SaleLinePreview].self, forKey: key) {
-                return value
+    private enum CodingKeys: String, CodingKey {
+        case items
+        case totals
+        case preview
+        case warnings
+    }
+
+    public init(from decoder: Decoder) throws {
+        if let container = try? decoder.container(keyedBy: CodingKeys.self) {
+            if let preview = try? container.decode(SalesPreviewResponse.self, forKey: .preview) {
+                self = preview
+                return
             }
+
+            items = try container.decodeIfPresent([BusinessSaleItem].self, forKey: .items) ?? []
+            totals = try container.decodeIfPresent(BusinessSaleTotals.self, forKey: .totals)
+                ?? BusinessSaleTotals(
+                    subtotal: MoneyAmount(amount: "0.00"),
+                    discount: MoneyAmount(amount: "0.00"),
+                    tax: MoneyAmount(amount: "0.00"),
+                    total: MoneyAmount(amount: "0.00")
+                )
+            warnings = try container.decodeIfPresent([String].self, forKey: .warnings) ?? []
+            return
         }
 
-        return nil
+        items = []
+        totals = BusinessSaleTotals(
+            subtotal: MoneyAmount(amount: "0.00"),
+            discount: MoneyAmount(amount: "0.00"),
+            tax: MoneyAmount(amount: "0.00"),
+            total: MoneyAmount(amount: "0.00")
+        )
+        warnings = []
     }
 }
 
@@ -306,10 +475,7 @@ public struct QuickSaleResponse: Decodable, Equatable, Sendable {
     public let sale: BusinessSale
     public let idempotencyReplayed: Bool?
 
-    public init(
-        sale: BusinessSale,
-        idempotencyReplayed: Bool? = nil
-    ) {
+    public init(sale: BusinessSale, idempotencyReplayed: Bool? = nil) {
         self.sale = sale
         self.idempotencyReplayed = idempotencyReplayed
     }
@@ -336,10 +502,7 @@ public struct ConfirmSaleResponse: Decodable, Equatable, Sendable {
     public let sale: BusinessSale
     public let idempotencyReplayed: Bool?
 
-    public init(
-        sale: BusinessSale,
-        idempotencyReplayed: Bool? = nil
-    ) {
+    public init(sale: BusinessSale, idempotencyReplayed: Bool? = nil) {
         self.sale = sale
         self.idempotencyReplayed = idempotencyReplayed
     }
@@ -366,10 +529,7 @@ public struct CancelSaleResponse: Decodable, Equatable, Sendable {
     public let sale: BusinessSale
     public let idempotencyReplayed: Bool?
 
-    public init(
-        sale: BusinessSale,
-        idempotencyReplayed: Bool? = nil
-    ) {
+    public init(sale: BusinessSale, idempotencyReplayed: Bool? = nil) {
         self.sale = sale
         self.idempotencyReplayed = idempotencyReplayed
     }
@@ -391,3 +551,5 @@ public struct CancelSaleResponse: Decodable, Equatable, Sendable {
         self.idempotencyReplayed = nil
     }
 }
+
+public typealias BusinessSalesListResponse = BusinessSalesHistoryResponse

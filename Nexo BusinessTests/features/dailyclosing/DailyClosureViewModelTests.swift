@@ -33,8 +33,8 @@ final class DailyClosureViewModelTests: XCTestCase {
 
         await viewModel.load()
 
-        XCTAssertEqual(viewModel.reportState, .loaded(report))
-        XCTAssertEqual(viewModel.cashState, .loaded(cashSession))
+        XCTAssertEqual(viewModel.reportState, .loaded(report)) //Type 'Equatable' has no member 'loaded'
+        XCTAssertEqual(viewModel.cashState, .loaded(cashSession)) //Type 'Equatable' has no member 'loaded'
         XCTAssertEqual(viewModel.pendingSales.count, 1)
         XCTAssertEqual(viewModel.pendingReceivables.count, 1)
         XCTAssertEqual(viewModel.pendingDocuments.count, 1)
@@ -155,7 +155,7 @@ private final class PendingOperationsRepositorySpy: PendingOperationsRepository,
     var pendingDocumentsCallCount = 0
 
     let salesResponse: PendingSalesResponse
-    let receivablesResponse: PendingReceivablesResponse
+    let receivablesResponse: PendingReceivablesResponse //'PendingReceivablesResponse' is ambiguous for type lookup in this context
     let documentsResponse: PendingDocumentsResponse
     let salesError: Error?
     let receivablesError: Error?
@@ -163,7 +163,7 @@ private final class PendingOperationsRepositorySpy: PendingOperationsRepository,
 
     init(
         salesResponse: PendingSalesResponse = PendingSalesResponse(sales: [], total: 0),
-        receivablesResponse: PendingReceivablesResponse = PendingReceivablesResponse(receivables: [], total: 0),
+        receivablesResponse: PendingReceivablesResponse = PendingReceivablesResponse(receivables: [], total: 0), //'PendingReceivablesResponse' is ambiguous for type lookup in this context
         documentsResponse: PendingDocumentsResponse = PendingDocumentsResponse(documents: [], total: 0),
         salesError: Error? = nil,
         receivablesError: Error? = nil,
@@ -193,7 +193,7 @@ private final class PendingOperationsRepositorySpy: PendingOperationsRepository,
         organizationId: String,
         branchId: String,
         limit: Int
-    ) async throws -> PendingReceivablesResponse {
+    ) async throws -> PendingReceivablesResponse { //'PendingReceivablesResponse' is ambiguous for type lookup in this context
         pendingReceivablesCallCount += 1
         if let receivablesError {
             throw receivablesError
@@ -340,8 +340,8 @@ private func makeCashSession() -> CashSession {
     )
 }
 
-private func makeTotals() -> SaleTotals {
-    SaleTotals(
+private func makeTotals() -> SaleTotals { //Cannot find type 'SaleTotals' in scope
+    SaleTotals( //Cannot find 'SaleTotals' in scope
         subtotalWithoutTaxes: MoneyAmount(amount: "10.00"),
         discountTotal: MoneyAmount(amount: "0.00"),
         taxTotal: MoneyAmount(amount: "1.50"),

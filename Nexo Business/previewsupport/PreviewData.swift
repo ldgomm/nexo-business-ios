@@ -48,6 +48,7 @@ public enum PreviewData {
             .coreSales,
             .coreCash,
             .coreDocuments,
+            .coreReceivables,
             .foundationIdempotency,
             .foundationCatalogRevision,
             .foundationTaxRevision
@@ -57,9 +58,11 @@ public enum PreviewData {
             "business.sales.preview",
             "business.sales.confirm",
             "business.sales.cancel",
+            "business.sales.view",
             "sales.create",
             "sales.confirm",
             "sales.cancel",
+            "sales.view",
             "business.customers.view",
             "business.customers.create",
             "customers.view",
@@ -67,12 +70,22 @@ public enum PreviewData {
             "cash.open",
             "cash.close",
             "cash.view_current",
-            "cash.register_movement",
+            "cash.register_inflow",
+            "cash.register_outflow",
+            "business.cash.open",
+            "business.cash.close",
+            "business.cash.view_current",
+            "business.cash.register_inflow",
+            "business.cash.register_outflow",
             "business.payments.collect",
+            "business.payments.register",
             "payments.collect",
+            "payments.register",
+            "business.receivables.view",
             "business.receivables.create",
-            "receivables.create",
             "business.receivables.collect",
+            "receivables.view",
+            "receivables.create",
             "receivables.collect",
             "business.payments.mark_as_credit",
             "business.documents.view",
@@ -80,7 +93,9 @@ public enum PreviewData {
             "business.documents.issue_internal_ticket",
             "documents.issue_internal_ticket",
             "business.documents.register_physical_sale_note",
-            "documents.register_physical_sale_note"
+            "documents.register_physical_sale_note",
+            "business.reports.today",
+            "reports.today"
         ],
         revisions: revisions,
         readiness: BusinessReadiness(
@@ -91,12 +106,19 @@ public enum PreviewData {
         )
     )
 
+    public static let operationalSelection = BusinessOperationalSelection(
+        organizationId: businessContext.organization.id,
+        branchId: businessContext.branches[0].id,
+        activityId: businessContext.activities[0].id
+    )
+
     public static let catalogItems = [
         BusinessCatalogItem(
             id: "item_cuy_entero",
             name: "Cuy entero",
             itemDescription: "Plato principal de restaurante.",
             sku: "CUY-ENTERO",
+            barcode: nil,
             type: "product",
             status: "active",
             unit: BusinessCatalogUnit(code: "unit", name: "Unidad", allowsDecimal: false),
@@ -111,6 +133,7 @@ public enum PreviewData {
             name: "Borrego asado",
             itemDescription: "Porción de borrego asado.",
             sku: "BORREGO",
+            barcode: nil,
             type: "product",
             status: "active",
             unit: BusinessCatalogUnit(code: "unit", name: "Unidad", allowsDecimal: false),
@@ -122,44 +145,51 @@ public enum PreviewData {
         )
     ]
 
-    public static let totals = SaleTotals(
-        subtotalWithoutTaxes: MoneyAmount(amount: "10.00"),
-        discountTotal: MoneyAmount(amount: "0.00"),
-        taxTotal: MoneyAmount(amount: "1.50"),
-        grandTotal: MoneyAmount(amount: "11.50")
+    public static let totals = BusinessSaleTotals(
+        subtotal: MoneyAmount(amount: "10.00"),
+        discount: MoneyAmount(amount: "0.00"),
+        tax: MoneyAmount(amount: "1.50"),
+        total: MoneyAmount(amount: "11.50")
     )
 
+    public static let previewItems = [
+        BusinessSaleItem(
+            id: "line_001",
+            catalogItemId: "item_cuy_entero",
+            name: "Cuy entero",
+            quantity: "1",
+            unitPrice: MoneyAmount(amount: "10.00"),
+            subtotal: MoneyAmount(amount: "10.00"),
+            total: MoneyAmount(amount: "11.50"),
+            note: nil
+        )
+    ]
+
     public static let previewResponse = SalesPreviewResponse(
-        previewId: "preview_001",
+        items: previewItems,
         totals: totals,
-        items: [
-            SaleLinePreview(
-                id: "line_001",
-                catalogItemId: "item_cuy_entero",
-                name: "Cuy entero",
-                quantity: "1",
-                unitPrice: MoneyAmount(amount: "10.00"),
-                lineSubtotal: MoneyAmount(amount: "10.00"),
-                taxTotal: MoneyAmount(amount: "1.50"),
-                lineTotal: MoneyAmount(amount: "11.50")
-            )
-        ],
-        warnings: [],
-        revisions: revisions
+        warnings: []
     )
 
     public static let quickSaleResponse = QuickSaleResponse(
         sale: BusinessSale(
             id: "sale_preview_001",
+            number: "V-000000001",
             organizationId: businessContext.organization.id,
             branchId: businessContext.branches[0].id,
             activityId: businessContext.activities[0].id,
             customerId: PreviewCustomersData.customers[1].id,
+            customerName: PreviewCustomersData.customers[1].displayName,
+            customer: BusinessSaleCustomer(
+                id: PreviewCustomersData.customers[1].id,
+                displayName: PreviewCustomersData.customers[1].displayName,
+                identification: PreviewCustomersData.customers[1].identificationNumber
+            ),
             status: "pending",
             paymentStatus: "unpaid",
             documentStatus: "not_required",
             totals: totals,
-            items: previewResponse.items,
+            items: previewItems,
             createdAt: Date()
         ),
         idempotencyReplayed: false
@@ -168,15 +198,18 @@ public enum PreviewData {
     public static let confirmedSaleResponse = ConfirmSaleResponse(
         sale: BusinessSale(
             id: quickSaleResponse.sale.id,
+            number: quickSaleResponse.sale.number,
             organizationId: businessContext.organization.id,
             branchId: businessContext.branches[0].id,
             activityId: businessContext.activities[0].id,
             customerId: PreviewCustomersData.customers[1].id,
+            customerName: PreviewCustomersData.customers[1].displayName,
+            customer: quickSaleResponse.sale.customer,
             status: "confirmed",
             paymentStatus: "unpaid",
             documentStatus: "not_required",
             totals: totals,
-            items: previewResponse.items,
+            items: previewItems,
             createdAt: quickSaleResponse.sale.createdAt,
             confirmedAt: Date()
         ),
@@ -186,17 +219,20 @@ public enum PreviewData {
     public static let canceledSaleResponse = CancelSaleResponse(
         sale: BusinessSale(
             id: quickSaleResponse.sale.id,
+            number: quickSaleResponse.sale.number,
             organizationId: businessContext.organization.id,
             branchId: businessContext.branches[0].id,
             activityId: businessContext.activities[0].id,
             customerId: PreviewCustomersData.customers[1].id,
+            customerName: PreviewCustomersData.customers[1].displayName,
+            customer: quickSaleResponse.sale.customer,
             status: "canceled",
             paymentStatus: "unpaid",
             documentStatus: "not_required",
             totals: totals,
-            items: previewResponse.items,
+            items: previewItems,
             createdAt: quickSaleResponse.sale.createdAt,
-            canceledAt: Date()
+            updatedAt: Date()
         ),
         idempotencyReplayed: false
     )
@@ -212,15 +248,18 @@ public enum PreviewData {
         ),
         sale: BusinessSale(
             id: confirmedSaleResponse.sale.id,
+            number: confirmedSaleResponse.sale.number,
             organizationId: businessContext.organization.id,
             branchId: businessContext.branches[0].id,
             activityId: businessContext.activities[0].id,
             customerId: PreviewCustomersData.customers[1].id,
+            customerName: PreviewCustomersData.customers[1].displayName,
+            customer: confirmedSaleResponse.sale.customer,
             status: "confirmed",
             paymentStatus: "paid",
             documentStatus: "not_required",
             totals: totals,
-            items: previewResponse.items,
+            items: previewItems,
             createdAt: quickSaleResponse.sale.createdAt,
             confirmedAt: confirmedSaleResponse.sale.confirmedAt
         ),
@@ -232,13 +271,17 @@ public enum PreviewData {
             id: "recv_preview",
             saleId: confirmedSaleResponse.sale.id,
             customerId: PreviewCustomersData.customers[1].id,
+            customerName: PreviewCustomersData.customers[1].displayName,
+            branchId: businessContext.branches[0].id,
             status: "pending",
             amount: confirmedSaleResponse.sale.totals.grandTotal,
             balance: confirmedSaleResponse.sale.totals.grandTotal,
+            originalAmount: confirmedSaleResponse.sale.totals.grandTotal,
+            paidAmount: MoneyAmount(amount: "0.00"),
+            remainingAmount: confirmedSaleResponse.sale.totals.grandTotal,
             dueDate: Calendar.current.date(byAdding: .day, value: 7, to: Date()),
             createdAt: Date()
         ),
-        sale: confirmedSaleResponse.sale,
         idempotencyReplayed: false
     )
 
@@ -271,15 +314,18 @@ public enum PreviewData {
         document: internalTicketDocument,
         sale: BusinessSale(
             id: confirmedSaleResponse.sale.id,
+            number: confirmedSaleResponse.sale.number,
             organizationId: businessContext.organization.id,
             branchId: businessContext.branches[0].id,
             activityId: businessContext.activities[0].id,
             customerId: PreviewCustomersData.customers[1].id,
+            customerName: PreviewCustomersData.customers[1].displayName,
+            customer: confirmedSaleResponse.sale.customer,
             status: confirmedSaleResponse.sale.status,
             paymentStatus: confirmedSaleResponse.sale.paymentStatus,
             documentStatus: "generated",
             totals: totals,
-            items: previewResponse.items,
+            items: previewItems,
             createdAt: quickSaleResponse.sale.createdAt,
             confirmedAt: confirmedSaleResponse.sale.confirmedAt
         ),
@@ -290,15 +336,18 @@ public enum PreviewData {
         document: physicalSaleNoteDocument,
         sale: BusinessSale(
             id: confirmedSaleResponse.sale.id,
+            number: confirmedSaleResponse.sale.number,
             organizationId: businessContext.organization.id,
             branchId: businessContext.branches[0].id,
             activityId: businessContext.activities[0].id,
             customerId: PreviewCustomersData.customers[1].id,
+            customerName: PreviewCustomersData.customers[1].displayName,
+            customer: confirmedSaleResponse.sale.customer,
             status: confirmedSaleResponse.sale.status,
             paymentStatus: confirmedSaleResponse.sale.paymentStatus,
             documentStatus: "registered",
             totals: totals,
-            items: previewResponse.items,
+            items: previewItems,
             createdAt: quickSaleResponse.sale.createdAt,
             confirmedAt: confirmedSaleResponse.sale.confirmedAt
         ),

@@ -282,14 +282,16 @@ private final class SpyReceivablesRepository: ReceivablesRepository, @unchecked 
         lastCreateIdempotencyKey = idempotencyKey
         lastCreateRequest = request
 
+        let amount = request.amount ?? PreviewData.confirmedSaleResponse.sale.totals.grandTotal.amount
+
         return ReceivableResponse(
             receivable: ReceivableRecord(
                 id: "recv_test",
                 saleId: request.saleId,
                 customerId: request.customerId,
                 status: "pending",
-                amount: MoneyAmount(amount: request.amount),
-                balance: MoneyAmount(amount: request.amount),
+                amount: MoneyAmount(amount: amount),
+                balance: MoneyAmount(amount: amount),
                 dueDate: request.dueDate,
                 createdAt: Date()
             ),

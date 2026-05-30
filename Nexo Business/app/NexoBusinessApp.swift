@@ -1,5 +1,5 @@
 //
-//  Nexo_BusinessApp.swift
+//  NexoBusinessApp.swift
 //  Nexo Business
 //
 //  Created by José Ruiz on 29/5/26.
@@ -8,7 +8,7 @@
 import SwiftUI
 
 @main
-struct Nexo_BusinessApp: App {
+struct NexoBusinessApp: App {
     private let config: BusinessRuntimeConfig
     private let container: BusinessAppContainer
 

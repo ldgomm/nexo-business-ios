@@ -9,13 +9,7 @@ import Foundation
 
 public enum PreviewCustomersData {
     public static let customers: [BusinessCustomer] = [
-        BusinessCustomer(
-            id: "cus_final",
-            displayName: "Consumidor final",
-            identificationType: .finalConsumer,
-            identificationNumber: "9999999999999",
-            status: "active"
-        ),
+        BusinessCustomerPresentation.finalConsumer,
         BusinessCustomer(
             id: "cus_maria",
             displayName: "María Fernanda López",
@@ -37,14 +31,13 @@ public enum PreviewCustomersData {
             phone: "022222222",
             address: "Tambillo",
             status: "active",
-            createdAt: Date().addingTimeInterval(-86000),
-            updatedAt: Date().addingTimeInterval(-86000)
+            createdAt: Date().addingTimeInterval(-86_000),
+            updatedAt: Date().addingTimeInterval(-86_000)
         )
     ]
 
     public static let searchResponse = CustomersSearchResponse(
-        customers: customers,
-        nextCursor: nil
+        customers: customers
     )
 
     public static let createdCustomer = BusinessCustomer(

@@ -84,18 +84,17 @@ public struct SaleDetailView: View {
             }
 
             if let createdAt = sale.createdAt {
-                LabeledContent("Creada", value: createdAt.formatted(date: .abbreviated, time: .shortened))
+                LabeledContent(
+                    "Creada",
+                    value: createdAt.formatted(date: .abbreviated, time: .shortened)
+                )
             }
+
             if let confirmedAt = sale.confirmedAt {
-                LabeledContent("Confirmada", value: confirmedAt.formatted(date: .abbreviated, time: .shortened))
-            }
-            if let canceledAt = sale.canceledAt {
-                LabeledContent("Cancelada", value: canceledAt.formatted(date: .abbreviated, time: .shortened))
-            }
-            if let note = sale.note, !note.isEmpty {
-                Text(note)
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
+                LabeledContent(
+                    "Confirmada",
+                    value: confirmedAt.formatted(date: .abbreviated, time: .shortened)
+                )
             }
         }
     }
@@ -104,19 +103,28 @@ public struct SaleDetailView: View {
     private func itemsSection(_ sale: BusinessSale) -> some View {
         if !sale.items.isEmpty {
             Section("Ítems") {
-                ForEach(sale.items) { item in
+                ForEach(sale.items, id: \.id) { item in
                     VStack(alignment: .leading, spacing: 4) {
                         Text(item.name)
                             .font(.subheadline.weight(.semibold))
+
                         Text("Cantidad: \(item.quantity)")
                             .font(.caption)
                             .foregroundStyle(.secondary)
-                        LabeledContent("Total línea", value: money(item.lineTotal))
+
+                        LabeledContent(
+                            "Total línea",
+                            value: money(lineTotal(for: item))
+                        )
                     }
                     .padding(.vertical, 4)
                 }
             }
         }
+    }
+    
+    private func lineTotal(for item: BusinessSaleItem) -> MoneyAmount {
+        item.total ?? item.subtotal ?? MoneyAmount(amount: "0.00")
     }
 
     private func totalsSection(_ sale: BusinessSale) -> some View {

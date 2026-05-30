@@ -159,17 +159,17 @@ private struct OperationalHardeningCheckRow: View {
     }
 }
 
-#Preview {
-    NavigationStack {
-        OperationalHardeningView(
-            viewModel: OperationalHardeningViewModel(
-                context: PreviewData.businessContext,
-                operationalSelection: PreviewData.operationalSelection,
-                tokenStore: InMemoryAuthTokenStore(
-                    tokens: AuthTokens(accessToken: "preview-token")
-                ),
-                networkStatusProvider: StaticNetworkStatusProvider(status: .satisfied)
-            )
-        )
-    }
-}
+//#Preview {
+//    NavigationStack {
+//        OperationalHardeningView(
+//            viewModel: OperationalHardeningViewModel(
+//                context: PreviewData.businessContext,
+//                operationalSelection: PreviewData.operationalSelection,
+//                tokenStore: InMemoryAuthTokenStore(
+//                    tokens: AuthTokens(accessToken: "preview-token")
+//                ),
+//                networkStatusProvider: StaticNetworkStatusProvider(status: .satisfied)
+//            )
+//        )
+//    }
+//}

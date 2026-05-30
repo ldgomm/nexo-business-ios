@@ -15,7 +15,9 @@ public final class PreviewCustomersRepository: CustomersRepository, @unchecked S
         query: String,
         limit: Int
     ) async throws -> CustomersSearchResponse {
-        let normalized = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let normalized = query
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
 
         let filtered = normalized.isEmpty
             ? PreviewCustomersData.customers
@@ -27,8 +29,7 @@ public final class PreviewCustomersRepository: CustomersRepository, @unchecked S
             }
 
         return CustomersSearchResponse(
-            customers: Array(filtered.prefix(limit)),
-            nextCursor: nil
+            customers: Array(filtered.prefix(max(0, limit)))
         )
     }
 
@@ -41,7 +42,7 @@ public final class PreviewCustomersRepository: CustomersRepository, @unchecked S
             customer: BusinessCustomer(
                 id: "cus_\(UUID().uuidString.prefix(8).lowercased())",
                 displayName: request.displayName,
-                identificationType: BusinessCustomerIdentificationType(rawValue: request.identificationType) ?? .unknown,
+                identificationType: request.identificationType,
                 identificationNumber: request.identificationNumber,
                 email: request.email,
                 phone: request.phone,

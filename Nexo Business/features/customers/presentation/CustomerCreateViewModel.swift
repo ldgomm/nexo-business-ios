@@ -58,9 +58,9 @@ public final class CustomerCreateViewModel {
                 organizationId: organizationId,
                 idempotencyKey: .generate(prefix: "customer-create"),
                 request: CreateCustomerRequest(
+                    displayName: normalized(displayName),
                     identificationType: identificationType,
                     identificationNumber: normalized(identificationNumber),
-                    displayName: normalized(displayName),
                     email: emptyToNil(email),
                     phone: emptyToNil(phone),
                     address: emptyToNil(address)

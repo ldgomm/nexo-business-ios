@@ -274,11 +274,3 @@ public struct BusinessHomeView: View {
         permissionGate.allows("inventory.adjust")
     }
 }
-
-#Preview {
-    BusinessHomeView(
-        context: PreviewData.businessContext,
-        operationalSelection: PreviewData.operationalSelection,
-        container: .preview
-    )
-}

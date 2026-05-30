@@ -71,21 +71,13 @@ public struct BusinessCustomer: Decodable, Equatable, Identifiable, Sendable {
         self.updatedAt = updatedAt
     }
 
-    fileprivate enum CodingKeys: String, CodingKey {
+    private enum CodingKeys: String, CodingKey {
         case id
-        case mongoId = "_id"
         case displayName
         case name
-        case legalName
-        case razonSocial
-        case customerName
         case identificationType
-        case idType
-        case type
         case identificationNumber
         case identification
-        case taxId
-        case documentNumber
         case email
         case phone
         case address
@@ -96,21 +88,15 @@ public struct BusinessCustomer: Decodable, Equatable, Identifiable, Sendable {
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-
-        id = try container.decodeFirstString(for: [.id, .mongoId])
-        displayName = try container.decodeFirstString(
-            for: [.displayName, .name, .legalName, .razonSocial, .customerName]
-        )
-
-        let rawIdentificationType = try container.decodeFirstStringIfPresent(
-            for: [.identificationType, .idType, .type]
-        ) ?? "unknown"
-        identificationType = BusinessCustomerIdentificationType(rawValue: rawIdentificationType) ?? .unknown
-
-        identificationNumber = try container.decodeFirstStringIfPresent(
-            for: [.identificationNumber, .identification, .taxId, .documentNumber]
-        ) ?? ""
-
+        id = try container.decode(String.self, forKey: .id)
+        displayName = try container.decodeIfPresent(String.self, forKey: .displayName)
+            ?? container.decodeIfPresent(String.self, forKey: .name)
+            ?? "Cliente"
+        identificationType = try container.decodeIfPresent(BusinessCustomerIdentificationType.self, forKey: .identificationType)
+            ?? .unknown
+        identificationNumber = try container.decodeIfPresent(String.self, forKey: .identificationNumber)
+            ?? container.decodeIfPresent(String.self, forKey: .identification)
+            ?? ""
         email = try container.decodeIfPresent(String.self, forKey: .email)
         phone = try container.decodeIfPresent(String.self, forKey: .phone)
         address = try container.decodeIfPresent(String.self, forKey: .address)
@@ -120,61 +106,60 @@ public struct BusinessCustomer: Decodable, Equatable, Identifiable, Sendable {
     }
 }
 
-public struct CustomersSearchResponse: Decodable, Equatable, Sendable {
-    public let customers: [BusinessCustomer]
-    public let nextCursor: String?
-
-    public init(
-        customers: [BusinessCustomer],
-        nextCursor: String? = nil
-    ) {
-        self.customers = customers
-        self.nextCursor = nextCursor
-    }
-
-    private enum CodingKeys: String, CodingKey {
-        case customers
-        case items
-        case results
-        case data
-        case nextCursor
-    }
-
-    public init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-
-        customers = try container.decodeIfPresent([BusinessCustomer].self, forKey: .customers)
-            ?? container.decodeIfPresent([BusinessCustomer].self, forKey: .items)
-            ?? container.decodeIfPresent([BusinessCustomer].self, forKey: .results)
-            ?? container.decodeIfPresent([BusinessCustomer].self, forKey: .data)
-            ?? []
-
-        nextCursor = try container.decodeIfPresent(String.self, forKey: .nextCursor)
-    }
-}
-
 public struct CreateCustomerRequest: Encodable, Equatable, Sendable {
-    public let identificationType: String
-    public let identificationNumber: String
     public let displayName: String
+    public let identificationType: BusinessCustomerIdentificationType
+    public let identificationNumber: String
     public let email: String?
     public let phone: String?
     public let address: String?
+    public let notes: String?
 
     public init(
+        displayName: String,
         identificationType: BusinessCustomerIdentificationType,
         identificationNumber: String,
-        displayName: String,
         email: String? = nil,
         phone: String? = nil,
-        address: String? = nil
+        address: String? = nil,
+        notes: String? = nil
     ) {
-        self.identificationType = identificationType.rawValue
-        self.identificationNumber = identificationNumber
         self.displayName = displayName
+        self.identificationType = identificationType
+        self.identificationNumber = identificationNumber
         self.email = email
         self.phone = phone
         self.address = address
+        self.notes = notes
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case displayName
+        case identificationType
+        case identification
+        case email
+        case phone
+        case address
+        case notes
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(displayName, forKey: .displayName)
+        try container.encode(identificationType, forKey: .identificationType)
+        try container.encode(identificationNumber, forKey: .identification)
+        try container.encodeIfPresent(email, forKey: .email)
+        try container.encodeIfPresent(phone, forKey: .phone)
+        try container.encodeIfPresent(address, forKey: .address)
+        try container.encodeIfPresent(notes, forKey: .notes)
+    }
+}
+
+public struct CustomersSearchResponse: Decodable, Equatable, Sendable {
+    public let customers: [BusinessCustomer]
+
+    public init(customers: [BusinessCustomer]) {
+        self.customers = customers
     }
 }
 
@@ -182,10 +167,7 @@ public struct CustomerResponse: Decodable, Equatable, Sendable {
     public let customer: BusinessCustomer
     public let idempotencyReplayed: Bool?
 
-    public init(
-        customer: BusinessCustomer,
-        idempotencyReplayed: Bool? = nil
-    ) {
+    public init(customer: BusinessCustomer, idempotencyReplayed: Bool? = nil) {
         self.customer = customer
         self.idempotencyReplayed = idempotencyReplayed
     }
@@ -199,66 +181,11 @@ public struct CustomerResponse: Decodable, Equatable, Sendable {
         if let container = try? decoder.container(keyedBy: CodingKeys.self),
            let customer = try? container.decode(BusinessCustomer.self, forKey: .customer) {
             self.customer = customer
-            self.idempotencyReplayed = try container.decodeIfPresent(
-                Bool.self,
-                forKey: .idempotencyReplayed
-            )
+            self.idempotencyReplayed = try container.decodeIfPresent(Bool.self, forKey: .idempotencyReplayed)
             return
         }
 
-        customer = try BusinessCustomer(from: decoder)
-        idempotencyReplayed = nil
-    }
-}
-
-private extension KeyedDecodingContainer where Key == BusinessCustomer.CodingKeys {
-    func decodeFirstString(for keys: [BusinessCustomer.CodingKeys]) throws -> String {
-        for key in keys {
-            if let value = try decodeFirstStringIfPresent(for: [key]), !value.isEmpty {
-                return value
-            }
-        }
-
-        throw DecodingError.keyNotFound(
-            keys[0],
-            DecodingError.Context(
-                codingPath: codingPath,
-                debugDescription: "Expected one of keys: \(keys.map(\.stringValue).joined(separator: ", "))"
-            )
-        )
-    }
-
-    func decodeFirstStringIfPresent(for keys: [BusinessCustomer.CodingKeys]) throws -> String? {
-        for key in keys {
-            if let value = try decodeIfPresent(String.self, forKey: key) {
-                return value
-            }
-
-            if let value = try decodeIfPresent(Int.self, forKey: key) {
-                return String(value)
-            }
-        }
-
-        return nil
-    }
-}
-
-public enum BusinessCustomerPresentation {
-    public static let finalConsumerIdentificationNumber = "9999999999999"
-
-    public static var finalConsumer: BusinessCustomer {
-        BusinessCustomer(
-            id: "final_consumer",
-            displayName: "Consumidor final",
-            identificationType: .finalConsumer,
-            identificationNumber: finalConsumerIdentificationNumber,
-            status: "active"
-        )
-    }
-
-    public static func subtitle(for customer: BusinessCustomer) -> String {
-        let type = customer.identificationType.displayName
-        let number = customer.identificationNumber.isEmpty ? "Sin identificación" : customer.identificationNumber
-        return "\(type): \(number)"
+        self.customer = try BusinessCustomer(from: decoder)
+        self.idempotencyReplayed = nil
     }
 }

@@ -204,10 +204,6 @@ public final class SaleCartViewModel {
             )
 
             preview = response
-
-            if let updatedRevisions = response.revisions {
-                revisions = updatedRevisions
-            }
         } catch let error as APIError {
             handle(apiError: error)
         } catch {

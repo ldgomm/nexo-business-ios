@@ -49,7 +49,10 @@ final class SaleCartViewModelTests: XCTestCase {
 
         await viewModel.loadPreview()
 
-        XCTAssertEqual(viewModel.preview?.previewId, "preview_001")
+        XCTAssertNotNil(viewModel.preview)
+        XCTAssertEqual(viewModel.preview?.items.count, PreviewData.previewResponse.items.count)
+        XCTAssertEqual(viewModel.preview?.totals.grandTotal.amount, PreviewData.previewResponse.totals.grandTotal.amount)
+
         XCTAssertEqual(sales.lastPreviewRequest?.items.first?.catalogItemId, Self.item.id)
         XCTAssertEqual(sales.lastPreviewRequest?.items.first?.quantity, "3")
         XCTAssertEqual(sales.lastPreviewRevisions?.catalogRevision, "cat_rev_test")

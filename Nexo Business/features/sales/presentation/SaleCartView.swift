@@ -142,14 +142,19 @@ public struct SaleCartView: View {
     private var previewSection: some View {
         if let preview = viewModel.preview {
             Section("Preview validado por backend") {
-                ForEach(preview.items) { item in
+                ForEach(preview.items, id: \.id) { item in
                     VStack(alignment: .leading, spacing: 4) {
                         Text(item.name)
                             .font(.subheadline.weight(.semibold))
+
                         Text("Cantidad: \(item.quantity)")
                             .font(.caption)
                             .foregroundStyle(.secondary)
-                        LabeledContent("Total línea", value: money(item.lineTotal))
+
+                        LabeledContent(
+                            "Total línea",
+                            value: money(item.total ?? item.subtotal ?? MoneyAmount(amount: "0.00"))
+                        )
                     }
                     .padding(.vertical, 4)
                 }

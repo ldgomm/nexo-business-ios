@@ -175,6 +175,13 @@ public final class SaleDetailViewModel {
             return
         }
 
+        let trimmedReason = cancelReason
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        let finalReason = trimmedReason.isEmpty
+            ? "Cancelación solicitada desde Nexo Business"
+            : trimmedReason
+
         isCanceling = true
         errorMessage = nil
         infoMessage = nil
@@ -190,9 +197,10 @@ public final class SaleDetailViewModel {
                 revisions: revisions,
                 idempotencyKey: .generate(prefix: "sale-cancel"),
                 request: CancelSaleRequest(
-                    reason: cancelReason.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
+                    reason: finalReason
                 )
             )
+
             self.sale = response.sale
             infoMessage = response.idempotencyReplayed == true
                 ? "Cancelación recuperada de un intento anterior."
