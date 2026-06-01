@@ -1,6 +1,6 @@
 //
 //  BusinessHeaders.swift
-//  Nexo Admin
+//  Nexo Business
 //
 //  Created by José Ruiz on 29/5/26.
 //
@@ -9,6 +9,8 @@ import Foundation
 
 public enum BusinessHeaders {
     public static let organizationId = "X-Organization-Id"
+    public static let branchId = "X-Branch-Id"
+    public static let activityId = "X-Activity-Id"
     public static let requestId = "X-Request-Id"
     public static let correlationId = "X-Correlation-Id"
     public static let deviceId = "X-Device-Id"

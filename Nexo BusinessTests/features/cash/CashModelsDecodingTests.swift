@@ -50,4 +50,20 @@ final class CashModelsDecodingTests: XCTestCase {
         
         XCTAssertNil(response.session)
     }
+
+    func testDecodesCurrentSessionResponseWithCashSessionNull() throws {
+        let json = #"""
+        {
+          "cashSession": null
+        }
+        """#.data(using: .utf8)!
+
+        let response = try JSONDecoder.nexoDefault.decode(
+            CashCurrentSessionResponse.self,
+            from: json
+        )
+
+        XCTAssertNil(response.session)
+    }
+
 }

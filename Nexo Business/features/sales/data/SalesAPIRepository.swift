@@ -36,11 +36,11 @@ public final class SalesAPIRepository: SalesRepository, @unchecked Sendable {
         revisions: BusinessRevisions,
         request body: SalesPreviewRequest
     ) async throws -> SalesPreviewResponse {
-        let headers = [
-            BusinessHeaders.organizationId: organizationId
-        ].merging(
-            revisions.headers,
-            uniquingKeysWith: { _, new in new }
+        let headers = contextHeaders(
+            organizationId: organizationId,
+            branchId: body.branchId,
+            activityId: body.activityId,
+            revisions: revisions
         )
 
         return try await apiClient.send(
@@ -61,6 +61,8 @@ public final class SalesAPIRepository: SalesRepository, @unchecked Sendable {
     ) async throws -> QuickSaleResponse {
         let headers = mutationHeaders(
             organizationId: organizationId,
+            branchId: body.branchId,
+            activityId: body.activityId,
             revisions: revisions,
             idempotencyKey: idempotencyKey
         )
@@ -99,6 +101,8 @@ public final class SalesAPIRepository: SalesRepository, @unchecked Sendable {
     ) async throws -> ConfirmSaleResponse {
         let headers = mutationHeaders(
             organizationId: organizationId,
+            branchId: nil,
+            activityId: nil,
             revisions: revisions,
             idempotencyKey: idempotencyKey
         )
@@ -122,6 +126,8 @@ public final class SalesAPIRepository: SalesRepository, @unchecked Sendable {
     ) async throws -> CancelSaleResponse {
         let headers = mutationHeaders(
             organizationId: organizationId,
+            branchId: nil,
+            activityId: nil,
             revisions: revisions,
             idempotencyKey: idempotencyKey
         )
@@ -136,17 +142,40 @@ public final class SalesAPIRepository: SalesRepository, @unchecked Sendable {
         )
     }
 
+    private func contextHeaders(
+        organizationId: String,
+        branchId: String?,
+        activityId: String?,
+        revisions: BusinessRevisions
+    ) -> [String: String] {
+        var headers = revisions.headers
+        headers[BusinessHeaders.organizationId] = organizationId
+
+        if let branchId = branchId?.trimmingCharacters(in: .whitespacesAndNewlines), !branchId.isEmpty {
+            headers[BusinessHeaders.branchId] = branchId
+        }
+
+        if let activityId = activityId?.trimmingCharacters(in: .whitespacesAndNewlines), !activityId.isEmpty {
+            headers[BusinessHeaders.activityId] = activityId
+        }
+
+        return headers
+    }
+
     private func mutationHeaders(
         organizationId: String,
+        branchId: String?,
+        activityId: String?,
         revisions: BusinessRevisions,
         idempotencyKey: IdempotencyKey
     ) -> [String: String] {
-        [
-            BusinessHeaders.organizationId: organizationId,
-            BusinessHeaders.idempotencyKey: idempotencyKey.rawValue
-        ].merging(
-            revisions.headers,
-            uniquingKeysWith: { _, new in new }
+        var headers = contextHeaders(
+            organizationId: organizationId,
+            branchId: branchId,
+            activityId: activityId,
+            revisions: revisions
         )
+        headers[BusinessHeaders.idempotencyKey] = idempotencyKey.rawValue
+        return headers
     }
 }

@@ -31,6 +31,7 @@ public struct SaleCartItem: Equatable, Identifiable, Sendable {
 @Observable
 public final class SaleCartViewModel {
     public var searchQuery = ""
+    public var cashSessionId: String?
     public private(set) var searchResults: [BusinessCatalogItem] = []
     public private(set) var cartItems: [SaleCartItem] = []
     public private(set) var preview: SalesPreviewResponse?
@@ -57,6 +58,7 @@ public final class SaleCartViewModel {
         activityId: String,
         revisions: BusinessRevisions,
         effectivePermissions: Set<String> = [],
+        cashSessionId: String? = nil,
         catalogRepository: CatalogRepository,
         salesRepository: SalesRepository
     ) {
@@ -65,6 +67,7 @@ public final class SaleCartViewModel {
         self.activityId = activityId
         self.revisions = revisions
         self.effectivePermissions = effectivePermissions
+        self.cashSessionId = cashSessionId
         self.catalogRepository = catalogRepository
         self.salesRepository = salesRepository
     }
@@ -199,6 +202,8 @@ public final class SaleCartViewModel {
                     branchId: branchId,
                     activityId: activityId,
                     customerId: customerIdForRequest,
+                    catalogRevision: revisions.catalogRevision,
+                    taxConfigurationRevision: revisions.taxConfigurationRevision,
                     items: draftItems()
                 )
             )
@@ -223,14 +228,20 @@ public final class SaleCartViewModel {
         }
 
         do {
+            let identity = BusinessMutationIdentity.generate(prefix: "quick-sale")
             let response = try await salesRepository.quickSale(
                 organizationId: organizationId,
                 revisions: revisions,
-                idempotencyKey: .generate(prefix: "quick-sale"),
+                idempotencyKey: identity.idempotencyKey,
                 request: QuickSaleRequest(
+                    requestId: identity.requestId,
                     branchId: branchId,
                     activityId: activityId,
                     customerId: customerIdForRequest,
+                    cashSessionId: cashSessionId,
+                    autoConfirm: true,
+                    catalogRevision: revisions.catalogRevision,
+                    taxConfigurationRevision: revisions.taxConfigurationRevision,
                     items: draftItems()
                 )
             )
@@ -257,13 +268,17 @@ public final class SaleCartViewModel {
         )
     }
 
-    private func draftItems() -> [SaleDraftItem] {
+    private func draftItems() -> [BusinessSaleItemRequest] {
         cartItems.map { item in
-            SaleDraftItem(
-                id: item.id,
+            BusinessSaleItemRequest(
                 catalogItemId: item.catalogItem.id,
-                quantity: normalizeQuantity(item.quantity),
-                note: item.note
+                quantity: BusinessSaleQuantityRequest(
+                    value: normalizeQuantity(item.quantity),
+                    unitCode: resolvedUnitCode(for: item.catalogItem),
+                    allowsDecimal: resolvedAllowsDecimal(for: item.catalogItem)
+                ),
+                priceTaxMode: BusinessSalePriceTaxMode.taxExclusive.rawValue,
+                notes: item.note?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfBlank
             )
         }
     }
@@ -323,5 +338,28 @@ public final class SaleCartViewModel {
         let current = Decimal(string: normalized) ?? Decimal.zero
         let next = current + Decimal(1)
         return NSDecimalNumber(decimal: next).stringValue
+    }
+
+    private func resolvedUnitCode(for item: BusinessCatalogItem) -> String {
+        let raw = item.unit?.code?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            ?? item.unit?.name?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            ?? "unit"
+
+        switch raw {
+        case "unidad", "unidades", "unit", "u", "und":
+            return "unit"
+        default:
+            return raw.isEmpty ? "unit" : raw
+        }
+    }
+
+    private func resolvedAllowsDecimal(for item: BusinessCatalogItem) -> Bool {
+        item.allowsDecimalQuantity ?? item.unit?.allowsDecimal ?? false
+    }
+}
+
+private extension String {
+    var nilIfBlank: String? {
+        isEmpty ? nil : self
     }
 }

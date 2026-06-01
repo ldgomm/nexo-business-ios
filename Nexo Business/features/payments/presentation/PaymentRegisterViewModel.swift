@@ -227,20 +227,25 @@ public final class PaymentRegisterViewModel {
         }
 
         do {
+            let identity = BusinessMutationIdentity.generate(prefix: "payment-register")
             let response = try await paymentsRepository.register(
                 organizationId: organizationId,
-                idempotencyKey: .generate(prefix: "payment-register"),
+                idempotencyKey: identity.idempotencyKey,
                 request: RegisterPaymentRequest(
                     saleId: sale.id,
                     cashSessionId: selectedMode == .cash ? currentCashSession?.id : nil,
                     method: method.rawValue,
                     amount: normalized(amount),
                     reference: emptyToNil(reference),
-                    note: emptyToNil(note)
+                    note: emptyToNil(note),
+                    requestId: identity.requestId
                 )
             )
 
             paymentResult = response.payment
+            if let cashSession = response.cashSession {
+                currentCashSession = cashSession
+            }
             infoMessage = response.idempotencyReplayed == true
                 ? "Cobro recuperado de un intento anterior."
                 : "Cobro registrado correctamente."

@@ -54,7 +54,12 @@ final class SaleCartViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.preview?.totals.grandTotal.amount, PreviewData.previewResponse.totals.grandTotal.amount)
 
         XCTAssertEqual(sales.lastPreviewRequest?.items.first?.catalogItemId, Self.item.id)
-        XCTAssertEqual(sales.lastPreviewRequest?.items.first?.quantity, "3")
+        XCTAssertEqual(sales.lastPreviewRequest?.items.first?.quantity.value, "3")
+        XCTAssertEqual(sales.lastPreviewRequest?.items.first?.quantity.unitCode, "unit")
+        XCTAssertEqual(sales.lastPreviewRequest?.items.first?.quantity.allowsDecimal, false)
+        XCTAssertEqual(sales.lastPreviewRequest?.items.first?.priceTaxMode, BusinessSalePriceTaxMode.taxExclusive.rawValue)
+        XCTAssertEqual(sales.lastPreviewRequest?.catalogRevision, "cat_rev_test")
+        XCTAssertEqual(sales.lastPreviewRequest?.taxConfigurationRevision, "tax_rev_test")
         XCTAssertEqual(sales.lastPreviewRevisions?.catalogRevision, "cat_rev_test")
     }
 
@@ -69,6 +74,11 @@ final class SaleCartViewModelTests: XCTestCase {
 
         XCTAssertEqual(viewModel.createdSale?.id, "sale_preview_001")
         XCTAssertEqual(sales.lastQuickSaleRequest?.items.first?.catalogItemId, Self.item.id)
+        XCTAssertEqual(sales.lastQuickSaleRequest?.items.first?.quantity.value, "1")
+        XCTAssertEqual(sales.lastQuickSaleRequest?.requestId, sales.lastIdempotencyKey?.rawValue)
+        XCTAssertEqual(sales.lastQuickSaleRequest?.autoConfirm, true)
+        XCTAssertEqual(sales.lastQuickSaleRequest?.catalogRevision, "cat_rev_test")
+        XCTAssertEqual(sales.lastQuickSaleRequest?.taxConfigurationRevision, "tax_rev_test")
         XCTAssertTrue(sales.lastIdempotencyKey?.rawValue.hasPrefix("quick-sale-") == true)
         XCTAssertEqual(viewModel.infoMessage, "Venta creada. Revísala y confírmala para continuar.")
     }

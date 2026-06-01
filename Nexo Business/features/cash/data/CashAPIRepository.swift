@@ -10,11 +10,11 @@ import Foundation
 public enum BusinessCashRoutes {
     public static let current = "/api/v1/business/cash/current"
     public static let open = "/api/v1/business/cash/open"
-
+    
     public static func movements(cashSessionId: String) -> String {
         "/api/v1/business/cash/\(cashSessionId)/movements"
     }
-
+    
     public static func close(cashSessionId: String) -> String {
         "/api/v1/business/cash/\(cashSessionId)/close"
     }
@@ -22,11 +22,11 @@ public enum BusinessCashRoutes {
 
 public final class CashAPIRepository: CashRepository, @unchecked Sendable {
     private let apiClient: APIClient
-
+    
     public init(apiClient: APIClient) {
         self.apiClient = apiClient
     }
-
+    
     public func current(
         organizationId: String,
         branchId: String
@@ -39,12 +39,13 @@ public final class CashAPIRepository: CashRepository, @unchecked Sendable {
                     URLQueryItem(name: "branchId", value: branchId)
                 ],
                 headers: [
-                    BusinessHeaders.organizationId: organizationId
+                    BusinessHeaders.organizationId: organizationId,
+                    BusinessHeaders.branchId: branchId
                 ]
             )
         )
     }
-
+    
     public func open(
         organizationId: String,
         idempotencyKey: IdempotencyKey,
@@ -57,12 +58,13 @@ public final class CashAPIRepository: CashRepository, @unchecked Sendable {
                 body: body,
                 headers: [
                     BusinessHeaders.organizationId: organizationId,
+                    BusinessHeaders.branchId: body.branchId,
                     BusinessHeaders.idempotencyKey: idempotencyKey.rawValue
                 ]
             )
         )
     }
-
+    
     public func registerMovement(
         organizationId: String,
         cashSessionId: String,
@@ -81,7 +83,7 @@ public final class CashAPIRepository: CashRepository, @unchecked Sendable {
             )
         )
     }
-
+    
     public func close(
         organizationId: String,
         cashSessionId: String,

@@ -37,17 +37,89 @@ public struct SaleDraftItem: Codable, Equatable, Identifiable, Sendable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decodeIfPresent(String.self, forKey: .id) ?? UUID().uuidString
         catalogItemId = try container.decode(String.self, forKey: .catalogItemId)
-        quantity = try container.decodeIfPresent(String.self, forKey: .quantity)
-            ?? String(try container.decodeIfPresent(Double.self, forKey: .quantity) ?? 1)
+
+        if let quantity = try container.decodeIfPresent(String.self, forKey: .quantity) {
+            self.quantity = quantity
+        } else if let quantity = try container.decodeIfPresent(Double.self, forKey: .quantity) {
+            self.quantity = String(quantity)
+        } else if let quantity = try container.decodeIfPresent(BusinessSaleQuantityRequest.self, forKey: .quantity) {
+            self.quantity = quantity.value
+        } else {
+            self.quantity = "1"
+        }
+
         note = try container.decodeIfPresent(String.self, forKey: .note)
             ?? container.decodeIfPresent(String.self, forKey: .notes)
     }
 
     public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
         try container.encode(catalogItemId, forKey: .catalogItemId)
         try container.encode(quantity, forKey: .quantity)
         try container.encodeIfPresent(note, forKey: .notes)
+    }
+}
+
+public enum BusinessSalePriceTaxMode: String, Codable, CaseIterable, Sendable {
+    case taxExclusive = "TAX_EXCLUSIVE"
+    case taxInclusive = "TAX_INCLUSIVE"
+}
+
+public struct BusinessSaleQuantityRequest: Codable, Equatable, Sendable {
+    public let value: String
+    public let unitCode: String
+    public let allowsDecimal: Bool
+
+    public init(
+        value: String,
+        unitCode: String = "unit",
+        allowsDecimal: Bool = false
+    ) {
+        self.value = value
+        self.unitCode = unitCode
+        self.allowsDecimal = allowsDecimal
+    }
+}
+
+public struct BusinessSaleItemRequest: Codable, Equatable, Sendable {
+    public let catalogItemId: String
+    public let quantity: BusinessSaleQuantityRequest
+    public let priceTaxMode: String
+    public let notes: String?
+
+    public init(
+        catalogItemId: String,
+        quantity: BusinessSaleQuantityRequest,
+        priceTaxMode: String = BusinessSalePriceTaxMode.taxExclusive.rawValue,
+        notes: String? = nil
+    ) {
+        self.catalogItemId = catalogItemId
+        self.quantity = quantity
+        self.priceTaxMode = priceTaxMode
+        self.notes = notes
+    }
+}
+
+public struct BusinessSaleCustomerSnapshot: Codable, Equatable, Sendable {
+    public let id: String?
+    public let displayName: String
+    public let identificationType: String?
+    public let identificationNumber: String?
+    public let email: String?
+
+    public init(
+        id: String? = nil,
+        displayName: String,
+        identificationType: String? = nil,
+        identificationNumber: String? = nil,
+        email: String? = nil
+    ) {
+        self.id = id
+        self.displayName = displayName
+        self.identificationType = identificationType
+        self.identificationNumber = identificationNumber
+        self.email = email
     }
 }
 
@@ -55,53 +127,92 @@ public struct SalesPreviewRequest: Encodable, Equatable, Sendable {
     public let branchId: String
     public let activityId: String
     public let customerId: String?
-    public let items: [SaleDraftItem]
+    public let customerSnapshot: BusinessSaleCustomerSnapshot?
+    public let catalogRevision: String?
+    public let taxConfigurationRevision: String?
+    public let items: [BusinessSaleItemRequest]
 
     public init(
         branchId: String,
         activityId: String,
         customerId: String? = nil,
-        items: [SaleDraftItem]
+        customerSnapshot: BusinessSaleCustomerSnapshot? = nil,
+        catalogRevision: String? = nil,
+        taxConfigurationRevision: String? = nil,
+        items: [BusinessSaleItemRequest]
     ) {
         self.branchId = branchId
         self.activityId = activityId
         self.customerId = customerId
+        self.customerSnapshot = customerSnapshot
+        self.catalogRevision = catalogRevision
+        self.taxConfigurationRevision = taxConfigurationRevision
         self.items = items
     }
 }
 
 public struct QuickSaleRequest: Encodable, Equatable, Sendable {
+    public let requestId: String
     public let branchId: String
     public let activityId: String
     public let customerId: String?
-    public let items: [SaleDraftItem]
+    public let customerSnapshot: BusinessSaleCustomerSnapshot?
+    public let cashSessionId: String?
+    public let autoConfirm: Bool
+    public let catalogRevision: String
+    public let taxConfigurationRevision: String
+    public let items: [BusinessSaleItemRequest]
     public let notes: String?
 
     public init(
+        requestId: String = "quick-sale-\(UUID().uuidString.lowercased())",
         branchId: String,
         activityId: String,
         customerId: String? = nil,
-        items: [SaleDraftItem],
+        customerSnapshot: BusinessSaleCustomerSnapshot? = nil,
+        cashSessionId: String? = nil,
+        autoConfirm: Bool = true,
+        catalogRevision: String,
+        taxConfigurationRevision: String,
+        items: [BusinessSaleItemRequest],
         notes: String? = nil
     ) {
+        self.requestId = requestId
         self.branchId = branchId
         self.activityId = activityId
         self.customerId = customerId
+        self.customerSnapshot = customerSnapshot
+        self.cashSessionId = cashSessionId
+        self.autoConfirm = autoConfirm
+        self.catalogRevision = catalogRevision
+        self.taxConfigurationRevision = taxConfigurationRevision
         self.items = items
         self.notes = notes
     }
 
     public init(
+        requestId: String = "quick-sale-\(UUID().uuidString.lowercased())",
         branchId: String,
         activityId: String,
         customerId: String? = nil,
-        items: [SaleDraftItem],
+        customerSnapshot: BusinessSaleCustomerSnapshot? = nil,
+        cashSessionId: String? = nil,
+        autoConfirm: Bool = true,
+        catalogRevision: String,
+        taxConfigurationRevision: String,
+        items: [BusinessSaleItemRequest],
         note: String?
     ) {
         self.init(
+            requestId: requestId,
             branchId: branchId,
             activityId: activityId,
             customerId: customerId,
+            customerSnapshot: customerSnapshot,
+            cashSessionId: cashSessionId,
+            autoConfirm: autoConfirm,
+            catalogRevision: catalogRevision,
+            taxConfigurationRevision: taxConfigurationRevision,
             items: items,
             notes: note
         )
@@ -267,8 +378,15 @@ public struct BusinessSaleItem: Decodable, Equatable, Identifiable, Sendable {
         name = try container.decodeIfPresent(String.self, forKey: .name)
             ?? container.decodeIfPresent(String.self, forKey: .description)
             ?? "Ítem"
-        quantity = try container.decodeIfPresent(String.self, forKey: .quantity)
-            ?? String(try container.decodeIfPresent(Double.self, forKey: .quantity) ?? 1)
+        if let value = try container.decodeIfPresent(String.self, forKey: .quantity) {
+            quantity = value
+        } else if let value = try container.decodeIfPresent(Double.self, forKey: .quantity) {
+            quantity = String(value)
+        } else if let value = try container.decodeIfPresent(BusinessSaleQuantityRequest.self, forKey: .quantity) {
+            quantity = value.value
+        } else {
+            quantity = "1"
+        }
         unitPrice = try container.decodeIfPresent(MoneyAmount.self, forKey: .unitPrice)
         subtotal = try container.decodeIfPresent(MoneyAmount.self, forKey: .subtotal)
         total = try container.decodeIfPresent(MoneyAmount.self, forKey: .total)

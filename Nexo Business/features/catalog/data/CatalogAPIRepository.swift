@@ -39,6 +39,8 @@ public final class CatalogAPIRepository: CatalogRepository, @unchecked Sendable 
                 ],
                 headers: [
                     BusinessHeaders.organizationId: organizationId,
+                    BusinessHeaders.branchId: branchId,
+                    BusinessHeaders.activityId: activityId,
                     BusinessHeaders.catalogRevision: catalogRevision
                 ]
             )

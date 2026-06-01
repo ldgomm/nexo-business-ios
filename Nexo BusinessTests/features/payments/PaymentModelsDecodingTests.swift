@@ -16,7 +16,7 @@ final class PaymentModelsDecodingTests: XCTestCase {
             "id": "pay_001",
             "saleId": "sale_001",
             "status": "registered",
-            "method": "cash",
+            "method": "CASH",
             "amount": {
               "amount": "11.50",
               "currency": "USD"
@@ -24,6 +24,33 @@ final class PaymentModelsDecodingTests: XCTestCase {
             "reference": null,
             "note": "Pago en caja",
             "registeredAt": "2026-05-29T10:00:00Z"
+          },
+          "saleId": "sale_001",
+          "salePaymentStatus": "PAID",
+          "salePaidAmount": {
+            "amount": "11.50",
+            "currency": "USD"
+          },
+          "cashSession": {
+            "id": "cash_001",
+            "branchId": "br_001",
+            "status": "open",
+            "openedAt": null,
+            "closedAt": null,
+            "openingBalance": {
+              "amount": "20.00",
+              "currency": "USD"
+            }
+          },
+          "cashMovement": {
+            "id": "cmov_001",
+            "cashSessionId": "cash_001",
+            "type": "manual",
+            "direction": "inflow",
+            "amount": {
+              "amount": "11.50",
+              "currency": "USD"
+            }
           },
           "idempotencyReplayed": false
         }
@@ -36,8 +63,20 @@ final class PaymentModelsDecodingTests: XCTestCase {
 
         XCTAssertEqual(response.payment.id, "pay_001")
         XCTAssertEqual(response.payment.saleId, "sale_001")
-        XCTAssertEqual(response.payment.method, "cash")
+        XCTAssertEqual(response.payment.method, "CASH")
         XCTAssertEqual(response.payment.amount.amount, "11.50")
+        XCTAssertEqual(response.saleId, "sale_001")
+        XCTAssertEqual(response.salePaymentStatus, "PAID")
+        XCTAssertEqual(response.salePaidAmount?.amount, "11.50")
+        XCTAssertEqual(response.cashSession?.id, "cash_001")
+        XCTAssertEqual(response.cashMovement?.id, "cmov_001")
         XCTAssertEqual(response.idempotencyReplayed, false)
+    }
+
+    func testBusinessPaymentMethodEncodesUppercaseBackendContract() throws {
+        XCTAssertEqual(BusinessPaymentMethod.cash.rawValue, "CASH")
+        XCTAssertEqual(BusinessPaymentMethod.transfer.rawValue, "BANK_TRANSFER")
+        XCTAssertEqual(BusinessPaymentMethod.card.rawValue, "CARD_MANUAL")
+        XCTAssertEqual(BusinessPaymentMethod.other.rawValue, "OTHER")
     }
 }

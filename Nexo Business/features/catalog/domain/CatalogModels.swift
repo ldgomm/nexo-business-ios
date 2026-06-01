@@ -21,6 +21,40 @@ public struct BusinessCatalogUnit: Decodable, Equatable, Sendable {
         self.name = name
         self.allowsDecimal = allowsDecimal
     }
+
+    private enum CodingKeys: String, CodingKey {
+        case code
+        case name
+        case allowsDecimal
+    }
+
+    public init(from decoder: Decoder) throws {
+        if let single = try? decoder.singleValueContainer(),
+           let value = try? single.decode(String.self) {
+            let normalized = value.trimmingCharacters(in: .whitespacesAndNewlines)
+            self.code = BusinessCatalogUnit.normalizedCode(from: normalized)
+            self.name = normalized.isEmpty ? nil : normalized
+            self.allowsDecimal = false
+            return
+        }
+
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let rawCode = try container.decodeIfPresent(String.self, forKey: .code)
+        let rawName = try container.decodeIfPresent(String.self, forKey: .name)
+        self.code = rawCode.map(BusinessCatalogUnit.normalizedCode(from:)) ?? rawName.map(BusinessCatalogUnit.normalizedCode(from:))
+        self.name = rawName ?? rawCode
+        self.allowsDecimal = try container.decodeIfPresent(Bool.self, forKey: .allowsDecimal)
+    }
+
+    private static func normalizedCode(from value: String) -> String {
+        let lower = value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        switch lower {
+        case "unidad", "unidades", "unit", "u", "und":
+            return "unit"
+        default:
+            return lower
+        }
+    }
 }
 
 public struct BusinessCatalogItem: Decodable, Equatable, Identifiable, Sendable {
@@ -35,6 +69,7 @@ public struct BusinessCatalogItem: Decodable, Equatable, Identifiable, Sendable 
     public let price: MoneyAmount?
     public let taxProfileCode: String?
     public let taxProfileName: String?
+    public let taxProfileId: String?
     public let availableStock: String?
     public let allowsDecimalQuantity: Bool?
 
@@ -50,6 +85,7 @@ public struct BusinessCatalogItem: Decodable, Equatable, Identifiable, Sendable 
         price: MoneyAmount? = nil,
         taxProfileCode: String? = nil,
         taxProfileName: String? = nil,
+        taxProfileId: String? = nil,
         availableStock: String? = nil,
         allowsDecimalQuantity: Bool? = nil
     ) {
@@ -64,6 +100,7 @@ public struct BusinessCatalogItem: Decodable, Equatable, Identifiable, Sendable 
         self.price = price
         self.taxProfileCode = taxProfileCode
         self.taxProfileName = taxProfileName
+        self.taxProfileId = taxProfileId
         self.availableStock = availableStock
         self.allowsDecimalQuantity = allowsDecimalQuantity
     }
@@ -86,6 +123,7 @@ public struct BusinessCatalogItem: Decodable, Equatable, Identifiable, Sendable 
         case unitPrice
         case taxProfileCode
         case taxProfileName
+        case taxProfileId
         case availableStock
         case stock
         case allowsDecimalQuantity
@@ -105,6 +143,7 @@ public struct BusinessCatalogItem: Decodable, Equatable, Identifiable, Sendable 
         price = try container.decodeFirstMoneyIfPresent(for: [.price, .basePrice, .unitPrice])
         taxProfileCode = try container.decodeIfPresent(String.self, forKey: .taxProfileCode)
         taxProfileName = try container.decodeIfPresent(String.self, forKey: .taxProfileName)
+        taxProfileId = try container.decodeIfPresent(String.self, forKey: .taxProfileId)
         availableStock = try container.decodeFirstStringIfPresent(for: [.availableStock, .stock])
         allowsDecimalQuantity = try container.decodeIfPresent(Bool.self, forKey: .allowsDecimalQuantity)
     }

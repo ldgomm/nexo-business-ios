@@ -1,6 +1,6 @@
 //
 //  IdempotencyKey.swift
-//  Nexo Admin
+//  Nexo Business
 //
 //  Created by José Ruiz on 29/5/26.
 //
@@ -17,6 +17,24 @@ public struct IdempotencyKey: RawRepresentable, Codable, Equatable, Hashable, Se
     public static func generate(prefix: String) -> IdempotencyKey {
         IdempotencyKey(
             rawValue: "\(prefix)-\(UUID().uuidString.lowercased())"
+        )
+    }
+}
+
+public struct BusinessMutationIdentity: Codable, Equatable, Sendable {
+    public let requestId: String
+    public let idempotencyKey: IdempotencyKey
+
+    public init(requestId: String, idempotencyKey: IdempotencyKey) {
+        self.requestId = requestId
+        self.idempotencyKey = idempotencyKey
+    }
+
+    public static func generate(prefix: String) -> BusinessMutationIdentity {
+        let value = "\(prefix)-\(UUID().uuidString.lowercased())"
+        return BusinessMutationIdentity(
+            requestId: value,
+            idempotencyKey: IdempotencyKey(rawValue: value)
         )
     }
 }

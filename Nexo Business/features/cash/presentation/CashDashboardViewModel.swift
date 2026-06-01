@@ -138,13 +138,15 @@ public final class CashDashboardViewModel {
         }
 
         do {
+            let identity = BusinessMutationIdentity.generate(prefix: "cash-open")
             let response = try await repository.open(
                 organizationId: organizationId,
-                idempotencyKey: .generate(prefix: "cash-open"),
+                idempotencyKey: identity.idempotencyKey,
                 request: OpenCashSessionRequest(
                     branchId: branchId,
                     openingAmount: sanitizedAmount(openingAmount),
-                    note: sanitizedOptional(openingNote)
+                    note: sanitizedOptional(openingNote),
+                    requestId: identity.requestId
                 )
             )
 
@@ -181,14 +183,16 @@ public final class CashDashboardViewModel {
         }
 
         do {
+            let identity = BusinessMutationIdentity.generate(prefix: "cash-movement")
             let response = try await repository.registerMovement(
                 organizationId: organizationId,
                 cashSessionId: session.id,
-                idempotencyKey: .generate(prefix: "cash-movement"),
+                idempotencyKey: identity.idempotencyKey,
                 request: RegisterCashMovementRequest(
                     type: movementType,
                     amount: sanitizedAmount(movementAmount),
-                    note: sanitizedOptional(movementNote)
+                    note: sanitizedOptional(movementNote),
+                    requestId: identity.requestId
                 )
             )
 
@@ -231,13 +235,15 @@ public final class CashDashboardViewModel {
         }
 
         do {
+            let identity = BusinessMutationIdentity.generate(prefix: "cash-close")
             let response = try await repository.close(
                 organizationId: organizationId,
                 cashSessionId: session.id,
-                idempotencyKey: .generate(prefix: "cash-close"),
+                idempotencyKey: identity.idempotencyKey,
                 request: CloseCashSessionRequest(
                     countedAmount: sanitizedAmount(countedAmount),
-                    note: sanitizedOptional(closingNote)
+                    note: sanitizedOptional(closingNote),
+                    requestId: identity.requestId
                 )
             )
 
