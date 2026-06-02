@@ -32,7 +32,7 @@ struct SaleDetailView: View {
     }
 
     var body: some View {
-        Form {
+        List {
             if viewModel.isLoading, viewModel.sale == nil {
                 Section {
                     ProgressView("Cargando venta…")
@@ -40,12 +40,13 @@ struct SaleDetailView: View {
             }
 
             if let sale = viewModel.sale {
-                summarySection(sale)
+                heroSection(sale)
+                statusSection(sale)
                 itemsSection(sale)
                 totalsSection(sale)
-                documentAndPaymentSection(sale)
+                timelineSection(sale)
+                actionsSection(sale)
                 messagesSection
-                actionsSection
             } else if !viewModel.isLoading {
                 ContentUnavailableView(
                     "Venta no disponible",
@@ -54,8 +55,10 @@ struct SaleDetailView: View {
                 )
             }
         }
+        .listStyle(.insetGrouped)
         .nexoKeyboardDismissable()
-        .navigationTitle("Detalle de venta")
+        .navigationTitle("Detalle")
+        .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
@@ -73,55 +76,120 @@ struct SaleDetailView: View {
         }
     }
 
-    private func summarySection(_ sale: BusinessSale) -> some View {
-        Section("Venta") {
-            LabeledContent("Venta", value: sale.displayNumber)
-            SaleStatusLabel(status: sale.status)
+    private func heroSection(_ sale: BusinessSale) -> some View {
+        Section {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack(alignment: .top) {
+                    VStack(alignment: .leading, spacing: 5) {
+                        Text("Venta")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
 
-            LabeledContent("Cliente", value: sale.displayCustomerName)
+                        Text(sale.displayNumber)
+                            .font(.headline.weight(.bold))
+                            .lineLimit(2)
+                    }
 
-            if let createdAt = sale.createdAt {
-                LabeledContent(
-                    "Creada",
-                    value: createdAt.formatted(date: .abbreviated, time: .shortened)
-                )
+                    Spacer(minLength: 12)
+
+                    VStack(alignment: .trailing, spacing: 5) {
+                        Text("Total")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
+
+                        Text(sale.totals.grandTotal.displayText)
+                            .font(.title3.weight(.bold))
+                            .monospacedDigit()
+                    }
+                }
+
+                Divider()
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Label(sale.displayCustomerName, systemImage: "person.crop.circle")
+
+                    if !sale.displayItemsSummary.isEmpty {
+                        Label(sale.displayItemsSummary, systemImage: "cart")
+                            .lineLimit(2)
+                    }
+
+                    if let createdAt = sale.createdAt {
+                        Label(createdAt.formatted(date: .abbreviated, time: .shortened), systemImage: "calendar")
+                    }
+                }
+                .font(.footnote)
+                .foregroundStyle(.secondary)
             }
+            .padding(.vertical, 4)
+        }
+    }
 
-            if let confirmedAt = sale.confirmedAt {
-                LabeledContent(
-                    "Confirmada",
-                    value: confirmedAt.formatted(date: .abbreviated, time: .shortened)
-                )
-            }
+    private func statusSection(_ sale: BusinessSale) -> some View {
+        Section("Estado operativo") {
+            NexoSaleDetailStatusRow(
+                title: "Venta",
+                value: SaleStatusPresentation.title(for: sale.status),
+                systemImage: SaleStatusPresentation.systemImage(for: sale.status)
+            )
+
+            NexoSaleDetailStatusRow(
+                title: "Pago",
+                value: PaymentStatusPresentation.displayName(sale.paymentStatus),
+                systemImage: "dollarsign.circle"
+            )
+
+            NexoSaleDetailStatusRow(
+                title: "Documento",
+                value: BusinessDocumentStatusPresentation.displayName(sale.documentStatus ?? "not_required"),
+                systemImage: "doc.text"
+            )
         }
     }
 
     @ViewBuilder
     private func itemsSection(_ sale: BusinessSale) -> some View {
         if !sale.items.isEmpty {
-            Section("Ítems") {
+            Section("Productos y servicios") {
                 ForEach(sale.items, id: \.id) { item in
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(item.name)
-                            .font(.subheadline.weight(.semibold))
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack(alignment: .firstTextBaseline) {
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(item.name)
+                                    .font(.subheadline.weight(.semibold))
+                                    .lineLimit(2)
 
-                        Text("Cantidad: \(item.quantity.cleanQuantityText)")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                                Text("Cantidad: x\(item.quantity.cleanQuantityText)")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
 
-                        LabeledContent(
-                            "Total línea",
-                            value: money(lineTotal(for: item))
-                        )
+                            Spacer(minLength: 12)
+
+                            Text(lineTotal(for: item).displayText)
+                                .font(.subheadline.weight(.bold))
+                                .monospacedDigit()
+                        }
+
+                        if let unitPrice = item.unitPrice {
+                            LabeledContent("Precio unitario", value: unitPrice.displayText)
+                                .font(.caption)
+                        }
+
+                        if let subtotal = item.subtotal {
+                            LabeledContent("Base línea", value: subtotal.displayText)
+                                .font(.caption)
+                        }
+
+                        if let note = item.note?.trimmingCharacters(in: .whitespacesAndNewlines), !note.isEmpty {
+                            Text(note)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
                     }
                     .padding(.vertical, 4)
                 }
             }
         }
-    }
-    
-    private func lineTotal(for item: BusinessSaleItem) -> MoneyAmount {
-        item.total ?? item.subtotal ?? MoneyAmount(amount: "0.00")
     }
 
     private func totalsSection(_ sale: BusinessSale) -> some View {
@@ -129,19 +197,119 @@ struct SaleDetailView: View {
             LabeledContent("Subtotal", value: money(sale.totals.subtotalWithoutTaxes))
             LabeledContent("Descuento", value: money(sale.totals.discountTotal))
             LabeledContent("Impuestos", value: money(sale.totals.taxTotal))
-            LabeledContent("Total", value: money(sale.totals.grandTotal))
-                .font(.headline)
+
+            HStack {
+                Text("Total")
+                    .font(.headline)
+                Spacer()
+                Text(money(sale.totals.grandTotal))
+                    .font(.headline.weight(.bold))
+                    .monospacedDigit()
+            }
         }
     }
 
-    private func documentAndPaymentSection(_ sale: BusinessSale) -> some View {
-        Section("Pago y documento") {
-            LabeledContent("Pago", value: PaymentStatusPresentation.displayName(sale.paymentStatus))
+    @ViewBuilder
+    private func timelineSection(_ sale: BusinessSale) -> some View {
+        if sale.createdAt != nil || sale.confirmedAt != nil || sale.closedAt != nil || sale.updatedAt != nil {
+            Section("Trazabilidad") {
+                if let createdAt = sale.createdAt {
+                    LabeledContent("Creada", value: createdAt.formatted(date: .abbreviated, time: .shortened))
+                }
 
-            if let documentStatus = sale.documentStatus {
-                LabeledContent("Documento", value: documentStatus)
-            } else {
-                LabeledContent("Documento", value: "Sin estado")
+                if let confirmedAt = sale.confirmedAt {
+                    LabeledContent("Confirmada", value: confirmedAt.formatted(date: .abbreviated, time: .shortened))
+                }
+
+                if let closedAt = sale.closedAt {
+                    LabeledContent("Cerrada", value: closedAt.formatted(date: .abbreviated, time: .shortened))
+                }
+
+                if let updatedAt = sale.updatedAt {
+                    LabeledContent("Actualizada", value: updatedAt.formatted(date: .abbreviated, time: .shortened))
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func actionsSection(_ sale: BusinessSale) -> some View {
+        Section("Acciones") {
+            if viewModel.canCollect {
+                NavigationLink {
+                    PaymentRegisterView(
+                        viewModel: PaymentRegisterViewModel(
+                            organizationId: viewModel.organizationId,
+                            branchId: sale.branchId,
+                            sale: sale,
+                            effectivePermissions: viewModel.effectivePermissions,
+                            cashRepository: cashRepository,
+                            paymentsRepository: paymentsRepository,
+                            receivablesRepository: receivablesRepository
+                        ),
+                        customersRepository: customersRepository
+                    )
+                } label: {
+                    Label("Cobrar venta", systemImage: "dollarsign.circle")
+                }
+            }
+
+            if viewModel.canManageDocuments {
+                NavigationLink {
+                    BusinessDocumentsView(
+                        viewModel: BusinessDocumentsViewModel(
+                            organizationId: viewModel.organizationId,
+                            sale: sale,
+                            effectivePermissions: viewModel.effectivePermissions,
+                            documentsRepository: documentsRepository
+                        )
+                    )
+                } label: {
+                    Label("Comprobantes", systemImage: "doc.text")
+                }
+            }
+
+            if viewModel.canConfirm {
+                Button {
+                    NexoKeyboard.dismiss()
+                    Task { await viewModel.confirm() }
+                } label: {
+                    if viewModel.isConfirming {
+                        ProgressView()
+                    } else {
+                        Label("Confirmar venta", systemImage: "checkmark.seal")
+                    }
+                }
+            }
+
+            if viewModel.canCancel {
+                DisclosureGroup {
+                    VStack(alignment: .leading, spacing: 12) {
+                        TextField("Motivo de cancelación opcional", text: $viewModel.cancelReason, axis: .vertical)
+                            .textInputAutocapitalization(.sentences)
+                            .lineLimit(1...3)
+
+                        Button(role: .destructive) {
+                            NexoKeyboard.dismiss()
+                            Task { await viewModel.cancel() }
+                        } label: {
+                            if viewModel.isCanceling {
+                                ProgressView()
+                            } else {
+                                Label("Cancelar venta", systemImage: "xmark.circle")
+                            }
+                        }
+                    }
+                    .padding(.vertical, 6)
+                } label: {
+                    Label("Cancelar venta", systemImage: "xmark.circle")
+                }
+            }
+
+            if !viewModel.canCollect && !viewModel.canManageDocuments && !viewModel.canConfirm && !viewModel.canCancel {
+                Text("No hay acciones pendientes para esta venta.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
             }
         }
     }
@@ -165,73 +333,35 @@ struct SaleDetailView: View {
         }
     }
 
-    private var actionsSection: some View {
-        Section("Acciones") {
-            if let sale = viewModel.sale, viewModel.canCollect {
-                NavigationLink {
-                    PaymentRegisterView(
-                        viewModel: PaymentRegisterViewModel(
-                            organizationId: viewModel.organizationId,
-                            branchId: sale.branchId,
-                            sale: sale,
-                            effectivePermissions: viewModel.effectivePermissions,
-                            cashRepository: cashRepository,
-                            paymentsRepository: paymentsRepository,
-                            receivablesRepository: receivablesRepository
-                        ),
-                        customersRepository: customersRepository
-                    )
-                } label: {
-                    Label("Cobrar venta", systemImage: "dollarsign.circle")
-                }
-            }
-
-            if let sale = viewModel.sale, viewModel.canManageDocuments {
-                NavigationLink {
-                    BusinessDocumentsView(
-                        viewModel: BusinessDocumentsViewModel(
-                            organizationId: viewModel.organizationId,
-                            sale: sale,
-                            effectivePermissions: viewModel.effectivePermissions,
-                            documentsRepository: documentsRepository
-                        )
-                    )
-                } label: {
-                    Label("Comprobantes", systemImage: "doc.text")
-                }
-            }
-
-            Button {
-                NexoKeyboard.dismiss()
-                Task { await viewModel.confirm() }
-            } label: {
-                if viewModel.isConfirming {
-                    ProgressView()
-                } else {
-                    Label("Confirmar venta", systemImage: "checkmark.seal")
-                }
-            }
-            .disabled(!viewModel.canConfirm)
-
-            TextField("Motivo de cancelación opcional", text: $viewModel.cancelReason)
-                .textInputAutocapitalization(.sentences)
-
-            Button(role: .destructive) {
-                NexoKeyboard.dismiss()
-                Task { await viewModel.cancel() }
-            } label: {
-                if viewModel.isCanceling {
-                    ProgressView()
-                } else {
-                    Label("Cancelar venta", systemImage: "xmark.circle")
-                }
-            }
-            .disabled(!viewModel.canCancel)
-        }
+    private func lineTotal(for item: BusinessSaleItem) -> MoneyAmount {
+        item.total ?? item.subtotal ?? MoneyAmount(amount: "0.00")
     }
 
     private func money(_ value: MoneyAmount) -> String {
         value.displayText
+    }
+}
+
+private struct NexoSaleDetailStatusRow: View {
+    let title: String
+    let value: String
+    let systemImage: String
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: systemImage)
+                .foregroundStyle(.secondary)
+                .frame(width: 24)
+
+            Text(title)
+                .foregroundStyle(.secondary)
+
+            Spacer()
+
+            Text(value)
+                .font(.body.weight(.semibold))
+                .multilineTextAlignment(.trailing)
+        }
     }
 }
 
