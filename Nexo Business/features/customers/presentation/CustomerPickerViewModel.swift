@@ -81,8 +81,10 @@ public final class CustomerPickerViewModel {
             customers = response.customers
             infoMessage = response.customers.isEmpty ? "No encontramos clientes." : nil
         } catch let error as APIError {
+            print("❌ Preview APIError:", error)
             errorMessage = error.userMessage
         } catch {
+            print("❌ Preview Error:", error)
             errorMessage = error.localizedDescription
         }
     }

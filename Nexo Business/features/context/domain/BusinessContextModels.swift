@@ -11,12 +11,6 @@ public struct BusinessUser: Decodable, Equatable, Sendable {
     public let id: String
     public let displayName: String
     public let email: String
-
-    public init(id: String, displayName: String, email: String) {
-        self.id = id
-        self.displayName = displayName
-        self.email = email
-    }
 }
 
 public struct BusinessOrganization: Decodable, Equatable, Sendable {
@@ -25,37 +19,6 @@ public struct BusinessOrganization: Decodable, Equatable, Sendable {
     public let legalName: String
     public let taxId: String
     public let countryCode: String
-
-    public init(
-        id: String,
-        commercialName: String,
-        legalName: String,
-        taxId: String,
-        countryCode: String
-    ) {
-        self.id = id
-        self.commercialName = commercialName
-        self.legalName = legalName
-        self.taxId = taxId
-        self.countryCode = countryCode
-    }
-
-    private enum CodingKeys: String, CodingKey {
-        case id
-        case commercialName
-        case legalName
-        case taxId
-        case countryCode
-    }
-
-    public init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        id = try container.decode(String.self, forKey: .id)
-        commercialName = try container.decodeIfPresent(String.self, forKey: .commercialName) ?? ""
-        legalName = try container.decodeIfPresent(String.self, forKey: .legalName) ?? commercialName
-        taxId = try container.decodeIfPresent(String.self, forKey: .taxId) ?? ""
-        countryCode = try container.decodeIfPresent(String.self, forKey: .countryCode) ?? "EC"
-    }
 }
 
 public struct BusinessBranch: Decodable, Equatable, Identifiable, Sendable {
@@ -63,13 +26,6 @@ public struct BusinessBranch: Decodable, Equatable, Identifiable, Sendable {
     public let name: String
     public let code: String?
     public let status: String
-
-    public init(id: String, name: String, code: String? = nil, status: String) {
-        self.id = id
-        self.name = name
-        self.code = code
-        self.status = status
-    }
 }
 
 public struct BusinessActivity: Decodable, Equatable, Identifiable, Sendable {
@@ -79,27 +35,6 @@ public struct BusinessActivity: Decodable, Equatable, Identifiable, Sendable {
     public let activityType: String
     public let workflowMode: String
     public let status: String
-    public let requiresScheduling: Bool?
-
-    public init(
-        id: String,
-        code: String? = nil,
-        name: String? = nil,
-        activityType: String,
-        workflowMode: String,
-        status: String,
-        requiresScheduling: Bool? = nil
-    ) {
-        self.id = id
-        self.activityType = activityType
-        self.workflowMode = workflowMode
-        self.status = status
-        self.requiresScheduling = requiresScheduling
-        self.code = code?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfBlank
-            ?? activityType
-        self.name = name?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfBlank
-            ?? BusinessActivity.defaultName(activityType: activityType, workflowMode: workflowMode)
-    }
 
     private enum CodingKeys: String, CodingKey {
         case id
@@ -108,80 +43,53 @@ public struct BusinessActivity: Decodable, Equatable, Identifiable, Sendable {
         case activityType
         case workflowMode
         case status
-        case requiresScheduling
     }
-
-    public init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        let id = try container.decode(String.self, forKey: .id)
-        let activityType = try container.decodeIfPresent(String.self, forKey: .activityType) ?? "business"
-        let workflowMode = try container.decodeIfPresent(String.self, forKey: .workflowMode) ?? "quick_sale"
-        let status = try container.decodeIfPresent(String.self, forKey: .status) ?? "active"
-        let requiresScheduling = try container.decodeIfPresent(Bool.self, forKey: .requiresScheduling)
-
-        self.init(
-            id: id,
-            code: try container.decodeIfPresent(String.self, forKey: .code),
-            name: try container.decodeIfPresent(String.self, forKey: .name),
-            activityType: activityType,
-            workflowMode: workflowMode,
-            status: status,
-            requiresScheduling: requiresScheduling
-        )
-    }
-
-    private static func defaultName(activityType: String, workflowMode: String) -> String {
-        let base = activityType
-            .replacingOccurrences(of: "_", with: " ")
-            .capitalized
-        return base.isEmpty ? workflowMode.replacingOccurrences(of: "_", with: " ").capitalized : base
-    }
-}
-
-public struct BusinessRealtimeSettings: Decodable, Equatable, Sendable {
-    public let enabled: Bool?
-    public let transport: String?
-
-    public init(enabled: Bool? = nil, transport: String? = nil) {
-        self.enabled = enabled
-        self.transport = transport
-    }
-}
-
-public struct BusinessModuleReadiness: Decodable, Equatable, Sendable {
-    public let status: String
-    public let blockers: [String]
-    public let warnings: [String]
 
     public init(
-        status: String = "ready",
-        blockers: [String] = [],
-        warnings: [String] = []
+        id: String,
+        code: String,
+        name: String,
+        activityType: String,
+        workflowMode: String,
+        status: String
     ) {
+        self.id = id
+        self.code = code
+        self.name = name
+        self.activityType = activityType
+        self.workflowMode = workflowMode
         self.status = status
-        self.blockers = blockers
-        self.warnings = warnings
-    }
-
-    private enum CodingKeys: String, CodingKey {
-        case status
-        case blockers
-        case warnings
     }
 
     public init(from decoder: Decoder) throws {
-        if let single = try? decoder.singleValueContainer(),
-           let status = try? single.decode(String.self) {
-            self.init(status: status)
-            return
-        }
-
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        self.init(
-            status: try container.decodeIfPresent(String.self, forKey: .status) ?? "ready",
-            blockers: try container.decodeIfPresent([String].self, forKey: .blockers) ?? [],
-            warnings: try container.decodeIfPresent([String].self, forKey: .warnings) ?? []
-        )
+
+        let id = try container.decode(String.self, forKey: .id)
+        let activityType = try container.decodeIfPresent(String.self, forKey: .activityType) ?? "unknown"
+        let workflowMode = try container.decodeIfPresent(String.self, forKey: .workflowMode) ?? "quick_sale"
+
+        self.id = id
+        self.activityType = activityType
+        self.workflowMode = workflowMode
+        self.status = try container.decodeIfPresent(String.self, forKey: .status) ?? "active"
+        self.code = try container.decodeIfPresent(String.self, forKey: .code) ?? activityType
+        self.name = try container.decodeIfPresent(String.self, forKey: .name)
+            ?? BusinessActivity.defaultName(for: activityType)
+    }
+
+    private static func defaultName(for activityType: String) -> String {
+        switch activityType {
+        case "restaurant":
+            return "Restaurante"
+        case "retail":
+            return "Tienda"
+        case "tourism":
+            return "Turismo"
+        default:
+            return activityType
+                .replacingOccurrences(of: "_", with: " ")
+                .capitalized
+        }
     }
 }
 
@@ -193,106 +101,54 @@ public struct BusinessReadiness: Decodable, Equatable, Sendable {
 
     public init(
         status: String,
-        score: Int? = nil,
-        blockers: [String] = [],
-        warnings: [String] = []
+        score: Int?,
+        blockers: [String],
+        warnings: [String]
     ) {
         self.status = status
         self.score = score
         self.blockers = blockers
         self.warnings = warnings
     }
+}
 
-    public static func derived(from moduleReadiness: [String: BusinessModuleReadiness]) -> BusinessReadiness {
-        let blockers = moduleReadiness
-            .flatMap { module, readiness in readiness.blockers.map { "\(module): \($0)" } }
-            .sorted()
-
-        let warnings = moduleReadiness
-            .flatMap { module, readiness in readiness.warnings.map { "\(module): \($0)" } }
-            .sorted()
-
-        let hasBlockedModule = moduleReadiness.values.contains {
-            ["blocked", "not_ready", "disabled"].contains($0.status.lowercased())
-        }
-
-        let status: String
-        if !blockers.isEmpty || hasBlockedModule {
-            status = "blocked"
-        } else if !warnings.isEmpty {
-            status = "warning"
-        } else {
-            status = "ready"
-        }
-
-        return BusinessReadiness(
-            status: status,
-            score: nil,
-            blockers: blockers,
-            warnings: warnings
-        )
-    }
+public struct BusinessModuleReadiness: Decodable, Equatable, Sendable {
+    public let code: String
+    public let ready: Bool
+    public let active: Bool
+    public let missingDependencies: [String]
+    public let warnings: [String]
+    public let blockers: [String]
 }
 
 public struct BusinessContextResponse: Decodable, Equatable, Sendable {
     public let user: BusinessUser
     public let organization: BusinessOrganization
     public let branches: [BusinessBranch]
-    public let activeBranchId: String?
     public let activities: [BusinessActivity]
     public let activeModules: Set<ModuleCode>
     public let effectivePermissions: Set<String>
+    public let revisions: BusinessRevisions
+    public let readiness: BusinessReadiness
 
-    public let catalogRevision: String
-    public let taxConfigurationRevision: String
-    public let realtime: BusinessRealtimeSettings?
-    public let moduleReadiness: [String: BusinessModuleReadiness]
-    public let environment: String?
-    public let serverTime: Date?
+    public let activeBranchId: String?
+    public let activeActivityId: String?
+    public let moduleReadiness: [BusinessModuleReadiness]
 
-    private let decodedReadiness: BusinessReadiness?
-
-    public var revisions: BusinessRevisions {
-        BusinessRevisions(
-            catalogRevision: catalogRevision,
-            taxConfigurationRevision: taxConfigurationRevision
-        )
-    }
-
-    public var readiness: BusinessReadiness {
-        decodedReadiness ?? BusinessReadiness.derived(from: moduleReadiness)
-    }
-
-    public init(
-        user: BusinessUser,
-        organization: BusinessOrganization,
-        branches: [BusinessBranch],
-        activeBranchId: String? = nil,
-        activities: [BusinessActivity],
-        activeModules: Set<ModuleCode>,
-        effectivePermissions: Set<String>,
-        catalogRevision: String,
-        taxConfigurationRevision: String,
-        realtime: BusinessRealtimeSettings? = nil,
-        moduleReadiness: [String: BusinessModuleReadiness] = [:],
-        environment: String? = nil,
-        serverTime: Date? = nil,
-        readiness: BusinessReadiness? = nil
-    ) {
-        self.user = user
-        self.organization = organization
-        self.branches = branches
-        self.activeBranchId = activeBranchId
-        self.activities = activities
-        self.activeModules = activeModules
-        self.effectivePermissions = effectivePermissions
-        self.catalogRevision = catalogRevision
-        self.taxConfigurationRevision = taxConfigurationRevision
-        self.realtime = realtime
-        self.moduleReadiness = moduleReadiness
-        self.environment = environment
-        self.serverTime = serverTime
-        self.decodedReadiness = readiness
+    private enum CodingKeys: String, CodingKey {
+        case user
+        case organization
+        case branches
+        case activities
+        case activeModules
+        case effectivePermissions
+        case revisions
+        case readiness
+        case catalogRevision
+        case taxConfigurationRevision
+        case activeBranchId
+        case activeActivityId
+        case moduleReadiness
     }
 
     public init(
@@ -303,68 +159,63 @@ public struct BusinessContextResponse: Decodable, Equatable, Sendable {
         activeModules: Set<ModuleCode>,
         effectivePermissions: Set<String>,
         revisions: BusinessRevisions,
-        readiness: BusinessReadiness
+        readiness: BusinessReadiness,
+        activeBranchId: String? = nil,
+        activeActivityId: String? = nil,
+        moduleReadiness: [BusinessModuleReadiness] = []
     ) {
-        self.init(
-            user: user,
-            organization: organization,
-            branches: branches,
-            activities: activities,
-            activeModules: activeModules,
-            effectivePermissions: effectivePermissions,
-            catalogRevision: revisions.catalogRevision,
-            taxConfigurationRevision: revisions.taxConfigurationRevision,
-            readiness: readiness
-        )
-    }
-
-    private enum CodingKeys: String, CodingKey {
-        case user
-        case organization
-        case branches
-        case activeBranchId
-        case activities
-        case activeModules
-        case effectivePermissions
-        case revisions
-        case readiness
-        case catalogRevision
-        case taxConfigurationRevision
-        case realtime
-        case moduleReadiness
-        case environment
-        case serverTime
+        self.user = user
+        self.organization = organization
+        self.branches = branches
+        self.activities = activities
+        self.activeModules = activeModules
+        self.effectivePermissions = effectivePermissions
+        self.revisions = revisions
+        self.readiness = readiness
+        self.activeBranchId = activeBranchId
+        self.activeActivityId = activeActivityId
+        self.moduleReadiness = moduleReadiness
     }
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
 
-        user = try container.decode(BusinessUser.self, forKey: .user)
-        organization = try container.decode(BusinessOrganization.self, forKey: .organization)
-        branches = try container.decodeIfPresent([BusinessBranch].self, forKey: .branches) ?? []
-        activeBranchId = try container.decodeIfPresent(String.self, forKey: .activeBranchId)
-        activities = try container.decodeIfPresent([BusinessActivity].self, forKey: .activities) ?? []
-        activeModules = try container.decodeIfPresent(Set<ModuleCode>.self, forKey: .activeModules) ?? []
-        effectivePermissions = try container.decodeIfPresent(Set<String>.self, forKey: .effectivePermissions) ?? []
+        self.user = try container.decode(BusinessUser.self, forKey: .user)
+        self.organization = try container.decode(BusinessOrganization.self, forKey: .organization)
+        self.branches = try container.decodeIfPresent([BusinessBranch].self, forKey: .branches) ?? []
+        self.activities = try container.decodeIfPresent([BusinessActivity].self, forKey: .activities) ?? []
+        self.activeModules = try container.decodeIfPresent(Set<ModuleCode>.self, forKey: .activeModules) ?? []
+        self.effectivePermissions = try container.decodeIfPresent(Set<String>.self, forKey: .effectivePermissions) ?? []
 
-        let revisions = try container.decodeIfPresent(BusinessRevisions.self, forKey: .revisions)
-        catalogRevision = try container.decodeIfPresent(String.self, forKey: .catalogRevision)
-            ?? revisions?.catalogRevision
-            ?? ""
-        taxConfigurationRevision = try container.decodeIfPresent(String.self, forKey: .taxConfigurationRevision)
-            ?? revisions?.taxConfigurationRevision
-            ?? ""
+        self.activeBranchId = try container.decodeIfPresent(String.self, forKey: .activeBranchId)
+        self.activeActivityId = try container.decodeIfPresent(String.self, forKey: .activeActivityId)
+        self.moduleReadiness = try container.decodeIfPresent([BusinessModuleReadiness].self, forKey: .moduleReadiness) ?? []
 
-        realtime = try container.decodeIfPresent(BusinessRealtimeSettings.self, forKey: .realtime)
-        moduleReadiness = try container.decodeIfPresent([String: BusinessModuleReadiness].self, forKey: .moduleReadiness) ?? [:]
-        environment = try container.decodeIfPresent(String.self, forKey: .environment)
-        serverTime = try container.decodeIfPresent(Date.self, forKey: .serverTime)
-        decodedReadiness = try container.decodeIfPresent(BusinessReadiness.self, forKey: .readiness)
-    }
-}
+        if let revisions = try container.decodeIfPresent(BusinessRevisions.self, forKey: .revisions) {
+            self.revisions = revisions
+        } else {
+            let catalogRevision = try container.decodeIfPresent(String.self, forKey: .catalogRevision) ?? ""
+            let taxConfigurationRevision = try container.decodeIfPresent(String.self, forKey: .taxConfigurationRevision) ?? ""
 
-private extension String {
-    var nilIfBlank: String? {
-        isEmpty ? nil : self
+            self.revisions = BusinessRevisions(
+                catalogRevision: catalogRevision,
+                taxConfigurationRevision: taxConfigurationRevision
+            )
+        }
+
+        if let readiness = try container.decodeIfPresent(BusinessReadiness.self, forKey: .readiness) {
+            self.readiness = readiness
+        } else {
+            let activeModuleReadiness = moduleReadiness.filter { $0.active }
+            let blockers = activeModuleReadiness.flatMap(\.blockers)
+            let warnings = activeModuleReadiness.flatMap(\.warnings)
+
+            self.readiness = BusinessReadiness(
+                status: blockers.isEmpty ? "ready" : "blocked",
+                score: blockers.isEmpty ? 100 : 0,
+                blockers: blockers,
+                warnings: warnings
+            )
+        }
     }
 }

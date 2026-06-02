@@ -188,8 +188,10 @@ public final class PaymentRegisterViewModel {
             )
             currentCashSession = response.session
         } catch let error as APIError {
+            print("❌ Preview APIError:", error)
             errorMessage = error.userMessage
         } catch {
+            print("❌ Preview Error:", error)
             errorMessage = error.localizedDescription
         }
     }

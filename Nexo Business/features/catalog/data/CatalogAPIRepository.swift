@@ -13,9 +13,14 @@ public enum BusinessCatalogRoutes {
 
 public final class CatalogAPIRepository: CatalogRepository, @unchecked Sendable {
     private let apiClient: APIClient
+    private let revisionRegistry: BusinessRevisionRegistry
 
-    public init(apiClient: APIClient) {
+    public init(
+        apiClient: APIClient,
+        revisionRegistry: BusinessRevisionRegistry = .shared
+    ) {
         self.apiClient = apiClient
+        self.revisionRegistry = revisionRegistry
     }
 
     public func search(
@@ -26,7 +31,7 @@ public final class CatalogAPIRepository: CatalogRepository, @unchecked Sendable 
         query: String,
         limit: Int = 20
     ) async throws -> CatalogSearchResponse {
-        try await apiClient.send(
+        let response: CatalogSearchResponse = try await apiClient.send(
             APIRequest(
                 method: .get,
                 path: BusinessCatalogRoutes.items,
@@ -37,13 +42,42 @@ public final class CatalogAPIRepository: CatalogRepository, @unchecked Sendable 
                     URLQueryItem(name: "limit", value: String(limit)),
                     URLQueryItem(name: "status", value: "active")
                 ],
-                headers: [
-                    BusinessHeaders.organizationId: organizationId,
-                    BusinessHeaders.branchId: branchId,
-                    BusinessHeaders.activityId: activityId,
-                    BusinessHeaders.catalogRevision: catalogRevision
-                ]
+                headers: catalogHeaders(
+                    organizationId: organizationId,
+                    branchId: branchId,
+                    activityId: activityId,
+                    catalogRevision: catalogRevision
+                )
             )
         )
+
+        await revisionRegistry.observeCatalogRevision(
+            organizationId: organizationId,
+            branchId: branchId,
+            activityId: activityId,
+            catalogRevision: response.catalogRevision
+        )
+
+        return response
+    }
+
+    private func catalogHeaders(
+        organizationId: String,
+        branchId: String,
+        activityId: String,
+        catalogRevision: String
+    ) -> [String: String] {
+        var headers: [String: String] = [
+            BusinessHeaders.organizationId: organizationId,
+            BusinessHeaders.branchId: branchId,
+            BusinessHeaders.activityId: activityId
+        ]
+
+        let normalizedRevision = catalogRevision.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !normalizedRevision.isEmpty {
+            headers[BusinessHeaders.catalogRevision] = normalizedRevision
+        }
+
+        return headers
     }
 }

@@ -41,7 +41,8 @@ public struct BusinessCatalogUnit: Decodable, Equatable, Sendable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let rawCode = try container.decodeIfPresent(String.self, forKey: .code)
         let rawName = try container.decodeIfPresent(String.self, forKey: .name)
-        self.code = rawCode.map(BusinessCatalogUnit.normalizedCode(from:)) ?? rawName.map(BusinessCatalogUnit.normalizedCode(from:))
+        self.code = rawCode.map(BusinessCatalogUnit.normalizedCode(from:))
+            ?? rawName.map(BusinessCatalogUnit.normalizedCode(from:))
         self.name = rawName ?? rawCode
         self.allowsDecimal = try container.decodeIfPresent(Bool.self, forKey: .allowsDecimal)
     }

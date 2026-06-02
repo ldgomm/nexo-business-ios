@@ -84,8 +84,10 @@ public final class ReceivableCollectionViewModel {
             )
             currentCashSession = response.session
         } catch let error as APIError {
+            print("❌ Preview APIError:", error)
             errorMessage = error.userMessage
         } catch {
+            print("❌ Preview Error:", error)
             errorMessage = error.localizedDescription
         }
     }
@@ -122,8 +124,10 @@ public final class ReceivableCollectionViewModel {
                 ? "Abono recuperado de un intento anterior."
                 : "Abono registrado correctamente."
         } catch let error as APIError {
+            print("❌ Preview APIError:", error)
             errorMessage = error.userMessage
         } catch {
+            print("❌ Preview Error:", error)
             errorMessage = error.localizedDescription
         }
     }

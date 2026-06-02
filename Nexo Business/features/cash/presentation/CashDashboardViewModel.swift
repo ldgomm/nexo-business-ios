@@ -208,8 +208,10 @@ public final class CashDashboardViewModel {
                 ? "Movimiento recuperado sin duplicar la operación."
                 : "Movimiento registrado correctamente."
         } catch let error as APIError {
+            print("❌ Preview APIError:", error)
             errorMessage = error.userMessage
         } catch {
+            print("❌ Preview Error:", error)
             errorMessage = error.localizedDescription
         }
     }
@@ -253,8 +255,10 @@ public final class CashDashboardViewModel {
                 ? "Cierre recuperado sin duplicar la operación."
                 : "Caja cerrada correctamente."
         } catch let error as APIError {
+            print("❌ Preview APIError:", error)
             errorMessage = error.userMessage
         } catch {
+            print("❌ Preview Error:", error)
             errorMessage = error.localizedDescription
         }
     }

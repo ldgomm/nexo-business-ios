@@ -26,9 +26,14 @@ public enum BusinessSalesRoutes {
 
 public final class SalesAPIRepository: SalesRepository, @unchecked Sendable {
     private let apiClient: APIClient
+    private let revisionRegistry: BusinessRevisionRegistry
 
-    public init(apiClient: APIClient) {
+    public init(
+        apiClient: APIClient,
+        revisionRegistry: BusinessRevisionRegistry = .shared
+    ) {
         self.apiClient = apiClient
+        self.revisionRegistry = revisionRegistry
     }
 
     public func preview(
@@ -36,19 +41,34 @@ public final class SalesAPIRepository: SalesRepository, @unchecked Sendable {
         revisions: BusinessRevisions,
         request body: SalesPreviewRequest
     ) async throws -> SalesPreviewResponse {
-        let headers = contextHeaders(
+        let resolvedRevisions = await revisionRegistry.latestRevisions(
             organizationId: organizationId,
             branchId: body.branchId,
             activityId: body.activityId,
-            revisions: revisions
+            fallback: revisions
+        )
+
+        let resolvedBody = SalesPreviewRequest(
+            branchId: body.branchId,
+            activityId: body.activityId,
+            customerId: body.customerId,
+            customerSnapshot: body.customerSnapshot,
+            catalogRevision: resolvedRevisions.catalogRevision,
+            taxConfigurationRevision: resolvedRevisions.taxConfigurationRevision,
+            items: body.items
         )
 
         return try await apiClient.send(
             try APIRequest<SalesPreviewResponse>.json(
                 method: .post,
                 path: BusinessSalesRoutes.preview,
-                body: body,
-                headers: headers
+                body: resolvedBody,
+                headers: contextHeaders(
+                    organizationId: organizationId,
+                    branchId: body.branchId,
+                    activityId: body.activityId,
+                    revisions: resolvedRevisions
+                )
             )
         )
     }
@@ -59,20 +79,39 @@ public final class SalesAPIRepository: SalesRepository, @unchecked Sendable {
         idempotencyKey: IdempotencyKey,
         request body: QuickSaleRequest
     ) async throws -> QuickSaleResponse {
-        let headers = mutationHeaders(
+        let resolvedRevisions = await revisionRegistry.latestRevisions(
             organizationId: organizationId,
             branchId: body.branchId,
             activityId: body.activityId,
-            revisions: revisions,
-            idempotencyKey: idempotencyKey
+            fallback: revisions
+        )
+
+        let resolvedBody = QuickSaleRequest(
+            requestId: body.requestId,
+            branchId: body.branchId,
+            activityId: body.activityId,
+            customerId: body.customerId,
+            customerSnapshot: body.customerSnapshot,
+            cashSessionId: body.cashSessionId,
+            autoConfirm: body.autoConfirm,
+            catalogRevision: resolvedRevisions.catalogRevision,
+            taxConfigurationRevision: resolvedRevisions.taxConfigurationRevision,
+            items: body.items,
+            notes: body.notes
         )
 
         return try await apiClient.send(
             try APIRequest<QuickSaleResponse>.json(
                 method: .post,
                 path: BusinessSalesRoutes.quickSale,
-                body: body,
-                headers: headers
+                body: resolvedBody,
+                headers: mutationHeaders(
+                    organizationId: organizationId,
+                    branchId: body.branchId,
+                    activityId: body.activityId,
+                    revisions: resolvedRevisions,
+                    idempotencyKey: idempotencyKey
+                )
             )
         )
     }
@@ -99,20 +138,18 @@ public final class SalesAPIRepository: SalesRepository, @unchecked Sendable {
         idempotencyKey: IdempotencyKey,
         request body: ConfirmSaleRequest
     ) async throws -> ConfirmSaleResponse {
-        let headers = mutationHeaders(
-            organizationId: organizationId,
-            branchId: nil,
-            activityId: nil,
-            revisions: revisions,
-            idempotencyKey: idempotencyKey
-        )
-
         return try await apiClient.send(
             try APIRequest<ConfirmSaleResponse>.json(
                 method: .post,
                 path: BusinessSalesRoutes.confirm(saleId: saleId),
                 body: body,
-                headers: headers
+                headers: mutationHeaders(
+                    organizationId: organizationId,
+                    branchId: nil,
+                    activityId: nil,
+                    revisions: revisions,
+                    idempotencyKey: idempotencyKey
+                )
             )
         )
     }
@@ -124,20 +161,18 @@ public final class SalesAPIRepository: SalesRepository, @unchecked Sendable {
         idempotencyKey: IdempotencyKey,
         request body: CancelSaleRequest
     ) async throws -> CancelSaleResponse {
-        let headers = mutationHeaders(
-            organizationId: organizationId,
-            branchId: nil,
-            activityId: nil,
-            revisions: revisions,
-            idempotencyKey: idempotencyKey
-        )
-
         return try await apiClient.send(
             try APIRequest<CancelSaleResponse>.json(
                 method: .post,
                 path: BusinessSalesRoutes.cancel(saleId: saleId),
                 body: body,
-                headers: headers
+                headers: mutationHeaders(
+                    organizationId: organizationId,
+                    branchId: nil,
+                    activityId: nil,
+                    revisions: revisions,
+                    idempotencyKey: idempotencyKey
+                )
             )
         )
     }

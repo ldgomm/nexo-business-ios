@@ -64,8 +64,10 @@ public final class SaleBuilderViewModel {
                 )
             )
         } catch let error as APIError {
+            print("❌ Preview APIError:", error)
             errorMessage = error.userMessage
         } catch {
+            print("❌ Preview Error:", error)
             errorMessage = error.localizedDescription
         }
     }
@@ -100,8 +102,10 @@ public final class SaleBuilderViewModel {
 
             createdSale = response.sale
         } catch let error as APIError {
+            print("❌ QuickSale APIError:", error)
             errorMessage = error.userMessage
         } catch {
+            print("❌ QuickSale Error:", error)
             errorMessage = error.localizedDescription
         }
     }
