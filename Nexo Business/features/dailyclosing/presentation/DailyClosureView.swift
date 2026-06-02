@@ -1,10 +1,3 @@
-//
-//  DailyClosureView.swift
-//  Nexo Business
-//
-//  Created by José Ruiz on 29/5/26.
-//
-
 import SwiftUI
 
 struct DailyClosureView: View {
@@ -34,14 +27,15 @@ struct DailyClosureView: View {
     var body: some View {
         Form {
             dateSection
-            reportSection
+            dailyStatsSection
             cashSection
+            pendingSummarySection
             pendingSalesSection
             pendingReceivablesSection
             pendingDocumentsSection
             messagesSection
         }
-        .navigationTitle("Cierre diario")
+        .navigationTitle("Hoy")
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
@@ -71,29 +65,36 @@ struct DailyClosureView: View {
                 Task { await viewModel.load() }
             }
 
-            LabeledContent("Fecha de cierre", value: viewModel.selectedBusinessDateString)
+            LabeledContent("Consulta", value: viewModel.selectedBusinessDateString)
         }
     }
 
     @ViewBuilder
-    private var reportSection: some View {
-        Section("Reporte diario") {
+    private var dailyStatsSection: some View {
+        Section("Estadísticas de ventas") {
             switch viewModel.reportState {
             case .idle, .loading:
-                ProgressView("Cargando reporte…")
+                ProgressView("Cargando estadísticas…")
 
             case let .failed(message):
-                Label(message, systemImage: "exclamationmark.triangle")
-                    .foregroundStyle(.red)
+                if !viewModel.todaySales.isEmpty {
+                    TodayStatsView(report: nil, sales: viewModel.todaySales)
+                    Label("Reporte diario no disponible: \(message)", systemImage: "info.circle")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                } else {
+                    Label(message, systemImage: "exclamationmark.triangle")
+                        .foregroundStyle(.red)
+                }
 
             case let .loaded(report):
-                if let report {
-                    DailyReportSummaryView(report: report)
+                if report != nil || !viewModel.todaySales.isEmpty {
+                    TodayStatsView(report: report, sales: viewModel.todaySales)
                 } else {
                     ContentUnavailableView(
-                        "Sin reporte",
+                        "Sin ventas para este día",
                         systemImage: "chart.bar.doc.horizontal",
-                        description: Text("Aún no hay información para este día.")
+                        description: Text("Cuando registres ventas, aquí verás el resumen diario.")
                     )
                 }
             }
@@ -102,7 +103,7 @@ struct DailyClosureView: View {
 
     @ViewBuilder
     private var cashSection: some View {
-        Section("Caja") {
+        Section("Caja operativa") {
             switch viewModel.cashState {
             case .idle, .loading:
                 ProgressView("Consultando caja…")
@@ -113,7 +114,7 @@ struct DailyClosureView: View {
 
             case let .loaded(session):
                 if let session {
-                    CashDailySummaryView(session: session)
+                    CashTodaySummaryView(session: session)
 
                     NavigationLink {
                         CashDashboardView(
@@ -126,7 +127,7 @@ struct DailyClosureView: View {
                         )
                     } label: {
                         Label(
-                            viewModel.canCloseCash ? "Ir a cierre de caja" : "Ver caja operativa",
+                            viewModel.canCloseCash ? "Ver caja o cerrar caja" : "Ver caja operativa",
                             systemImage: viewModel.canCloseCash ? "lock" : "tray"
                         )
                     }
@@ -151,13 +152,28 @@ struct DailyClosureView: View {
         }
     }
 
+    private var pendingSummarySection: some View {
+        Section("Pendientes del día") {
+            LabeledContent("Ventas pendientes", value: String(viewModel.pendingSales.count))
+            LabeledContent("Cuentas por cobrar", value: String(viewModel.pendingReceivables.count))
+            LabeledContent("Comprobantes por revisar", value: String(viewModel.pendingDocuments.count))
+
+            if viewModel.hasPendingWork {
+                Label("Hay pendientes antes de cerrar el día.", systemImage: "exclamationmark.circle")
+                    .font(.footnote)
+                    .foregroundStyle(.orange)
+            } else {
+                Label("No hay pendientes operativos para este día.", systemImage: "checkmark.circle")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
     @ViewBuilder
     private var pendingSalesSection: some View {
-        Section("Ventas pendientes") {
-            if viewModel.pendingSales.isEmpty {
-                Label("Sin ventas pendientes", systemImage: "checkmark.circle")
-                    .foregroundStyle(.secondary)
-            } else {
+        if !viewModel.pendingSales.isEmpty {
+            Section("Ventas pendientes") {
                 ForEach(viewModel.pendingSales) { sale in
                     NavigationLink {
                         SaleDetailView(
@@ -181,11 +197,8 @@ struct DailyClosureView: View {
 
     @ViewBuilder
     private var pendingReceivablesSection: some View {
-        Section("Cuentas por cobrar") {
-            if viewModel.pendingReceivables.isEmpty {
-                Label("Sin cuentas por cobrar pendientes", systemImage: "checkmark.circle")
-                    .foregroundStyle(.secondary)
-            } else {
+        if !viewModel.pendingReceivables.isEmpty {
+            Section("Cuentas por cobrar") {
                 ForEach(viewModel.pendingReceivables) { receivable in
                     NavigationLink {
                         ReceivableCollectionView(
@@ -205,11 +218,8 @@ struct DailyClosureView: View {
 
     @ViewBuilder
     private var pendingDocumentsSection: some View {
-        Section("Comprobantes por revisar") {
-            if viewModel.pendingDocuments.isEmpty {
-                Label("Sin comprobantes pendientes o rechazados", systemImage: "checkmark.circle")
-                    .foregroundStyle(.secondary)
-            } else {
+        if !viewModel.pendingDocuments.isEmpty {
+            Section("Comprobantes por revisar") {
                 ForEach(viewModel.pendingDocuments) { document in
                     NavigationLink {
                         SaleDetailView(
@@ -250,75 +260,156 @@ struct DailyClosureView: View {
     }
 }
 
-private struct DailyReportSummaryView: View {
-    let report: BusinessDailyReport
+private struct TodayStatsView: View {
+    let report: BusinessDailyReport?
+    let sales: [BusinessSale]
 
     var body: some View {
-        LabeledContent("Fecha", value: report.businessDate)
+        VStack(spacing: 12) {
+            HStack(spacing: 12) {
+                TodayMetricCard(
+                    title: "Ventas",
+                    value: String(salesCount),
+                    subtitle: "realizadas",
+                    systemImage: "cart.fill"
+                )
 
-        if let salesCount = report.salesCount {
-            LabeledContent("Ventas", value: "\(salesCount)")
+                TodayMetricCard(
+                    title: "Total vendido",
+                    value: salesTotal.displayText,
+                    subtitle: "ventas brutas",
+                    systemImage: "chart.line.uptrend.xyaxis"
+                )
+            }
+
+            HStack(spacing: 12) {
+                TodayMetricCard(
+                    title: "Cobrado",
+                    value: paymentsTotal.displayText,
+                    subtitle: "pagos recibidos",
+                    systemImage: "dollarsign.circle.fill"
+                )
+
+                TodayMetricCard(
+                    title: "Caja",
+                    value: cashExpectedAmount.displayText,
+                    subtitle: "efectivo esperado",
+                    systemImage: "banknote.fill"
+                )
+            }
+
+            if cancelledSalesCount > 0 {
+                HStack {
+                    Label("Canceladas", systemImage: "xmark.circle")
+                    Spacer()
+                    Text(String(cancelledSalesCount))
+                        .font(.headline.monospacedDigit())
+                }
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+            }
         }
+        .padding(.vertical, 4)
+    }
 
-        if let salesTotal = report.salesTotal {
-            LabeledContent("Total ventas", value: money(salesTotal))
-        }
+    private var salesCount: Int {
+        report?.salesCount ?? activeSales.count
+    }
 
-        if let paymentsCount = report.paymentsCount {
-            LabeledContent("Cobros", value: "\(paymentsCount)")
-        }
+    private var cancelledSalesCount: Int {
+        report?.cancelledSalesCount ?? sales.filter { $0.status.lowercased() == "canceled" || $0.status.lowercased() == "cancelled" }.count
+    }
 
-        if let paymentsTotal = report.paymentsTotal {
-            LabeledContent("Total cobrado", value: money(paymentsTotal))
-        }
+    private var salesTotal: MoneyAmount {
+        report?.salesTotal ?? sum(activeSales.map(\.totals.grandTotal))
+    }
 
-        if let cashExpectedAmount = report.cashExpectedAmount {
-            LabeledContent("Esperado en caja", value: money(cashExpectedAmount))
-        }
+    private var paymentsTotal: MoneyAmount {
+        report?.paymentsTotal ?? sum(activeSales.filter { !PaymentStatusPresentation.canCollect(status: $0.paymentStatus) }.map(\.totals.grandTotal))
+    }
 
-        if let receivablesPendingCount = report.receivablesPendingCount {
-            LabeledContent("Cuentas pendientes", value: "\(receivablesPendingCount)")
-        }
+    private var cashExpectedAmount: MoneyAmount {
+        report?.cashExpectedAmount ?? paymentsTotal
+    }
 
-        if let receivablesPendingTotal = report.receivablesPendingTotal {
-            LabeledContent("Saldo por cobrar", value: money(receivablesPendingTotal))
-        }
-
-        if let pendingDocumentsCount = report.pendingDocumentsCount {
-            LabeledContent("Comprobantes por revisar", value: "\(pendingDocumentsCount)")
+    private var activeSales: [BusinessSale] {
+        sales.filter { sale in
+            let normalized = sale.status.lowercased()
+            return normalized != "canceled" && normalized != "cancelled"
         }
     }
 
-    private func money(_ amount: MoneyAmount) -> String {
-        "\(amount.currency) \(amount.amount)"
+    private func sum(_ amounts: [MoneyAmount]) -> MoneyAmount {
+        let total = amounts.reduce(Decimal(0)) { partial, amount in
+            partial + (Decimal(string: amount.amount, locale: Locale(identifier: "en_US_POSIX")) ?? Decimal(0))
+        }
+        return MoneyAmount(amount: format(total))
+    }
+
+    private func format(_ decimal: Decimal) -> String {
+        let number = NSDecimalNumber(decimal: decimal)
+        return String(format: "%.2f", number.doubleValue)
     }
 }
 
-private struct CashDailySummaryView: View {
+private struct TodayMetricCard: View {
+    let title: String
+    let value: String
+    let subtitle: String
+    let systemImage: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label(title, systemImage: systemImage)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+
+            Text(value)
+                .font(.headline.weight(.bold))
+                .monospacedDigit()
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+
+            Text(subtitle)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(12)
+        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+}
+
+private struct CashTodaySummaryView: View {
     let session: CashSession
 
     var body: some View {
-        LabeledContent("Estado", value: session.status)
+        Label(session.isOpen ? "Caja abierta" : "Caja cerrada", systemImage: session.isOpen ? "checkmark.circle.fill" : "lock")
+            .foregroundStyle(session.isOpen ? .green : .secondary)
 
         if let openingAmount = session.openingAmount {
-            LabeledContent("Apertura", value: money(openingAmount))
+            LabeledContent("Monto inicial", value: money(openingAmount))
         }
 
         if let expectedAmount = session.expectedAmount {
-            LabeledContent("Esperado", value: money(expectedAmount))
+            LabeledContent(session.isOpen ? "Efectivo esperado" : "Esperado", value: money(expectedAmount))
         }
 
-        if let countedAmount = session.countedAmount {
-            LabeledContent("Contado", value: money(countedAmount))
-        }
+        if session.isOpen {
+            LabeledContent("Conteo", value: "Pendiente al cierre")
+        } else {
+            if let countedAmount = session.countedAmount {
+                LabeledContent("Contado", value: money(countedAmount))
+            }
 
-        if let differenceAmount = session.differenceAmount {
-            LabeledContent("Diferencia", value: money(differenceAmount))
+            if let differenceAmount = session.differenceAmount {
+                LabeledContent("Diferencia", value: money(differenceAmount))
+            }
         }
     }
 
     private func money(_ amount: MoneyAmount) -> String {
-        "\(amount.currency) \(amount.amount)"
+        amount.displayText
     }
 }
 
@@ -327,7 +418,7 @@ private struct PendingSaleRow: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text("Venta \(sale.id)")
+            Text("Venta \(sale.displayNumber)")
                 .font(.subheadline.weight(.semibold))
             Text(SaleStatusPresentation.title(for: sale.status))
                 .font(.caption)
@@ -345,7 +436,7 @@ private struct PendingSaleRow: View {
     }
 
     private func money(_ amount: MoneyAmount) -> String {
-        "\(amount.currency) \(amount.amount)"
+        amount.displayText
     }
 }
 
@@ -378,7 +469,7 @@ private struct PendingReceivableRow: View {
     }
 
     private func money(_ amount: MoneyAmount) -> String {
-        "\(amount.currency) \(amount.amount)"
+        amount.displayText
     }
 }
 

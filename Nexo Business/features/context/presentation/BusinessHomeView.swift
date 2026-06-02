@@ -1,10 +1,3 @@
-//
-//  BusinessHomeView.swift
-//  Nexo Business
-//
-//  Created by José Ruiz on 1/6/26.
-//
-
 import SwiftUI
 
 struct BusinessHomeView: View {
@@ -41,9 +34,9 @@ struct BusinessHomeView: View {
                     Label("Vender", systemImage: "cart.badge.plus")
                 }
 
-            pendingTab
+            todayTab
                 .tabItem {
-                    Label("Pendientes", systemImage: "tray.full")
+                    Label("Hoy", systemImage: "chart.bar.doc.horizontal")
                 }
 
             cashTab
@@ -99,7 +92,7 @@ struct BusinessHomeView: View {
         }
     }
 
-    private var pendingTab: some View {
+    private var todayTab: some View {
         NavigationStack {
             if hasPendingAccess(permissionGate) {
                 DailyClosureView(
@@ -110,7 +103,8 @@ struct BusinessHomeView: View {
                         effectivePermissions: permissions,
                         pendingRepository: container.pendingOperationsRepository,
                         dailyReportRepository: container.dailyReportRepository,
-                        cashRepository: container.cashRepository
+                        cashRepository: container.cashRepository,
+                        historyRepository: container.salesHistoryRepository
                     ),
                     salesRepository: container.salesRepository,
                     cashRepository: container.cashRepository,
@@ -123,11 +117,11 @@ struct BusinessHomeView: View {
                 }
             } else {
                 LockedOperationalView(
-                    title: "Pendientes no habilitados",
-                    message: "Tu usuario no tiene permiso para consultar pendientes o cierre diario.",
-                    systemImage: "tray.full"
+                    title: "Hoy no habilitado",
+                    message: "Tu usuario no tiene permiso para consultar ventas del día, pendientes o cierre diario.",
+                    systemImage: "chart.bar.doc.horizontal"
                 )
-                .navigationTitle("Pendientes")
+                .navigationTitle("Hoy")
                 .toolbar {
                     commonToolbar
                 }
@@ -258,14 +252,12 @@ struct BusinessHomeView: View {
             }
 
             if hasInventoryAccess(permissionGate) {
-                BusinessHomeInventorySection(
-                    organizationId: organizationId,
-                    branchId: branchId,
-                    activityId: activityId,
-                    catalogRevision: revisions.catalogRevision,
-                    effectivePermissions: permissions,
-                    inventoryRepository: container.inventoryRepository
-                )
+                Label("Inventario no disponible en staging", systemImage: "shippingbox")
+                    .foregroundStyle(.secondary)
+
+                Text("El backend responde 404 en /api/v1/business/inventory/items. Lo oculto como acción navegable para evitar una pantalla rota hasta implementar o desplegar ese endpoint.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
             }
         }
     }
@@ -286,10 +278,12 @@ struct BusinessHomeView: View {
     }
 
     private var modulesSection: some View {
-        Section("Módulos activos") {
-            ForEach(context.activeModules.map(\.rawValue).sorted(), id: \.self) { module in
-                Text(module)
-                    .font(.footnote.monospaced())
+        Section("Diagnóstico técnico") {
+            DisclosureGroup("Módulos activos") {
+                ForEach(context.activeModules.map(\.rawValue).sorted(), id: \.self) { module in
+                    Text(module)
+                        .font(.footnote.monospaced())
+                }
             }
         }
     }

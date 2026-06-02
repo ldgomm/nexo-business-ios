@@ -1,10 +1,3 @@
-//
-//  PaymentRegisterViewModel.swift
-//  Nexo Business
-//
-//  Created by José Ruiz on 1/6/26.
-//
-
 import Foundation
 import Observation
 
@@ -59,13 +52,15 @@ enum PaymentRegisterMode: String, CaseIterable, Identifiable, Sendable, Hashable
 @MainActor
 @Observable
 final class PaymentRegisterViewModel {
-    let sale: BusinessSale
+    private(set) var sale: BusinessSale
     private(set) var currentCashSession: CashSession?
     private(set) var selectedCustomer: BusinessCustomer?
     private(set) var isLoadingCash = false
     private(set) var isSubmitting = false
     private(set) var paymentResult: PaymentRecord?
+    private(set) var cashMovementResult: CashMovement?
     private(set) var receivableResult: ReceivableRecord?
+    private(set) var lastSubmittedMode: PaymentRegisterMode?
     var selectedMode: PaymentRegisterMode = .cash
     var amount: String
     var reference = ""
@@ -105,8 +100,16 @@ final class PaymentRegisterViewModel {
         self.customerId = sale.customerId ?? ""
     }
 
+    var hasCompletedSubmission: Bool {
+        paymentResult != nil || receivableResult != nil
+    }
+
+    var registeredPaymentWasCash: Bool {
+        lastSubmittedMode == .cash || paymentResult?.method == BusinessPaymentMethod.cash.rawValue
+    }
+
     var canSubmitPayment: Bool {
-        guard !isSubmitting, selectedMode != .credit else { return false }
+        guard !isSubmitting, !hasCompletedSubmission, selectedMode != .credit else { return false }
         guard hasPaymentPermission else { return false }
         guard SaleStatusPresentation.canCollect(status: sale.status) else { return false }
         guard PaymentStatusPresentation.canCollect(status: sale.paymentStatus) else { return false }
@@ -120,7 +123,7 @@ final class PaymentRegisterViewModel {
     }
 
     var canCreateReceivable: Bool {
-        guard !isSubmitting, selectedMode == .credit else { return false }
+        guard !isSubmitting, !hasCompletedSubmission, selectedMode == .credit else { return false }
         guard hasReceivablePermission else { return false }
         guard SaleStatusPresentation.canCollect(status: sale.status) else { return false }
         guard PaymentStatusPresentation.canCollect(status: sale.paymentStatus) else { return false }
@@ -154,13 +157,36 @@ final class PaymentRegisterViewModel {
         "\(sale.totals.grandTotal.currency) \(amount)"
     }
 
+    var submitButtonTitle: String {
+        selectedMode == .credit ? "Crear cuenta por cobrar" : "Confirmar cobro"
+    }
+
+    var submitConfirmationTitle: String {
+        selectedMode == .credit ? "Crear cuenta por cobrar" : "Confirmar cobro"
+    }
+
+    var submitConfirmationMessage: String {
+        if selectedMode == .credit {
+            let dueText = useDueDate ? dueDate.formatted(date: .abbreviated, time: .omitted) : "Sin fecha de vencimiento"
+            return "Vas a dejar esta venta como cuenta por cobrar por \(amountMoney).\n\nCliente: \(customerId)\nVencimiento: \(dueText)"
+        }
+
+        var message = "Vas a registrar un cobro por \(amountMoney).\n\nMétodo: \(selectedMode.title)"
+        if selectedMode == .cash {
+            message += "\n\nEsto actualizará la caja automáticamente. No registres este valor como movimiento manual."
+        }
+        return message
+    }
+
     func selectCustomer(_ customer: BusinessCustomer) {
+        guard !hasCompletedSubmission else { return }
         selectedCustomer = customer
         customerId = customer.identificationType == .finalConsumer ? "" : customer.id
         resetResultMessages()
     }
 
     func clearCustomer() {
+        guard !hasCompletedSubmission else { return }
         selectedCustomer = nil
         customerId = sale.customerId ?? ""
         resetResultMessages()
@@ -188,10 +214,8 @@ final class PaymentRegisterViewModel {
             )
             currentCashSession = response.session
         } catch let error as APIError {
-            print("❌ Preview APIError:", error)
             errorMessage = error.userMessage
         } catch {
-            print("❌ Preview Error:", error)
             errorMessage = error.localizedDescription
         }
     }
@@ -229,6 +253,7 @@ final class PaymentRegisterViewModel {
         }
 
         do {
+            let submittedMode = selectedMode
             let identity = BusinessMutationIdentity.generate(prefix: "payment-register")
             let response = try await paymentsRepository.register(
                 organizationId: organizationId,
@@ -245,12 +270,25 @@ final class PaymentRegisterViewModel {
             )
 
             paymentResult = response.payment
+            cashMovementResult = response.cashMovement
+            lastSubmittedMode = submittedMode
+            if let updatedSale = response.sale {
+                sale = updatedSale
+            } else {
+                sale = sale.replacingPaymentStatus(
+                    response.salePaymentStatus ?? inferredPaymentStatus(after: response.payment)
+                )
+            }
             if let cashSession = response.cashSession {
                 currentCashSession = cashSession
             }
-            infoMessage = response.idempotencyReplayed == true
-                ? "Cobro recuperado de un intento anterior."
-                : "Cobro registrado correctamente."
+            if response.idempotencyReplayed == true {
+                infoMessage = "Cobro recuperado de un intento anterior. No se duplicó la operación."
+            } else if submittedMode == .cash {
+                infoMessage = "Cobro registrado. La caja fue actualizada automáticamente."
+            } else {
+                infoMessage = "Cobro registrado correctamente."
+            }
         } catch let error as APIError {
             handle(apiError: error)
         } catch {
@@ -286,6 +324,8 @@ final class PaymentRegisterViewModel {
             )
 
             receivableResult = response.receivable
+            lastSubmittedMode = .credit
+            sale = sale.replacingPaymentStatus("partially_paid")
             infoMessage = response.idempotencyReplayed == true
                 ? "Cuenta por cobrar recuperada de un intento anterior."
                 : "Cuenta por cobrar creada correctamente."
@@ -301,7 +341,24 @@ final class PaymentRegisterViewModel {
         infoMessage = nil
     }
 
+    func makeCashDashboardViewModel() -> CashDashboardViewModel {
+        CashDashboardViewModel(
+            organizationId: organizationId,
+            branchId: branchId,
+            permissions: effectivePermissions,
+            cashRepository: cashRepository
+        )
+    }
+
+    func paymentMethodDisplayName(_ rawValue: String) -> String {
+        BusinessPaymentMethod(rawValue: rawValue)?.displayName ?? rawValue
+    }
+
     private func paymentValidationMessage() -> String {
+        if hasCompletedSubmission {
+            return "Este cobro ya fue registrado. Actualiza la venta o vuelve al historial."
+        }
+
         if !hasPaymentPermission {
             return "No tienes permiso para registrar cobros."
         }
@@ -318,6 +375,10 @@ final class PaymentRegisterViewModel {
     }
 
     private func receivableValidationMessage() -> String {
+        if hasCompletedSubmission {
+            return "Esta operación ya fue registrada. Actualiza la venta o vuelve al historial."
+        }
+
         if !hasReceivablePermission {
             return "No tienes permiso para crear cuentas por cobrar."
         }
@@ -335,6 +396,19 @@ final class PaymentRegisterViewModel {
 
     private func handle(apiError: APIError) {
         errorMessage = apiError.userMessage
+    }
+
+    private func inferredPaymentStatus(after payment: PaymentRecord) -> String {
+        guard let paid = decimal(from: payment.amount.amount),
+              let total = decimal(from: sale.totals.grandTotal.amount) else {
+            return "paid"
+        }
+
+        if paid >= total {
+            return "paid"
+        }
+
+        return "partially_paid"
     }
 
     private func hasPermission(_ candidates: [String]) -> Bool {

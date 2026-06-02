@@ -738,4 +738,26 @@ struct CancelSaleResponse: Decodable, Equatable, Sendable {
     }
 }
 
+struct SaleCartItem: Equatable, Identifiable, Sendable {
+    let id: String
+    let catalogItem: BusinessCatalogItem
+    var quantity: String
+    var priceTaxMode: BusinessSalePriceTaxMode
+    var note: String?
+    
+    init(
+        id: String = UUID().uuidString,
+        catalogItem: BusinessCatalogItem,
+        quantity: String = "1",
+        priceTaxMode: BusinessSalePriceTaxMode = .taxExclusive,
+        note: String? = nil
+    ) {
+        self.id = id
+        self.catalogItem = catalogItem
+        self.quantity = quantity
+        self.priceTaxMode = priceTaxMode
+        self.note = note
+    }
+}
+
 typealias BusinessSalesListResponse = BusinessSalesHistoryResponse

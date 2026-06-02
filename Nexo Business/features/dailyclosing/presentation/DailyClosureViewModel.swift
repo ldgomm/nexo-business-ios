@@ -16,6 +16,7 @@ final class DailyClosureViewModel {
     private(set) var pendingSales: [BusinessSale] = []
     private(set) var pendingReceivables: [ReceivableRecord] = []
     private(set) var pendingDocuments: [BusinessDocument] = []
+    private(set) var todaySales: [BusinessSale] = []
 
     private(set) var isLoading = false
     var businessDate: Date
@@ -30,6 +31,7 @@ final class DailyClosureViewModel {
     private let pendingRepository: PendingOperationsRepository
     private let dailyReportRepository: BusinessDailyReportRepository
     private let cashRepository: CashRepository
+    private let historyRepository: SalesHistoryRepository?
 
     init(
         organizationId: String,
@@ -39,6 +41,7 @@ final class DailyClosureViewModel {
         pendingRepository: PendingOperationsRepository,
         dailyReportRepository: BusinessDailyReportRepository,
         cashRepository: CashRepository,
+        historyRepository: SalesHistoryRepository? = nil,
         businessDate: Date = Date()
     ) {
         self.organizationId = organizationId
@@ -48,6 +51,7 @@ final class DailyClosureViewModel {
         self.pendingRepository = pendingRepository
         self.dailyReportRepository = dailyReportRepository
         self.cashRepository = cashRepository
+        self.historyRepository = historyRepository
         self.businessDate = businessDate
     }
 
@@ -148,6 +152,28 @@ final class DailyClosureViewModel {
             failures.append("Caja: \(error.localizedDescription)")
         }
 
+        if let historyRepository {
+            do {
+                let response = try await historyRepository.searchSales(
+                    organizationId: organizationId,
+                    request: SalesHistorySearchRequest(
+                        branchId: branchId,
+                        query: nil,
+                        status: .all,
+                        date: businessDate,
+                        limit: 100
+                    )
+                )
+                todaySales = response.sales
+            } catch let error as APIError {
+                todaySales = []
+                failures.append("Ventas del día: \(error.userMessage)")
+            } catch {
+                todaySales = []
+                failures.append("Ventas del día: \(error.localizedDescription)")
+            }
+        }
+
         do {
             let response = try await pendingRepository.pendingSales(
                 organizationId: organizationId,
@@ -214,6 +240,7 @@ final class DailyClosureViewModel {
         pendingSales = []
         pendingReceivables = []
         pendingDocuments = []
+        todaySales = []
         infoMessage = nil
         errorMessage = nil
     }

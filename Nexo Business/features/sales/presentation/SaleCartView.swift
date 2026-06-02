@@ -1,10 +1,3 @@
-//
-//  SaleCartView.swift
-//  Nexo Business
-//
-//  Created by José Ruiz on 2/6/26.
-//
-
 import SwiftUI
 
 struct SaleCartView: View {
@@ -41,6 +34,7 @@ struct SaleCartView: View {
                 searchSection
                 resultsSection
                 cartSection
+                checkoutAdjustmentsSection
                 previewSection
             } else {
                 lockedCartSection
@@ -218,6 +212,7 @@ struct SaleCartView: View {
                     SaleCartRow(
                         item: item,
                         quantity: quantityBinding(for: item),
+                        note: noteBinding(for: item),
                         isEditable: viewModel.canEditCart,
                         removeAction: {
                             viewModel.removeFromCart(cartItemId: item.id)
@@ -228,12 +223,38 @@ struct SaleCartView: View {
         }
     }
 
+
+    @ViewBuilder
+    private var checkoutAdjustmentsSection: some View {
+        if !viewModel.cartItems.isEmpty {
+            Section("Revisión antes de registrar") {
+                TextField("Nota de venta opcional", text: $viewModel.saleNote, axis: .vertical)
+                    .textInputAutocapitalization(.sentences)
+                    .lineLimit(1...3)
+                    .disabled(!viewModel.canEditCart)
+
+                Label("Puedes cambiar cantidades y notas antes de calcular o registrar.", systemImage: "slider.horizontal.3")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+
+                Label(viewModel.taxModePolicyMessage, systemImage: "lock.shield")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+
+                Label("Descuentos y cambio manual de tarifa IVA requieren contrato de backend. No los voy a simular en frontend porque rompería totales y cumplimiento.", systemImage: "lock.shield")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
     private var lockedCartSection: some View {
         Section("Carrito registrado") {
             ForEach(viewModel.cartItems) { item in
                 SaleCartRow(
                     item: item,
                     quantity: quantityBinding(for: item),
+                    note: noteBinding(for: item),
                     isEditable: false,
                     removeAction: {}
                 )
@@ -296,24 +317,22 @@ struct SaleCartView: View {
     @ViewBuilder
     private var actionsSection: some View {
         if let sale = viewModel.createdSale {
-            Section("Siguiente acción") {
-                NavigationLink {
-                    PaymentRegisterView(
-                        viewModel: PaymentRegisterViewModel(
-                            organizationId: viewModel.organizationId,
-                            branchId: sale.branchId,
-                            sale: sale,
-                            effectivePermissions: viewModel.effectivePermissions,
-                            cashRepository: cashRepository,
-                            paymentsRepository: paymentsRepository,
-                            receivablesRepository: receivablesRepository
-                        ),
-                        customersRepository: customersRepository
-                    )
-                } label: {
-                    Label("Cobrar ahora", systemImage: "dollarsign.circle.fill")
-                }
+            if sale.needsCollection {
+                SaleInlinePaymentPanel(
+                    organizationId: viewModel.organizationId,
+                    sale: sale,
+                    effectivePermissions: viewModel.effectivePermissions,
+                    cashRepository: cashRepository,
+                    paymentsRepository: paymentsRepository,
+                    receivablesRepository: receivablesRepository,
+                    customersRepository: customersRepository,
+                    onSaleUpdated: { updatedSale in
+                        viewModel.applyUpdatedSale(updatedSale)
+                    }
+                )
+            }
 
+            Section("Siguiente acción") {
                 Button {
                     viewModel.startNewOrder()
                 } label: {
@@ -330,7 +349,7 @@ struct SaleCartView: View {
                         documentsRepository: documentsRepository
                     )
                 } label: {
-                    Label("Ver detalle", systemImage: "doc.text.magnifyingglass")
+                    Label("Ver detalle completo", systemImage: "doc.text.magnifyingglass")
                 }
             }
         } else if !viewModel.cartItems.isEmpty {
@@ -424,6 +443,21 @@ struct SaleCartView: View {
         )
     }
 
+
+    private func noteBinding(for item: SaleCartItem) -> Binding<String> {
+        Binding(
+            get: {
+                viewModel.lineNote(for: item.id)
+            },
+            set: { newValue in
+                viewModel.updateLineNote(
+                    cartItemId: item.id,
+                    note: newValue
+                )
+            }
+        )
+    }
+
     private func money(_ value: MoneyAmount) -> String {
         value.displayText
     }
@@ -466,7 +500,7 @@ private struct SaleCartCashCard<DashboardDestination: View>: View {
                             .foregroundStyle(.green)
 
                         if let expected = session.expectedAmount {
-                            Text("Esperado: \(expected.displayText)")
+                            Text("Efectivo esperado: \(expected.displayText)")
                                 .font(.footnote)
                                 .foregroundStyle(.secondary)
                         }
@@ -522,6 +556,46 @@ private struct SaleCartCashCard<DashboardDestination: View>: View {
                 onSessionChanged(viewModel.currentSession)
             }
         }
+    }
+}
+
+
+private struct SaleInlinePaymentPanel: View {
+    @State private var paymentViewModel: PaymentRegisterViewModel
+    private let customersRepository: CustomersRepository
+    private let onSaleUpdated: (BusinessSale) -> Void
+
+    init(
+        organizationId: String,
+        sale: BusinessSale,
+        effectivePermissions: Set<String>,
+        cashRepository: CashRepository,
+        paymentsRepository: PaymentsRepository,
+        receivablesRepository: ReceivablesRepository,
+        customersRepository: CustomersRepository,
+        onSaleUpdated: @escaping (BusinessSale) -> Void
+    ) {
+        _paymentViewModel = State(
+            initialValue: PaymentRegisterViewModel(
+                organizationId: organizationId,
+                branchId: sale.branchId,
+                sale: sale,
+                effectivePermissions: effectivePermissions,
+                cashRepository: cashRepository,
+                paymentsRepository: paymentsRepository,
+                receivablesRepository: receivablesRepository
+            )
+        )
+        self.customersRepository = customersRepository
+        self.onSaleUpdated = onSaleUpdated
+    }
+
+    var body: some View {
+        PaymentRegisterInlineView(
+            viewModel: paymentViewModel,
+            customersRepository: customersRepository,
+            onSaleUpdated: onSaleUpdated
+        )
     }
 }
 
@@ -586,37 +660,53 @@ private struct CatalogResultRow: View {
 private struct SaleCartRow: View {
     let item: SaleCartItem
     @Binding var quantity: String
+    @Binding var note: String
     let isEditable: Bool
     let removeAction: () -> Void
 
     var body: some View {
-        HStack(alignment: .center, spacing: 12) {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .center, spacing: 12) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(item.catalogItem.name)
+                        .font(.subheadline.weight(.semibold))
+
+                    if let price = item.catalogItem.price {
+                        Text(price.displayText)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                Spacer()
+
+                TextField("Cant.", text: $quantity)
+                    .keyboardType(.decimalPad)
+                    .multilineTextAlignment(.trailing)
+                    .frame(width: 72)
+                    .textFieldStyle(.roundedBorder)
+                    .disabled(!isEditable)
+
+                if isEditable {
+                    Button(role: .destructive, action: removeAction) {
+                        Image(systemName: "minus.circle")
+                    }
+                    .buttonStyle(.borderless)
+                }
+            }
+
             VStack(alignment: .leading, spacing: 4) {
-                Text(item.catalogItem.name)
-                    .font(.subheadline.weight(.semibold))
+                LabeledContent("IVA", value: BusinessSalePriceTaxMode.taxExclusive.displayName)
 
-                if let price = item.catalogItem.price {
-                    Text(price.displayText)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
+                Text("El precio se envía como + IVA. La configuración actual no permite IVA incluido.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
 
-            Spacer()
-
-            TextField("Cant.", text: $quantity)
-                .keyboardType(.decimalPad)
-                .multilineTextAlignment(.trailing)
-                .frame(width: 72)
-                .textFieldStyle(.roundedBorder)
+            TextField("Nota de línea opcional", text: $note, axis: .vertical)
+                .lineLimit(1...2)
+                .textInputAutocapitalization(.sentences)
                 .disabled(!isEditable)
-
-            if isEditable {
-                Button(role: .destructive, action: removeAction) {
-                    Image(systemName: "minus.circle")
-                }
-                .buttonStyle(.borderless)
-            }
         }
         .padding(.vertical, 4)
     }

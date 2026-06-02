@@ -201,6 +201,33 @@ extension BusinessSale {
         return "Consumidor final"
     }
 
+    var needsCollection: Bool {
+        SaleStatusPresentation.canCollect(status: status) &&
+        PaymentStatusPresentation.canCollect(status: paymentStatus)
+    }
+
+    func replacingPaymentStatus(_ paymentStatus: String?) -> BusinessSale {
+        BusinessSale(
+            id: id,
+            number: number,
+            organizationId: organizationId,
+            branchId: branchId,
+            activityId: activityId,
+            customerId: customerId,
+            customerName: customerName,
+            customer: customer,
+            status: status,
+            paymentStatus: paymentStatus,
+            documentStatus: documentStatus,
+            totals: totals,
+            items: items,
+            createdAt: createdAt,
+            confirmedAt: confirmedAt,
+            closedAt: closedAt,
+            updatedAt: Date()
+        )
+    }
+
     var displayItemsSummary: String {
         guard !items.isEmpty else { return "" }
 
@@ -226,6 +253,27 @@ extension String {
     var nilIfBlankForUI: String? {
         let trimmed = trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : trimmed
+    }
+}
+
+
+extension BusinessSalePriceTaxMode {
+    var displayName: String {
+        switch self {
+        case .taxExclusive:
+            return "Precio + IVA"
+        case .taxInclusive:
+            return "Precio incluye IVA"
+        }
+    }
+
+    var shortDisplayName: String {
+        switch self {
+        case .taxExclusive:
+            return "+ IVA"
+        case .taxInclusive:
+            return "IVA incluido"
+        }
     }
 }
 

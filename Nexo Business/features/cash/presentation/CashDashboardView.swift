@@ -1,10 +1,3 @@
-//
-//  CashDashboardView.swift
-//  Nexo Business
-//
-//  Created by José Ruiz on 2/6/26.
-//
-
 import SwiftUI
 
 struct CashDashboardView: View {
@@ -20,8 +13,8 @@ struct CashDashboardView: View {
             messagesSection
 
             if viewModel.isOpen {
-                movementSection
                 closeSection
+                manualAdjustmentsSection
             } else {
                 openSection
             }
@@ -31,12 +24,31 @@ struct CashDashboardView: View {
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
+                    NexoKeyboard.dismiss()
                     Task { await viewModel.load() }
                 } label: {
                     Image(systemName: "arrow.clockwise")
                 }
                 .disabled(viewModel.isLoading || viewModel.isMutating)
             }
+        }
+        .alert("Registrar ajuste manual", isPresented: $viewModel.showsMovementConfirmation) {
+            Button("Registrar ajuste", role: .destructive) {
+                NexoKeyboard.dismiss()
+                Task { await viewModel.registerMovement() }
+            }
+            Button("Cancelar", role: .cancel) {}
+        } message: {
+            Text(viewModel.movementConfirmationMessage)
+        }
+        .alert("Cerrar caja", isPresented: $viewModel.showsCloseConfirmation) {
+            Button("Cerrar caja", role: .destructive) {
+                NexoKeyboard.dismiss()
+                Task { await viewModel.closeCash() }
+            }
+            Button("Cancelar", role: .cancel) {}
+        } message: {
+            Text(viewModel.closeConfirmationMessage)
         }
         .task {
             if viewModel.state == .idle {
@@ -123,50 +135,82 @@ struct CashDashboardView: View {
         }
     }
 
-    private var movementSection: some View {
-        Section("Movimiento manual") {
-            Picker("Tipo", selection: $viewModel.movementType) {
-                ForEach(CashMovementType.allCases) { type in
-                    Text(type.displayName).tag(type)
-                }
-            }
-
-            TextField("Monto", text: $viewModel.movementAmount)
-                .keyboardType(.decimalPad)
-
-            TextField("Motivo", text: $viewModel.movementNote, axis: .vertical)
-                .lineLimit(1...3)
-
-            Button {
-                NexoKeyboard.dismiss()
-                Task { await viewModel.registerMovement() }
-            } label: {
-                Label("Registrar movimiento", systemImage: "plus.forwardslash.minus")
-            }
-            .disabled(!viewModel.canRegisterMovement || viewModel.isMutating)
-
-            if let movement = viewModel.lastMovement {
-                LabeledContent("Último movimiento", value: movement.type.displayName)
-                LabeledContent("Monto", value: moneyText(movement.amount))
-            }
-        }
-    }
-
     private var closeSection: some View {
-        Section("Cerrar caja") {
+        Section("Cierre guiado") {
+            LabeledContent("Efectivo esperado", value: viewModel.currentExpectedDisplay)
+
             TextField("Monto contado", text: $viewModel.countedAmount)
                 .keyboardType(.decimalPad)
+
+            Button {
+                viewModel.useExpectedAmountForClosing()
+                NexoKeyboard.dismiss()
+            } label: {
+                Label("Usar efectivo esperado", systemImage: "equal.circle")
+            }
+            .disabled(viewModel.isMutating)
+
+            LabeledContent("Diferencia estimada", value: viewModel.closingDifferencePreview.displayText)
 
             TextField("Nota opcional", text: $viewModel.closingNote, axis: .vertical)
                 .lineLimit(1...3)
 
+            Text("El monto contado viene prellenado con el efectivo esperado. Cámbialo solo si al contar físicamente el dinero hay una diferencia.")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+
             Button(role: .destructive) {
                 NexoKeyboard.dismiss()
-                Task { await viewModel.closeCash() }
+                viewModel.prepareCloseConfirmation()
             } label: {
-                Label("Cerrar caja", systemImage: "lock")
+                if viewModel.isMutating {
+                    ProgressView()
+                } else {
+                    Label("Cerrar caja", systemImage: "lock")
+                }
             }
-            .disabled(!viewModel.canClose || viewModel.isMutating)
+            .disabled(!viewModel.canPrepareClose)
+        }
+    }
+
+    private var manualAdjustmentsSection: some View {
+        Section {
+            DisclosureGroup {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Usa esto solo para ingresos, egresos o ajustes que no vienen de una venta. Los cobros de ventas se registran desde Cobrar venta y actualizan caja automáticamente.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+
+                    Picker("Tipo", selection: $viewModel.movementType) {
+                        ForEach(CashMovementType.allCases) { type in
+                            Text(type.displayName).tag(type)
+                        }
+                    }
+
+                    TextField("Monto", text: $viewModel.movementAmount)
+                        .keyboardType(.decimalPad)
+
+                    TextField("Motivo", text: $viewModel.movementNote, axis: .vertical)
+                        .lineLimit(1...3)
+
+                    Button {
+                        NexoKeyboard.dismiss()
+                        viewModel.prepareMovementConfirmation()
+                    } label: {
+                        Label("Registrar ajuste manual", systemImage: "plus.forwardslash.minus")
+                    }
+                    .disabled(!viewModel.canPrepareMovement)
+
+                    if let movement = viewModel.lastMovement {
+                        Divider()
+                        LabeledContent("Último ajuste", value: movement.type.displayName)
+                        LabeledContent("Monto", value: moneyText(movement.amount))
+                    }
+                }
+                .padding(.vertical, 8)
+            } label: {
+                Label("Ajustes manuales de caja", systemImage: "slider.horizontal.3")
+            }
         }
     }
 
@@ -197,7 +241,7 @@ private struct CashSessionHeroView: View {
 
                 if let expectedAmount = session.expectedAmount {
                     VStack(alignment: .trailing, spacing: 3) {
-                        Text("Esperado")
+                        Text(session.isOpen ? "Efectivo esperado" : "Esperado")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                         Text(expectedAmount.displayText)
@@ -212,12 +256,27 @@ private struct CashSessionHeroView: View {
             VStack(spacing: 8) {
                 NexoMoneyTotalView(title: "Monto inicial", amount: session.openingAmount ?? MoneyAmount(amount: "0.00"))
 
-                if let countedAmount = session.countedAmount {
-                    NexoMoneyTotalView(title: "Contado", amount: countedAmount)
-                }
+                if session.isOpen {
+                    HStack {
+                        Text("Conteo")
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Text("Pendiente al cierre")
+                            .font(.body.weight(.semibold))
+                    }
 
-                if let differenceAmount = session.differenceAmount {
-                    NexoMoneyTotalView(title: "Diferencia", amount: differenceAmount, isProminent: true)
+                    Text("Los cobros en efectivo de ventas aumentan automáticamente el efectivo esperado. No registres esos cobros como ajustes manuales.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                } else {
+                    if let countedAmount = session.countedAmount {
+                        NexoMoneyTotalView(title: "Contado", amount: countedAmount)
+                    }
+
+                    if let differenceAmount = session.differenceAmount {
+                        NexoMoneyTotalView(title: "Diferencia", amount: differenceAmount, isProminent: true)
+                    }
                 }
             }
         }

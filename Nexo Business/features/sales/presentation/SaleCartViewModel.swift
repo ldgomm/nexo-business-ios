@@ -8,25 +8,6 @@
 import Foundation
 import Observation
 
-struct SaleCartItem: Equatable, Identifiable, Sendable {
-    let id: String
-    let catalogItem: BusinessCatalogItem
-    var quantity: String
-    var note: String?
-    
-    init(
-        id: String = UUID().uuidString,
-        catalogItem: BusinessCatalogItem,
-        quantity: String = "1",
-        note: String? = nil
-    ) {
-        self.id = id
-        self.catalogItem = catalogItem
-        self.quantity = quantity
-        self.note = note
-    }
-}
-
 enum SaleCartOrderState: Equatable, Sendable {
     case editing
     case previewing
@@ -52,6 +33,7 @@ enum SaleCartOrderState: Equatable, Sendable {
 final class SaleCartViewModel {
     var searchQuery = ""
     var cashSessionId: String?
+    var saleNote = ""
     private(set) var searchResults: [BusinessCatalogItem] = []
     private(set) var cartItems: [SaleCartItem] = []
     private(set) var preview: SalesPreviewResponse?
@@ -114,7 +96,11 @@ final class SaleCartViewModel {
     }
     
     var canStartNewOrder: Bool {
-        createdSale != nil || !cartItems.isEmpty || preview != nil || selectedCustomer != nil
+        createdSale != nil ||
+        !cartItems.isEmpty ||
+        preview != nil ||
+        selectedCustomer != nil ||
+        !saleNote.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
     
     var isOrderLocked: Bool {
@@ -128,6 +114,14 @@ final class SaleCartViewModel {
     
     var totalForDisplay: MoneyAmount? {
         createdSale?.totals.grandTotal ?? preview?.totals.grandTotal
+    }
+
+    var allowedPriceTaxModes: [BusinessSalePriceTaxMode] {
+        [.taxExclusive]
+    }
+
+    var taxModePolicyMessage: String {
+        "Esta organización no permite precios con IVA incluido. La venta se enviará como Precio + IVA y el servidor calculará el impuesto."
     }
     
     func selectCustomer(_ customer: BusinessCustomer) {
@@ -144,6 +138,35 @@ final class SaleCartViewModel {
         preview = nil
         errorMessage = nil
         infoMessage = nil
+    }
+
+    func updateLineNote(cartItemId: String, note: String) {
+        guard ensureOrderIsEditable() else { return }
+        guard let index = cartItems.firstIndex(where: { $0.id == cartItemId }) else { return }
+        cartItems[index].note = note
+        preview = nil
+    }
+
+    func lineNote(for cartItemId: String) -> String {
+        cartItems.first(where: { $0.id == cartItemId })?.note ?? ""
+    }
+
+    func updatePriceTaxMode(cartItemId: String, mode: BusinessSalePriceTaxMode) {
+        guard ensureOrderIsEditable() else { return }
+        guard let index = cartItems.firstIndex(where: { $0.id == cartItemId }) else { return }
+
+        let resolvedMode = resolvedPriceTaxMode(mode)
+        cartItems[index].priceTaxMode = resolvedMode
+        preview = nil
+
+        if resolvedMode != mode {
+            errorMessage = taxModePolicyMessage
+            infoMessage = nil
+        }
+    }
+
+    func priceTaxMode(for cartItemId: String) -> BusinessSalePriceTaxMode {
+        cartItems.first(where: { $0.id == cartItemId })?.priceTaxMode ?? .taxExclusive
     }
     
     func searchCatalog() async {
@@ -241,6 +264,7 @@ final class SaleCartViewModel {
     func clearCart() {
         guard ensureOrderIsEditable() else { return }
         cartItems = []
+        saleNote = ""
         preview = nil
         errorMessage = nil
         infoMessage = nil
@@ -251,6 +275,7 @@ final class SaleCartViewModel {
         searchQuery = ""
         searchResults = []
         cartItems = []
+        saleNote = ""
         preview = nil
         createdSale = nil
         selectedCustomer = nil
@@ -337,7 +362,8 @@ final class SaleCartViewModel {
                     autoConfirm: true,
                     catalogRevision: revisions.catalogRevision,
                     taxConfigurationRevision: revisions.taxConfigurationRevision,
-                    items: draftItems()
+                    items: draftItems(),
+                    notes: saleNote.trimmingCharacters(in: .whitespacesAndNewlines).nilIfBlankForUI
                 )
             )
             
@@ -346,7 +372,7 @@ final class SaleCartViewModel {
             orderState = .created
             infoMessage = response.idempotencyReplayed == true
             ? "Venta recuperada sin duplicar la operación."
-            : "Venta registrada. Ahora puedes cobrarla o iniciar una nueva venta."
+            : "Venta registrada. Continúa con el cobro en esta misma pantalla."
         } catch let error as APIError {
             orderState = .editing
             handle(apiError: error)
@@ -356,6 +382,11 @@ final class SaleCartViewModel {
         }
     }
     
+    func applyUpdatedSale(_ sale: BusinessSale) {
+        guard createdSale?.id == sale.id else { return }
+        createdSale = sale
+    }
+
     func makeSaleDetailViewModel(for sale: BusinessSale) -> SaleDetailViewModel {
         SaleDetailViewModel(
             organizationId: organizationId,
@@ -384,12 +415,16 @@ final class SaleCartViewModel {
                     unitCode: resolvedUnitCode(for: item.catalogItem),
                     allowsDecimal: resolvedAllowsDecimal(for: item.catalogItem)
                 ),
-                priceTaxMode: BusinessSalePriceTaxMode.taxExclusive.rawValue,
+                priceTaxMode: resolvedPriceTaxMode(item.priceTaxMode).rawValue,
                 notes: item.note?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfBlankForUI
             )
         }
     }
     
+    private func resolvedPriceTaxMode(_ mode: BusinessSalePriceTaxMode) -> BusinessSalePriceTaxMode {
+        allowedPriceTaxModes.contains(mode) ? mode : .taxExclusive
+    }
+
     private func validateCart() -> Bool {
         guard validateOperationalContext() else { return false }
         
