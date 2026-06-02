@@ -51,6 +51,24 @@ enum APIError: Error, Equatable, Sendable {
         statusCode == 409 || statusCode == 428
     }
 
+    var isBusinessRevisionConflict: Bool {
+        guard isRevisionConflict else { return false }
+        let normalizedCode = code?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if normalizedCode == "business_revision_conflict" { return true }
+        if normalizedCode == "catalog_revision_conflict" { return true }
+        if normalizedCode == "tax_configuration_revision_conflict" { return true }
+        return normalizedCode == nil
+    }
+
+    var serverMessage: String? {
+        switch self {
+        case let .server(_, _, message, _):
+            return message
+        default:
+            return nil
+        }
+    }
+
     var isRetriable: Bool {
         switch self {
         case .transport:

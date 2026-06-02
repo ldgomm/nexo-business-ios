@@ -123,7 +123,7 @@ enum PreviewData {
             status: "active",
             unit: BusinessCatalogUnit(code: "unit", name: "Unidad", allowsDecimal: false),
             price: MoneyAmount(amount: "24.00"),
-            taxProfileCode: "iva_current_full",
+            taxProfileCode: "altos_staging_iva_current_full",
             taxProfileName: "IVA tarifa vigente completa",
             availableStock: "10",
             allowsDecimalQuantity: false
@@ -138,18 +138,18 @@ enum PreviewData {
             status: "active",
             unit: BusinessCatalogUnit(code: "unit", name: "Unidad", allowsDecimal: false),
             price: MoneyAmount(amount: "10.00"),
-            taxProfileCode: "iva_current_full",
-            taxProfileName: "IVA tarifa vigente completa",
+            taxProfileCode: "altos_staging_iva_tourism_8",
+            taxProfileName: "IVA turismo 8%",
             availableStock: "20",
             allowsDecimalQuantity: false
         )
     ]
 
     static let totals = BusinessSaleTotals(
-        subtotal: MoneyAmount(amount: "10.00"),
+        subtotal: MoneyAmount(amount: "24.00"),
         discount: MoneyAmount(amount: "0.00"),
-        tax: MoneyAmount(amount: "1.50"),
-        total: MoneyAmount(amount: "11.50")
+        tax: MoneyAmount(amount: "1.92"),
+        total: MoneyAmount(amount: "25.92")
     )
 
     static let previewItems = [
@@ -158,9 +158,17 @@ enum PreviewData {
             catalogItemId: "item_cuy_entero",
             name: "Cuy entero",
             quantity: "1",
-            unitPrice: MoneyAmount(amount: "10.00"),
-            subtotal: MoneyAmount(amount: "10.00"),
-            total: MoneyAmount(amount: "11.50"),
+            unitPrice: MoneyAmount(amount: "24.00"),
+            subtotal: MoneyAmount(amount: "24.00"),
+            total: MoneyAmount(amount: "25.92"),
+            taxProfileCode: "altos_staging_iva_tourism_8",
+            taxProfileName: "IVA turismo 8%",
+            taxTreatment: "IVA_REDUCED_TOURISM",
+            taxRate: "8.00",
+            sriTaxCode: "2",
+            sriRateCode: "8",
+            taxableBase: MoneyAmount(amount: "24.00"),
+            taxAmount: MoneyAmount(amount: "1.92"),
             note: nil
         )
     ]

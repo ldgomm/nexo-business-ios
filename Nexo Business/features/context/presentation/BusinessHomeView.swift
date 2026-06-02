@@ -67,7 +67,8 @@ struct BusinessHomeView: View {
                         revisions: revisions,
                         effectivePermissions: permissions,
                         catalogRepository: container.catalogRepository,
-                        salesRepository: container.salesRepository
+                        salesRepository: container.salesRepository,
+                        contextRepository: container.contextRepository
                     ),
                     customersRepository: container.customersRepository,
                     cashRepository: container.cashRepository,

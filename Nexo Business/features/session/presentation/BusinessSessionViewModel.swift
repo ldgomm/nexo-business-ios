@@ -14,31 +14,34 @@ final class BusinessSessionViewModel {
     private(set) var state: BusinessSessionState = .bootstrapping
     private(set) var context: BusinessContextResponse?
     private(set) var operationalSelection: BusinessOperationalSelection?
-
+    
     private let tokenStore: AuthTokenStoring
     private let selectionStore: BusinessSelectionStoring
     private let organizationAccessRepository: BusinessOrganizationAccessRepository
     private let contextRepository: BusinessContextRepository
+    private let revisionRegistry: BusinessRevisionRegistry
     private var didBootstrap = false
-
+    
     init(
         tokenStore: AuthTokenStoring,
         selectionStore: BusinessSelectionStoring,
         organizationAccessRepository: BusinessOrganizationAccessRepository,
-        contextRepository: BusinessContextRepository
+        contextRepository: BusinessContextRepository,
+        revisionRegistry: BusinessRevisionRegistry = .shared
     ) {
         self.tokenStore = tokenStore
         self.selectionStore = selectionStore
         self.organizationAccessRepository = organizationAccessRepository
         self.contextRepository = contextRepository
+        self.revisionRegistry = revisionRegistry
     }
-
+    
     func bootstrapIfNeeded() async {
         guard !didBootstrap else { return }
         didBootstrap = true
         await bootstrap()
     }
-
+    
     func retryBootstrapOrRefresh() async {
         if await tokenStore.tokens() == nil {
             context = nil
@@ -46,7 +49,7 @@ final class BusinessSessionViewModel {
             state = .signedOut()
             return
         }
-
+        
         let snapshot = await selectionStore.snapshot()
         if let organizationId = snapshot.organizationId, !organizationId.isEmpty {
             await loadContext(organizationId: organizationId)
@@ -54,11 +57,11 @@ final class BusinessSessionViewModel {
             await loadOrganizations()
         }
     }
-
+    
     func loadOrganizationsAfterLogin() async {
         await loadOrganizations()
     }
-
+    
     func selectOrganization(_ organization: BusinessOrganizationAccess) async {
         do {
             try await selectionStore.saveOrganizationId(organization.id)
@@ -69,13 +72,13 @@ final class BusinessSessionViewModel {
             state = .failed("No se pudo guardar el negocio seleccionado.")
         }
     }
-
+    
     func selectOperationalContext(branchId: String, activityId: String) async {
         guard let context else {
             state = .failed("No se encontró el contexto del negocio. Actualiza e inténtalo otra vez.")
             return
         }
-
+        
         guard context.branches.contains(where: { $0.id == branchId }) else {
             state = .needsOperationalSelection(
                 context: context,
@@ -83,7 +86,7 @@ final class BusinessSessionViewModel {
             )
             return
         }
-
+        
         guard context.activities.contains(where: { $0.id == activityId }) else {
             state = .needsOperationalSelection(
                 context: context,
@@ -91,31 +94,32 @@ final class BusinessSessionViewModel {
             )
             return
         }
-
+        
         do {
             try await selectionStore.saveOperationalContext(
                 branchId: branchId,
                 activityId: activityId
             )
-
+            
             let selection = BusinessOperationalSelection(
                 organizationId: context.organization.id,
                 branchId: branchId,
                 activityId: activityId
             )
+            await observeRevisions(context: context, selection: selection)
             operationalSelection = selection
             state = .signedIn(context, selection)
         } catch {
             state = .failed("No se pudo guardar el contexto operativo.")
         }
     }
-
+    
     func refreshContext() async {
         if let organizationId = operationalSelection?.organizationId ?? context?.organization.id {
             await loadContext(organizationId: organizationId)
             return
         }
-
+        
         let snapshot = await selectionStore.snapshot()
         if let organizationId = snapshot.organizationId, !organizationId.isEmpty {
             await loadContext(organizationId: organizationId)
@@ -123,48 +127,50 @@ final class BusinessSessionViewModel {
             await loadOrganizations()
         }
     }
-
+    
     func changeOrganization() async {
         do {
             try await selectionStore.clearAll()
+            await revisionRegistry.clear()
         } catch {
             state = .failed("No se pudo limpiar la selección actual.")
             return
         }
-
+        
         context = nil
         operationalSelection = nil
         await loadOrganizations()
     }
-
+    
     func changeOperationalContext() async {
         guard let context else {
             await refreshContext()
             return
         }
-
+        
         do {
             try await selectionStore.clearOperationalContext()
         } catch {
             state = .failed("No se pudo limpiar el contexto operativo actual.")
             return
         }
-
+        
         operationalSelection = nil
         state = .needsOperationalSelection(
             context: context,
             reason: "Selecciona la sucursal y actividad con la que vas a operar."
         )
     }
-
+    
     func logout() async {
         try? await tokenStore.clear()
         try? await selectionStore.clearAll()
+        await revisionRegistry.clear()
         context = nil
         operationalSelection = nil
         state = .signedOut()
     }
-
+    
     private func bootstrap() async {
         guard await tokenStore.tokens() != nil else {
             context = nil
@@ -172,7 +178,7 @@ final class BusinessSessionViewModel {
             state = .signedOut()
             return
         }
-
+        
         let snapshot = await selectionStore.snapshot()
         if let organizationId = snapshot.organizationId, !organizationId.isEmpty {
             await loadContext(organizationId: organizationId)
@@ -180,10 +186,10 @@ final class BusinessSessionViewModel {
             await loadOrganizations()
         }
     }
-
+    
     private func loadOrganizations() async {
         state = .loadingOrganizations
-
+        
         do {
             let response = try await organizationAccessRepository.listOrganizations()
             let organizations = response.organizations.filter { organization in
@@ -191,19 +197,19 @@ final class BusinessSessionViewModel {
                 organization.status?.lowercased() != "blocked" &&
                 organization.status?.lowercased() != "archived"
             }
-
+            
             if organizations.isEmpty {
                 context = nil
                 operationalSelection = nil
                 state = .failed("No tienes negocios activos asignados para operar.")
                 return
             }
-
+            
             if organizations.count == 1, let organization = organizations.first {
                 await selectOrganization(organization)
                 return
             }
-
+            
             context = nil
             operationalSelection = nil
             state = .needsOrganizationSelection(organizations)
@@ -215,10 +221,10 @@ final class BusinessSessionViewModel {
             state = .failed(error.localizedDescription)
         }
     }
-
+    
     private func loadContext(organizationId: String) async {
         state = .loadingContext
-
+        
         do {
             let loadedContext = try await contextRepository.getContext(
                 organizationId: organizationId
@@ -233,11 +239,11 @@ final class BusinessSessionViewModel {
             state = .failed(error.localizedDescription)
         }
     }
-
+    
     private func resolveOperationalSelection(for context: BusinessContextResponse) async {
         let branches = selectableBranches(from: context)
         let activities = selectableActivities(from: context)
-
+        
         guard !branches.isEmpty else {
             operationalSelection = nil
             state = .needsOperationalSelection(
@@ -246,7 +252,7 @@ final class BusinessSessionViewModel {
             )
             return
         }
-
+        
         guard !activities.isEmpty else {
             operationalSelection = nil
             state = .needsOperationalSelection(
@@ -255,7 +261,7 @@ final class BusinessSessionViewModel {
             )
             return
         }
-
+        
         let snapshot = await selectionStore.snapshot()
         if let branchId = snapshot.branchId,
            let activityId = snapshot.activityId,
@@ -266,45 +272,59 @@ final class BusinessSessionViewModel {
                 branchId: branchId,
                 activityId: activityId
             )
+            await observeRevisions(context: context, selection: selection)
             operationalSelection = selection
             state = .signedIn(context, selection)
             return
         }
-
+        
         if branches.count == 1, activities.count == 1,
            let branch = branches.first,
            let activity = activities.first {
             await selectOperationalContext(branchId: branch.id, activityId: activity.id)
             return
         }
-
+        
         operationalSelection = nil
         state = .needsOperationalSelection(
             context: context,
             reason: "Selecciona la sucursal y actividad antes de vender, cobrar o cerrar caja."
         )
     }
-
+    
+    private func observeRevisions(
+        context: BusinessContextResponse,
+        selection: BusinessOperationalSelection
+    ) async {
+        await revisionRegistry.observeRevisions(
+            organizationId: context.organization.id,
+            branchId: selection.branchId,
+            activityId: selection.activityId,
+            revisions: context.revisions
+        )
+    }
+    
     private func selectableBranches(from context: BusinessContextResponse) -> [BusinessBranch] {
         let active = context.branches.filter { $0.status.lowercased() == "active" }
         return active.isEmpty ? context.branches : active
     }
-
+    
     private func selectableActivities(from context: BusinessContextResponse) -> [BusinessActivity] {
         let active = context.activities.filter { $0.status.lowercased() == "active" }
         return active.isEmpty ? context.activities : active
     }
-
+    
     private func handle(apiError: APIError) async {
         if apiError.isUnauthorized {
             try? await tokenStore.clear()
             try? await selectionStore.clearAll()
+            await revisionRegistry.clear()
             context = nil
             operationalSelection = nil
             state = .signedOut(message: apiError.userMessage)
             return
         }
-
+        
         context = nil
         operationalSelection = nil
         state = .failed(apiError.userMessage)

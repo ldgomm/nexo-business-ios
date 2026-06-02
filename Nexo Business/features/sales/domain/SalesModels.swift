@@ -12,7 +12,7 @@ struct SaleDraftItem: Codable, Equatable, Identifiable, Sendable {
     let catalogItemId: String
     let quantity: String
     let note: String?
-
+    
     init(
         id: String = UUID().uuidString,
         catalogItemId: String,
@@ -24,7 +24,7 @@ struct SaleDraftItem: Codable, Equatable, Identifiable, Sendable {
         self.quantity = quantity
         self.note = note
     }
-
+    
     private enum CodingKeys: String, CodingKey {
         case id
         case catalogItemId
@@ -32,12 +32,12 @@ struct SaleDraftItem: Codable, Equatable, Identifiable, Sendable {
         case note
         case notes
     }
-
+    
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = (try? container.decodeIfPresent(String.self, forKey: .id)) ?? UUID().uuidString
         catalogItemId = try container.decode(String.self, forKey: .catalogItemId)
-
+        
         if let quantity = try? container.decodeIfPresent(String.self, forKey: .quantity) {
             self.quantity = quantity
         } else if let quantity = try? container.decodeIfPresent(Double.self, forKey: .quantity) {
@@ -47,11 +47,11 @@ struct SaleDraftItem: Codable, Equatable, Identifiable, Sendable {
         } else {
             self.quantity = "1"
         }
-
+        
         note = (try? container.decodeIfPresent(String.self, forKey: .note))
-            ?? (try? container.decodeIfPresent(String.self, forKey: .notes))
+        ?? (try? container.decodeIfPresent(String.self, forKey: .notes))
     }
-
+    
     func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(id, forKey: .id)
@@ -70,7 +70,7 @@ struct BusinessSaleQuantityRequest: Codable, Equatable, Sendable {
     let value: String
     let unitCode: String
     let allowsDecimal: Bool
-
+    
     init(
         value: String,
         unitCode: String = "unit",
@@ -88,7 +88,7 @@ struct BusinessSaleItemRequest: Codable, Equatable, Sendable {
     let priceTaxMode: String
     let taxProfileCode: String?
     let notes: String?
-
+    
     init(
         catalogItemId: String,
         quantity: BusinessSaleQuantityRequest,
@@ -110,7 +110,7 @@ struct BusinessSaleCustomerSnapshot: Codable, Equatable, Sendable {
     let identificationType: String?
     let identificationNumber: String?
     let email: String?
-
+    
     init(
         id: String? = nil,
         displayName: String,
@@ -134,7 +134,7 @@ struct SalesPreviewRequest: Encodable, Equatable, Sendable {
     let catalogRevision: String?
     let taxConfigurationRevision: String?
     let items: [BusinessSaleItemRequest]
-
+    
     init(
         branchId: String,
         activityId: String,
@@ -166,7 +166,7 @@ struct QuickSaleRequest: Encodable, Equatable, Sendable {
     let taxConfigurationRevision: String
     let items: [BusinessSaleItemRequest]
     let notes: String?
-
+    
     init(
         requestId: String = "quick-sale-\(UUID().uuidString.lowercased())",
         branchId: String,
@@ -192,7 +192,7 @@ struct QuickSaleRequest: Encodable, Equatable, Sendable {
         self.items = items
         self.notes = notes
     }
-
+    
     init(
         requestId: String = "quick-sale-\(UUID().uuidString.lowercased())",
         branchId: String,
@@ -224,11 +224,11 @@ struct QuickSaleRequest: Encodable, Equatable, Sendable {
 
 struct ConfirmSaleRequest: Encodable, Equatable, Sendable {
     let notes: String?
-
+    
     init(notes: String? = nil) {
         self.notes = notes
     }
-
+    
     init(note: String?) {
         self.notes = note
     }
@@ -237,12 +237,12 @@ struct ConfirmSaleRequest: Encodable, Equatable, Sendable {
 struct CancelSaleRequest: Encodable, Equatable, Sendable {
     let reason: String
     let notes: String?
-
+    
     init(reason: String, notes: String? = nil) {
         self.reason = reason
         self.notes = notes
     }
-
+    
     init(reason: String, note: String?) {
         self.reason = reason
         self.notes = note
@@ -253,13 +253,13 @@ struct BusinessSaleCustomer: Decodable, Equatable, Sendable {
     let id: String?
     let displayName: String
     let identification: String?
-
+    
     init(id: String? = nil, displayName: String, identification: String? = nil) {
         self.id = id
         self.displayName = displayName
         self.identification = identification
     }
-
+    
     private enum CodingKeys: String, CodingKey {
         case id
         case customerId
@@ -269,17 +269,17 @@ struct BusinessSaleCustomer: Decodable, Equatable, Sendable {
         case identification
         case identificationNumber
     }
-
+    
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = (try? container.decodeIfPresent(String.self, forKey: .id))
-            ?? (try? container.decodeIfPresent(String.self, forKey: .customerId))
+        ?? (try? container.decodeIfPresent(String.self, forKey: .customerId))
         displayName = (try? container.decodeIfPresent(String.self, forKey: .displayName))
-            ?? (try? container.decodeIfPresent(String.self, forKey: .name))
-            ?? "Consumidor final"
+        ?? (try? container.decodeIfPresent(String.self, forKey: .name))
+        ?? "Consumidor final"
         identification = (try? container.decodeIfPresent(String.self, forKey: .identification))
-            ?? (try? container.decodeIfPresent(String.self, forKey: .identificationNumber))
-            ?? (try? container.decodeIfPresent(String.self, forKey: .taxId))
+        ?? (try? container.decodeIfPresent(String.self, forKey: .identificationNumber))
+        ?? (try? container.decodeIfPresent(String.self, forKey: .taxId))
     }
 }
 
@@ -288,7 +288,7 @@ struct BusinessSaleTotals: Decodable, Equatable, Sendable {
     let discount: MoneyAmount
     let tax: MoneyAmount
     let total: MoneyAmount
-
+    
     init(
         subtotal: MoneyAmount,
         discount: MoneyAmount,
@@ -300,7 +300,7 @@ struct BusinessSaleTotals: Decodable, Equatable, Sendable {
         self.tax = tax
         self.total = total
     }
-
+    
     private enum CodingKeys: String, CodingKey {
         case subtotal
         case subtotalWithoutTaxes
@@ -315,25 +315,25 @@ struct BusinessSaleTotals: Decodable, Equatable, Sendable {
         case total
         case grandTotal
     }
-
+    
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         subtotal = (try? container.decodeIfPresent(MoneyAmount.self, forKey: .subtotal))
-            ?? (try? container.decodeIfPresent(MoneyAmount.self, forKey: .subtotalWithoutTaxes))
-            ?? (try? container.decodeIfPresent(MoneyAmount.self, forKey: .grossSubtotal))
-            ?? (try? container.decodeIfPresent(MoneyAmount.self, forKey: .subtotalTaxable))
-            ?? MoneyAmount(amount: "0.00")
+        ?? (try? container.decodeIfPresent(MoneyAmount.self, forKey: .subtotalWithoutTaxes))
+        ?? (try? container.decodeIfPresent(MoneyAmount.self, forKey: .grossSubtotal))
+        ?? (try? container.decodeIfPresent(MoneyAmount.self, forKey: .subtotalTaxable))
+        ?? MoneyAmount(amount: "0.00")
         discount = (try? container.decodeIfPresent(MoneyAmount.self, forKey: .discount))
-            ?? (try? container.decodeIfPresent(MoneyAmount.self, forKey: .discountTotal))
-            ?? (try? container.decodeIfPresent(MoneyAmount.self, forKey: .totalDiscount))
-            ?? MoneyAmount(amount: "0.00")
+        ?? (try? container.decodeIfPresent(MoneyAmount.self, forKey: .discountTotal))
+        ?? (try? container.decodeIfPresent(MoneyAmount.self, forKey: .totalDiscount))
+        ?? MoneyAmount(amount: "0.00")
         tax = (try? container.decodeIfPresent(MoneyAmount.self, forKey: .tax))
-            ?? (try? container.decodeIfPresent(MoneyAmount.self, forKey: .taxTotal))
-            ?? (try? container.decodeIfPresent(MoneyAmount.self, forKey: .totalTax))
-            ?? MoneyAmount(amount: "0.00")
+        ?? (try? container.decodeIfPresent(MoneyAmount.self, forKey: .taxTotal))
+        ?? (try? container.decodeIfPresent(MoneyAmount.self, forKey: .totalTax))
+        ?? MoneyAmount(amount: "0.00")
         total = (try? container.decodeIfPresent(MoneyAmount.self, forKey: .total))
-            ?? (try? container.decodeIfPresent(MoneyAmount.self, forKey: .grandTotal))
-            ?? MoneyAmount(amount: "0.00")
+        ?? (try? container.decodeIfPresent(MoneyAmount.self, forKey: .grandTotal))
+        ?? MoneyAmount(amount: "0.00")
     }
 }
 
@@ -342,7 +342,7 @@ extension BusinessSaleTotals {
     var discountTotal: MoneyAmount { discount }
     var taxTotal: MoneyAmount { tax }
     var grandTotal: MoneyAmount { total }
-
+    
     init(
         subtotalWithoutTaxes: MoneyAmount,
         discountTotal: MoneyAmount,
@@ -368,8 +368,16 @@ struct BusinessSaleItem: Decodable, Equatable, Identifiable, Sendable {
     let unitPrice: MoneyAmount?
     let subtotal: MoneyAmount?
     let total: MoneyAmount?
+    let taxProfileCode: String?
+    let taxProfileName: String?
+    let taxTreatment: String?
+    let taxRate: String?
+    let sriTaxCode: String?
+    let sriRateCode: String?
+    let taxableBase: MoneyAmount?
+    let taxAmount: MoneyAmount?
     let note: String?
-
+    
     init(
         id: String,
         catalogItemId: String? = nil,
@@ -378,6 +386,14 @@ struct BusinessSaleItem: Decodable, Equatable, Identifiable, Sendable {
         unitPrice: MoneyAmount? = nil,
         subtotal: MoneyAmount? = nil,
         total: MoneyAmount? = nil,
+        taxProfileCode: String? = nil,
+        taxProfileName: String? = nil,
+        taxTreatment: String? = nil,
+        taxRate: String? = nil,
+        sriTaxCode: String? = nil,
+        sriRateCode: String? = nil,
+        taxableBase: MoneyAmount? = nil,
+        taxAmount: MoneyAmount? = nil,
         note: String? = nil
     ) {
         self.id = id
@@ -387,9 +403,17 @@ struct BusinessSaleItem: Decodable, Equatable, Identifiable, Sendable {
         self.unitPrice = unitPrice
         self.subtotal = subtotal
         self.total = total
+        self.taxProfileCode = taxProfileCode
+        self.taxProfileName = taxProfileName
+        self.taxTreatment = taxTreatment
+        self.taxRate = taxRate
+        self.sriTaxCode = sriTaxCode
+        self.sriRateCode = sriRateCode
+        self.taxableBase = taxableBase
+        self.taxAmount = taxAmount
         self.note = note
     }
-
+    
     private enum CodingKeys: String, CodingKey {
         case id
         case lineId
@@ -406,21 +430,33 @@ struct BusinessSaleItem: Decodable, Equatable, Identifiable, Sendable {
         case total
         case lineTotal
         case netTotal
+        case taxProfileCode
+        case taxProfileName
+        case treatment
+        case taxTreatment
+        case taxRate
+        case rate
+        case sriTaxCode
+        case sriRateCode
+        case codigo
+        case codigoPorcentaje
+        case taxAmount
+        case tax
         case note
         case notes
     }
-
+    
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = (try? container.decodeIfPresent(String.self, forKey: .id))
-            ?? (try? container.decodeIfPresent(String.self, forKey: .lineId))
-            ?? UUID().uuidString
+        ?? (try? container.decodeIfPresent(String.self, forKey: .lineId))
+        ?? UUID().uuidString
         catalogItemId = try? container.decodeIfPresent(String.self, forKey: .catalogItemId)
         name = (try? container.decodeIfPresent(String.self, forKey: .name))
-            ?? (try? container.decodeIfPresent(String.self, forKey: .catalogItemName))
-            ?? (try? container.decodeIfPresent(String.self, forKey: .description))
-            ?? "Ítem"
-
+        ?? (try? container.decodeIfPresent(String.self, forKey: .catalogItemName))
+        ?? (try? container.decodeIfPresent(String.self, forKey: .description))
+        ?? "Ítem"
+        
         if let value = try? container.decodeIfPresent(String.self, forKey: .quantity) {
             quantity = value
         } else if let value = try? container.decodeIfPresent(Double.self, forKey: .quantity) {
@@ -430,17 +466,47 @@ struct BusinessSaleItem: Decodable, Equatable, Identifiable, Sendable {
         } else {
             quantity = "1"
         }
-
+        
         unitPrice = try? container.decodeIfPresent(MoneyAmount.self, forKey: .unitPrice)
         subtotal = (try? container.decodeIfPresent(MoneyAmount.self, forKey: .subtotal))
-            ?? (try? container.decodeIfPresent(MoneyAmount.self, forKey: .grossAmount))
-            ?? (try? container.decodeIfPresent(MoneyAmount.self, forKey: .grossTotal))
-            ?? (try? container.decodeIfPresent(MoneyAmount.self, forKey: .taxableBase))
-            ?? (try? container.decodeIfPresent(MoneyAmount.self, forKey: .netTotal))
+        ?? (try? container.decodeIfPresent(MoneyAmount.self, forKey: .grossAmount))
+        ?? (try? container.decodeIfPresent(MoneyAmount.self, forKey: .grossTotal))
+        ?? (try? container.decodeIfPresent(MoneyAmount.self, forKey: .taxableBase))
+        ?? (try? container.decodeIfPresent(MoneyAmount.self, forKey: .netTotal))
         total = (try? container.decodeIfPresent(MoneyAmount.self, forKey: .total))
-            ?? (try? container.decodeIfPresent(MoneyAmount.self, forKey: .lineTotal))
+        ?? (try? container.decodeIfPresent(MoneyAmount.self, forKey: .lineTotal))
+        taxProfileCode = try? container.decodeIfPresent(String.self, forKey: .taxProfileCode)
+        taxProfileName = try? container.decodeIfPresent(String.self, forKey: .taxProfileName)
+        taxTreatment = (try? container.decodeIfPresent(String.self, forKey: .taxTreatment))
+        ?? (try? container.decodeIfPresent(String.self, forKey: .treatment))
+        taxRate = (try? container.decodeFlexibleStringIfPresent(forKey: .taxRate))
+        ?? (try? container.decodeFlexibleStringIfPresent(forKey: .rate))
+        sriTaxCode = (try? container.decodeFlexibleStringIfPresent(forKey: .sriTaxCode))
+        ?? (try? container.decodeFlexibleStringIfPresent(forKey: .codigo))
+        sriRateCode = (try? container.decodeFlexibleStringIfPresent(forKey: .sriRateCode))
+        ?? (try? container.decodeFlexibleStringIfPresent(forKey: .codigoPorcentaje))
+        taxableBase = try? container.decodeIfPresent(MoneyAmount.self, forKey: .taxableBase)
+        taxAmount = (try? container.decodeIfPresent(MoneyAmount.self, forKey: .taxAmount))
+        ?? (try? container.decodeIfPresent(MoneyAmount.self, forKey: .tax))
         note = (try? container.decodeIfPresent(String.self, forKey: .note))
-            ?? (try? container.decodeIfPresent(String.self, forKey: .notes))
+        ?? (try? container.decodeIfPresent(String.self, forKey: .notes))
+    }
+}
+
+
+private extension KeyedDecodingContainer {
+    func decodeFlexibleStringIfPresent(forKey key: Key) throws -> String? {
+        if let string = try? decodeIfPresent(String.self, forKey: key) {
+            return string
+        }
+        if let int = try? decodeIfPresent(Int.self, forKey: key) {
+            return String(int)
+        }
+        if let double = try? decodeIfPresent(Double.self, forKey: key) {
+            let rounded = double.rounded()
+            return rounded == double ? String(Int(rounded)) : String(double)
+        }
+        return nil
     }
 }
 
@@ -464,7 +530,7 @@ struct BusinessSale: Decodable, Equatable, Identifiable, Sendable {
     let confirmedAt: Date?
     let closedAt: Date?
     let updatedAt: Date?
-
+    
     init(
         id: String,
         number: String? = nil,
@@ -502,7 +568,7 @@ struct BusinessSale: Decodable, Equatable, Identifiable, Sendable {
         self.closedAt = closedAt
         self.updatedAt = updatedAt
     }
-
+    
     private enum CodingKeys: String, CodingKey {
         case id
         case number
@@ -529,25 +595,25 @@ struct BusinessSale: Decodable, Equatable, Identifiable, Sendable {
         case closedAt
         case updatedAt
     }
-
+    
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decode(String.self, forKey: .id)
         number = (try? container.decodeIfPresent(String.self, forKey: .number))
-            ?? (try? container.decodeIfPresent(String.self, forKey: .saleNumber))
+        ?? (try? container.decodeIfPresent(String.self, forKey: .saleNumber))
         organizationId = try? container.decodeIfPresent(String.self, forKey: .organizationId)
         branchId = (try? container.decodeIfPresent(String.self, forKey: .branchId)) ?? ""
         activityId = try? container.decodeIfPresent(String.self, forKey: .activityId)
         customerId = try? container.decodeIfPresent(String.self, forKey: .customerId)
         customerName = try? container.decodeIfPresent(String.self, forKey: .customerName)
         customer = (try? container.decodeIfPresent(BusinessSaleCustomer.self, forKey: .customer))
-            ?? (try? container.decodeIfPresent(BusinessSaleCustomer.self, forKey: .customerSnapshot))
+        ?? (try? container.decodeIfPresent(BusinessSaleCustomer.self, forKey: .customerSnapshot))
         status = (try? container.decodeIfPresent(String.self, forKey: .status))
-            ?? (try? container.decodeIfPresent(String.self, forKey: .operationalStatus))
-            ?? "pending"
+        ?? (try? container.decodeIfPresent(String.self, forKey: .operationalStatus))
+        ?? "pending"
         paymentStatus = try? container.decodeIfPresent(String.self, forKey: .paymentStatus)
         documentStatus = try? container.decodeIfPresent(String.self, forKey: .documentStatus)
-
+        
         if let totals = try? container.decodeIfPresent(BusinessSaleTotals.self, forKey: .totals) {
             self.totals = totals
         } else if let totals = try? container.decodeIfPresent(BusinessSaleTotals.self, forKey: .summary) {
@@ -568,10 +634,10 @@ struct BusinessSale: Decodable, Equatable, Identifiable, Sendable {
                 total: MoneyAmount(amount: "0.00")
             )
         }
-
+        
         items = (try? container.decodeIfPresent([BusinessSaleItem].self, forKey: .items))
-            ?? (try? container.decodeIfPresent([BusinessSaleItem].self, forKey: .lines))
-            ?? []
+        ?? (try? container.decodeIfPresent([BusinessSaleItem].self, forKey: .lines))
+        ?? []
         createdAt = try? container.decodeIfPresent(Date.self, forKey: .createdAt)
         confirmedAt = try? container.decodeIfPresent(Date.self, forKey: .confirmedAt)
         closedAt = try? container.decodeIfPresent(Date.self, forKey: .closedAt)
@@ -585,7 +651,7 @@ struct SalesPreviewResponse: Decodable, Equatable, Sendable {
     let items: [BusinessSaleItem]
     let totals: BusinessSaleTotals
     let warnings: [String]
-
+    
     init(
         items: [BusinessSaleItem],
         totals: BusinessSaleTotals,
@@ -595,7 +661,7 @@ struct SalesPreviewResponse: Decodable, Equatable, Sendable {
         self.totals = totals
         self.warnings = warnings
     }
-
+    
     private enum CodingKeys: String, CodingKey {
         case items
         case lines
@@ -604,29 +670,29 @@ struct SalesPreviewResponse: Decodable, Equatable, Sendable {
         case preview
         case warnings
     }
-
+    
     init(from decoder: Decoder) throws {
         if let container = try? decoder.container(keyedBy: CodingKeys.self) {
             if let preview = try? container.decode(SalesPreviewResponse.self, forKey: .preview) {
                 self = preview
                 return
             }
-
+            
             items = (try? container.decodeIfPresent([BusinessSaleItem].self, forKey: .items))
-                ?? (try? container.decodeIfPresent([BusinessSaleItem].self, forKey: .lines))
-                ?? []
+            ?? (try? container.decodeIfPresent([BusinessSaleItem].self, forKey: .lines))
+            ?? []
             totals = (try? container.decodeIfPresent(BusinessSaleTotals.self, forKey: .totals))
-                ?? (try? container.decodeIfPresent(BusinessSaleTotals.self, forKey: .summary))
-                ?? BusinessSaleTotals(
-                    subtotal: MoneyAmount(amount: "0.00"),
-                    discount: MoneyAmount(amount: "0.00"),
-                    tax: MoneyAmount(amount: "0.00"),
-                    total: MoneyAmount(amount: "0.00")
-                )
+            ?? (try? container.decodeIfPresent(BusinessSaleTotals.self, forKey: .summary))
+            ?? BusinessSaleTotals(
+                subtotal: MoneyAmount(amount: "0.00"),
+                discount: MoneyAmount(amount: "0.00"),
+                tax: MoneyAmount(amount: "0.00"),
+                total: MoneyAmount(amount: "0.00")
+            )
             warnings = (try? container.decodeIfPresent([String].self, forKey: .warnings)) ?? []
             return
         }
-
+        
         items = []
         totals = BusinessSaleTotals(
             subtotal: MoneyAmount(amount: "0.00"),
@@ -640,22 +706,22 @@ struct SalesPreviewResponse: Decodable, Equatable, Sendable {
 
 struct BusinessSaleDetailResponse: Decodable, Equatable, Sendable {
     let sale: BusinessSale
-
+    
     init(sale: BusinessSale) {
         self.sale = sale
     }
-
+    
     private enum CodingKeys: String, CodingKey {
         case sale
     }
-
+    
     init(from decoder: Decoder) throws {
         if let container = try? decoder.container(keyedBy: CodingKeys.self),
            let sale = try? container.decode(BusinessSale.self, forKey: .sale) {
             self.sale = sale
             return
         }
-
+        
         self.sale = try BusinessSale(from: decoder)
     }
 }
@@ -663,17 +729,17 @@ struct BusinessSaleDetailResponse: Decodable, Equatable, Sendable {
 struct QuickSaleResponse: Decodable, Equatable, Sendable {
     let sale: BusinessSale
     let idempotencyReplayed: Bool?
-
+    
     init(sale: BusinessSale, idempotencyReplayed: Bool? = nil) {
         self.sale = sale
         self.idempotencyReplayed = idempotencyReplayed
     }
-
+    
     private enum CodingKeys: String, CodingKey {
         case sale
         case idempotencyReplayed
     }
-
+    
     init(from decoder: Decoder) throws {
         if let container = try? decoder.container(keyedBy: CodingKeys.self),
            let sale = try? container.decode(BusinessSale.self, forKey: .sale) {
@@ -681,7 +747,7 @@ struct QuickSaleResponse: Decodable, Equatable, Sendable {
             self.idempotencyReplayed = try? container.decodeIfPresent(Bool.self, forKey: .idempotencyReplayed)
             return
         }
-
+        
         self.sale = try BusinessSale(from: decoder)
         self.idempotencyReplayed = nil
     }
@@ -690,17 +756,17 @@ struct QuickSaleResponse: Decodable, Equatable, Sendable {
 struct ConfirmSaleResponse: Decodable, Equatable, Sendable {
     let sale: BusinessSale
     let idempotencyReplayed: Bool?
-
+    
     init(sale: BusinessSale, idempotencyReplayed: Bool? = nil) {
         self.sale = sale
         self.idempotencyReplayed = idempotencyReplayed
     }
-
+    
     private enum CodingKeys: String, CodingKey {
         case sale
         case idempotencyReplayed
     }
-
+    
     init(from decoder: Decoder) throws {
         if let container = try? decoder.container(keyedBy: CodingKeys.self),
            let sale = try? container.decode(BusinessSale.self, forKey: .sale) {
@@ -708,7 +774,7 @@ struct ConfirmSaleResponse: Decodable, Equatable, Sendable {
             self.idempotencyReplayed = try? container.decodeIfPresent(Bool.self, forKey: .idempotencyReplayed)
             return
         }
-
+        
         self.sale = try BusinessSale(from: decoder)
         self.idempotencyReplayed = nil
     }
@@ -717,17 +783,17 @@ struct ConfirmSaleResponse: Decodable, Equatable, Sendable {
 struct CancelSaleResponse: Decodable, Equatable, Sendable {
     let sale: BusinessSale
     let idempotencyReplayed: Bool?
-
+    
     init(sale: BusinessSale, idempotencyReplayed: Bool? = nil) {
         self.sale = sale
         self.idempotencyReplayed = idempotencyReplayed
     }
-
+    
     private enum CodingKeys: String, CodingKey {
         case sale
         case idempotencyReplayed
     }
-
+    
     init(from decoder: Decoder) throws {
         if let container = try? decoder.container(keyedBy: CodingKeys.self),
            let sale = try? container.decode(BusinessSale.self, forKey: .sale) {
@@ -735,7 +801,7 @@ struct CancelSaleResponse: Decodable, Equatable, Sendable {
             self.idempotencyReplayed = try? container.decodeIfPresent(Bool.self, forKey: .idempotencyReplayed)
             return
         }
-
+        
         self.sale = try BusinessSale(from: decoder)
         self.idempotencyReplayed = nil
     }

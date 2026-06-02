@@ -651,6 +651,12 @@ private struct SaleCartRow: View {
                 .font(.caption2)
                 .foregroundStyle(.secondary)
 
+            if taxTreatment == .ivaTourism8 {
+                Label("Verifica que el negocio y la fecha estén habilitados antes de emitir comprobante.", systemImage: "exclamationmark.triangle")
+                    .font(.caption2)
+                    .foregroundStyle(.orange)
+            }
+
             TextField("Nota de línea opcional", text: $lineNote)
                 .textInputAutocapitalization(.sentences)
                 .disabled(!isEditable)
@@ -669,7 +675,8 @@ private struct SaleCartRow: View {
                 revisions: PreviewData.businessContext.revisions,
                 effectivePermissions: PreviewData.businessContext.effectivePermissions,
                 catalogRepository: PreviewCatalogRepository(),
-                salesRepository: PreviewSalesRepository()
+                salesRepository: PreviewSalesRepository(),
+                contextRepository: PreviewBusinessContextRepository()
             ),
             customersRepository: PreviewCustomersRepository(),
             cashRepository: PreviewCashRepository(),

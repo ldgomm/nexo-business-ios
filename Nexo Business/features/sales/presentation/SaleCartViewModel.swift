@@ -11,6 +11,7 @@ import Observation
 enum SaleLineTaxTreatmentOption: String, CaseIterable, Identifiable, Sendable {
     case operationalNoTax
     case ivaCurrent
+    case ivaTourism8
     case ivaZero
     case notSubject
     case exempt
@@ -23,6 +24,8 @@ enum SaleLineTaxTreatmentOption: String, CaseIterable, Identifiable, Sendable {
             return "Solo registro"
         case .ivaCurrent:
             return "IVA vigente"
+        case .ivaTourism8:
+            return "IVA turismo 8%"
         case .ivaZero:
             return "IVA 0%"
         case .notSubject:
@@ -38,6 +41,8 @@ enum SaleLineTaxTreatmentOption: String, CaseIterable, Identifiable, Sendable {
             return "Sin IVA y sin comprobante electrónico"
         case .ivaCurrent:
             return "Aplica IVA según configuración tributaria"
+        case .ivaTourism8:
+            return "Solo para servicios turísticos habilitados y fechas autorizadas"
         case .ivaZero:
             return "Base IVA 0%"
         case .notSubject:
@@ -53,6 +58,8 @@ enum SaleLineTaxTreatmentOption: String, CaseIterable, Identifiable, Sendable {
             return "altos_staging_no_tax_internal"
         case .ivaCurrent:
             return "altos_staging_iva_current_full"
+        case .ivaTourism8:
+            return "altos_staging_iva_tourism_8"
         case .ivaZero:
             return "altos_staging_iva_0"
         case .notSubject:
@@ -64,6 +71,29 @@ enum SaleLineTaxTreatmentOption: String, CaseIterable, Identifiable, Sendable {
 
     static func defaultForNewLine() -> SaleLineTaxTreatmentOption {
         .operationalNoTax
+    }
+
+    static func defaultForCatalogItem(_ item: BusinessCatalogItem) -> SaleLineTaxTreatmentOption {
+        fromTaxProfileCode(item.taxProfileCode) ?? .defaultForNewLine()
+    }
+
+    static func fromTaxProfileCode(_ code: String?) -> SaleLineTaxTreatmentOption? {
+        switch code?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+        case "altos_staging_no_tax_internal", "no_tax_internal", "internal_no_tax":
+            return .operationalNoTax
+        case "altos_staging_iva_current_full", "iva_current_full", "iva_full":
+            return .ivaCurrent
+        case "altos_staging_iva_tourism_8", "iva_tourism_8", "iva_reduced_tourism":
+            return .ivaTourism8
+        case "altos_staging_iva_0", "iva_0", "iva_zero":
+            return .ivaZero
+        case "altos_staging_not_subject_to_iva", "not_subject_to_iva":
+            return .notSubject
+        case "altos_staging_exempt_iva", "exempt_iva":
+            return .exempt
+        default:
+            return nil
+        }
     }
 }
 
@@ -134,6 +164,8 @@ final class SaleCartViewModel {
     
     private let catalogRepository: CatalogRepository
     private let salesRepository: SalesRepository
+    private let contextRepository: BusinessContextRepository?
+    private let revisionRegistry: BusinessRevisionRegistry
     
     init(
         organizationId: String,
@@ -143,7 +175,9 @@ final class SaleCartViewModel {
         effectivePermissions: Set<String> = [],
         cashSessionId: String? = nil,
         catalogRepository: CatalogRepository,
-        salesRepository: SalesRepository
+        salesRepository: SalesRepository,
+        contextRepository: BusinessContextRepository? = nil,
+        revisionRegistry: BusinessRevisionRegistry = .shared
     ) {
         self.organizationId = organizationId
         self.branchId = branchId
@@ -153,6 +187,8 @@ final class SaleCartViewModel {
         self.cashSessionId = cashSessionId
         self.catalogRepository = catalogRepository
         self.salesRepository = salesRepository
+        self.contextRepository = contextRepository
+        self.revisionRegistry = revisionRegistry
     }
     
     var canSearchCatalog: Bool {
@@ -302,7 +338,8 @@ final class SaleCartViewModel {
         cartItems.append(
             SaleCartItem(
                 catalogItem: item,
-                quantity: "1"
+                quantity: "1",
+                taxTreatment: .defaultForCatalogItem(item)
             )
         )
     }
@@ -352,64 +389,70 @@ final class SaleCartViewModel {
             errorMessage = "Esta venta ya fue registrada. Inicia una nueva venta para continuar."
             return
         }
-        
+
         guard validateCart() else { return }
         guard !isPreviewing, !isCreatingSale else { return }
-        
+
         isPreviewing = true
         orderState = .previewing
         errorMessage = nil
         infoMessage = nil
-        
+
         defer {
             isPreviewing = false
             if createdSale == nil {
                 orderState = .editing
             }
         }
-        
+
+        await loadPreviewAttempt(allowContextRefreshRetry: true)
+    }
+
+    private func loadPreviewAttempt(allowContextRefreshRetry: Bool) async {
         do {
             let response = try await salesRepository.preview(
                 organizationId: organizationId,
                 revisions: revisions,
-                request: SalesPreviewRequest(
-                    branchId: branchId,
-                    activityId: activityId,
-                    customerId: customerIdForRequest,
-                    catalogRevision: revisions.catalogRevision,
-                    taxConfigurationRevision: revisions.taxConfigurationRevision,
-                    items: draftItems()
-                )
+                request: previewRequest()
             )
-            
+
             preview = response
+            if !allowContextRefreshRetry {
+                infoMessage = "Contexto actualizado y total recalculado."
+            }
         } catch let error as APIError {
+            if error.isBusinessRevisionConflict,
+               allowContextRefreshRetry,
+               await refreshBusinessContextAfterRevisionConflict() {
+                await loadPreviewAttempt(allowContextRefreshRetry: false)
+                return
+            }
             handle(apiError: error)
         } catch {
             errorMessage = error.localizedDescription
         }
     }
-    
+
     func createQuickSale() async {
         guard !isCreatingSale else { return }
-        
+
         guard createdSale == nil else {
             orderState = .created
             errorMessage = "Esta venta ya fue registrada. Inicia una nueva venta para continuar."
             return
         }
-        
+
         guard validateCart() else { return }
-        
+
         isCreatingSale = true
         orderState = .creating
         errorMessage = nil
         infoMessage = nil
-        
+
         defer {
             isCreatingSale = false
         }
-        
+
         do {
             let identity = BusinessMutationIdentity.generate(prefix: "quick-sale")
             let response = try await salesRepository.quickSale(
@@ -428,7 +471,7 @@ final class SaleCartViewModel {
                     items: draftItems()
                 )
             )
-            
+
             createdSale = response.sale
             preview = nil
             orderState = .created
@@ -437,13 +480,20 @@ final class SaleCartViewModel {
             : "Venta registrada. Ahora puedes cobrarla o iniciar una nueva venta."
         } catch let error as APIError {
             orderState = .editing
+            if error.isBusinessRevisionConflict,
+               await refreshBusinessContextAfterRevisionConflict() {
+                preview = nil
+                errorMessage = nil
+                infoMessage = "Contexto del negocio actualizado. Calcula nuevamente el total antes de registrar la venta."
+                return
+            }
             handle(apiError: error)
         } catch {
             orderState = .editing
             errorMessage = error.localizedDescription
         }
     }
-    
+
     func makeSaleDetailViewModel(for sale: BusinessSale) -> SaleDetailViewModel {
         SaleDetailViewModel(
             organizationId: organizationId,
@@ -463,6 +513,57 @@ final class SaleCartViewModel {
         return true
     }
     
+    private func previewRequest() -> SalesPreviewRequest {
+        SalesPreviewRequest(
+            branchId: branchId,
+            activityId: activityId,
+            customerId: customerIdForRequest,
+            catalogRevision: revisions.catalogRevision,
+            taxConfigurationRevision: revisions.taxConfigurationRevision,
+            items: draftItems()
+        )
+    }
+
+    private func refreshBusinessContextAfterRevisionConflict() async -> Bool {
+        guard let contextRepository else {
+            infoMessage = "Actualiza el contexto del negocio antes de continuar."
+            return false
+        }
+
+        do {
+            let refreshedContext = try await contextRepository.getContext(organizationId: organizationId)
+
+            guard refreshedContext.branches.contains(where: { $0.id == branchId }) else {
+                errorMessage = "La sucursal actual ya no está disponible. Cambia el contexto operativo."
+                infoMessage = nil
+                return false
+            }
+
+            guard refreshedContext.activities.contains(where: { $0.id == activityId }) else {
+                errorMessage = "La actividad actual ya no está disponible. Cambia el contexto operativo."
+                infoMessage = nil
+                return false
+            }
+
+            revisions = refreshedContext.revisions
+            await revisionRegistry.observeRevisions(
+                organizationId: organizationId,
+                branchId: branchId,
+                activityId: activityId,
+                revisions: refreshedContext.revisions
+            )
+            return true
+        } catch let error as APIError {
+            errorMessage = "No se pudo actualizar el contexto: \(error.userMessage)"
+            infoMessage = nil
+            return false
+        } catch {
+            errorMessage = "No se pudo actualizar el contexto: \(error.localizedDescription)"
+            infoMessage = nil
+            return false
+        }
+    }
+
     private func draftItems() -> [BusinessSaleItemRequest] {
         cartItems.map { item in
             BusinessSaleItemRequest(
@@ -511,8 +612,15 @@ final class SaleCartViewModel {
     
     private func handle(apiError: APIError) {
         errorMessage = apiError.userMessage
-        
-        if apiError.statusCode == 409 || apiError.statusCode == 428 {
+
+        if apiError.isBusinessRevisionConflict {
+            infoMessage = contextRepository == nil
+                ? "Actualiza el contexto del negocio antes de continuar."
+                : "La información cambió. Intenté actualizar el contexto; vuelve a calcular el total."
+            return
+        }
+
+        if apiError.isRevisionConflict {
             infoMessage = "Actualiza el contexto del negocio antes de continuar."
         }
     }

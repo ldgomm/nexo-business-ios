@@ -27,10 +27,14 @@ final class PreviewAuthRepository: AuthRepository, @unchecked Sendable {
 }
 
 final class PreviewBusinessContextRepository: BusinessContextRepository, @unchecked Sendable {
-    init() {}
+    private let context: BusinessContextResponse
+
+    init(context: BusinessContextResponse = PreviewData.businessContext) {
+        self.context = context
+    }
 
     func getContext(organizationId: String) async throws -> BusinessContextResponse {
-        PreviewData.businessContext
+        context
     }
 }
 
