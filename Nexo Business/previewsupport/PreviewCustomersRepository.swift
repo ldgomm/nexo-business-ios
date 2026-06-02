@@ -7,10 +7,10 @@
 
 import Foundation
 
-public final class PreviewCustomersRepository: CustomersRepository, @unchecked Sendable {
-    public init() {}
+final class PreviewCustomersRepository: CustomersRepository, @unchecked Sendable {
+    init() {}
 
-    public func search(
+    func search(
         organizationId: String,
         query: String,
         limit: Int
@@ -33,7 +33,7 @@ public final class PreviewCustomersRepository: CustomersRepository, @unchecked S
         )
     }
 
-    public func create(
+    func create(
         organizationId: String,
         idempotencyKey: IdempotencyKey,
         request: CreateCustomerRequest

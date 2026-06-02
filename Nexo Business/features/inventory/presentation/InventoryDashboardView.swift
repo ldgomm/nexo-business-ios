@@ -7,14 +7,14 @@
 
 import SwiftUI
 
-public struct InventoryDashboardView: View {
+struct InventoryDashboardView: View {
     @Bindable private var viewModel: InventoryDashboardViewModel
 
-    public init(viewModel: InventoryDashboardViewModel) {
+    init(viewModel: InventoryDashboardViewModel) {
         self.viewModel = viewModel
     }
 
-    public var body: some View {
+    var body: some View {
         List {
             filtersSection
             summarySection

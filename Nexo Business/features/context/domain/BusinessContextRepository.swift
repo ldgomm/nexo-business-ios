@@ -7,6 +7,6 @@
 
 import Foundation
 
-public protocol BusinessContextRepository: Sendable {
+protocol BusinessContextRepository: Sendable {
     func getContext(organizationId: String) async throws -> BusinessContextResponse
 }

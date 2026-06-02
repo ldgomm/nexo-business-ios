@@ -7,7 +7,7 @@
 
 import Foundation
 
-public protocol CatalogRepository: Sendable {
+protocol CatalogRepository: Sendable {
     func search(
         organizationId: String,
         branchId: String,

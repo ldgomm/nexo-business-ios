@@ -7,8 +7,8 @@
 
 import Foundation
 
-public enum ReceivableStatusPresentation {
-    public static func displayName(_ status: String?) -> String {
+enum ReceivableStatusPresentation {
+    static func displayName(_ status: String?) -> String {
         switch status {
         case "pending":
             return "Pendiente"
@@ -39,7 +39,7 @@ public enum ReceivableStatusPresentation {
         }
     }
 
-    public static func canCollect(_ status: String?) -> Bool {
+    static func canCollect(_ status: String?) -> Bool {
         switch status {
         case "collected", "paid", "canceled", "cancelled", "voided", "written_off":
             return false
@@ -48,7 +48,7 @@ public enum ReceivableStatusPresentation {
         }
     }
 
-    public static func systemImage(_ status: String?) -> String {
+    static func systemImage(_ status: String?) -> String {
         switch status {
         case "collected", "paid":
             return "checkmark.circle"

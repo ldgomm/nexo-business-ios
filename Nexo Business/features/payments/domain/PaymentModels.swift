@@ -7,15 +7,15 @@
 
 import Foundation
 
-public enum BusinessPaymentMethod: String, CaseIterable, Identifiable, Sendable, Hashable, Codable {
+enum BusinessPaymentMethod: String, CaseIterable, Identifiable, Sendable, Hashable, Codable {
     case cash = "CASH"
     case transfer = "BANK_TRANSFER"
     case card = "CARD_MANUAL"
     case other = "OTHER"
 
-    public var id: String { rawValue }
+    var id: String { rawValue }
 
-    public var displayName: String {
+    var displayName: String {
         switch self {
         case .cash:
             return "Efectivo"
@@ -28,7 +28,7 @@ public enum BusinessPaymentMethod: String, CaseIterable, Identifiable, Sendable,
         }
     }
 
-    public var requiresReference: Bool {
+    var requiresReference: Bool {
         switch self {
         case .cash:
             return false
@@ -37,13 +37,13 @@ public enum BusinessPaymentMethod: String, CaseIterable, Identifiable, Sendable,
         }
     }
 
-    public init(from decoder: Decoder) throws {
+    init(from decoder: Decoder) throws {
         let container = try decoder.singleValueContainer()
         let value = try container.decode(String.self)
         self = BusinessPaymentMethod.resolve(value)
     }
 
-    public func encode(to encoder: Encoder) throws {
+    func encode(to encoder: Encoder) throws {
         var container = encoder.singleValueContainer()
         try container.encode(rawValue)
     }
@@ -62,19 +62,19 @@ public enum BusinessPaymentMethod: String, CaseIterable, Identifiable, Sendable,
     }
 }
 
-public struct RegisterPaymentRequest: Encodable, Equatable, Sendable {
-    public let saleId: String
-    public let cashSessionId: String?
-    public let method: String
-    public let amount: String
-    public let reference: String?
-    public let note: String?
-    public let paidAt: Date?
-    public let markRemainingAsReceivable: Bool
-    public let receivableDueAt: Date?
-    public let requestId: String?
+struct RegisterPaymentRequest: Encodable, Equatable, Sendable {
+    let saleId: String
+    let cashSessionId: String?
+    let method: String
+    let amount: String
+    let reference: String?
+    let note: String?
+    let paidAt: Date?
+    let markRemainingAsReceivable: Bool
+    let receivableDueAt: Date?
+    let requestId: String?
 
-    public init(
+    init(
         saleId: String,
         cashSessionId: String? = nil,
         method: String,
@@ -111,7 +111,7 @@ public struct RegisterPaymentRequest: Encodable, Equatable, Sendable {
         case receivableDueAt
     }
 
-    public func encode(to encoder: Encoder) throws {
+    func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encodeIfPresent(requestId, forKey: .requestId)
         try container.encode(saleId, forKey: .saleId)
@@ -126,17 +126,17 @@ public struct RegisterPaymentRequest: Encodable, Equatable, Sendable {
     }
 }
 
-public struct PaymentRecord: Decodable, Equatable, Identifiable, Sendable {
-    public let id: String
-    public let saleId: String
-    public let status: String
-    public let method: String
-    public let amount: MoneyAmount
-    public let reference: String?
-    public let note: String?
-    public let registeredAt: Date?
+struct PaymentRecord: Decodable, Equatable, Identifiable, Sendable {
+    let id: String
+    let saleId: String
+    let status: String
+    let method: String
+    let amount: MoneyAmount
+    let reference: String?
+    let note: String?
+    let registeredAt: Date?
 
-    public init(
+    init(
         id: String,
         saleId: String,
         status: String,
@@ -170,7 +170,7 @@ public struct PaymentRecord: Decodable, Equatable, Identifiable, Sendable {
         case createdAt
     }
 
-    public init(from decoder: Decoder) throws {
+    init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decode(String.self, forKey: .id)
         saleId = try container.decodeIfPresent(String.self, forKey: .saleId) ?? ""
@@ -186,18 +186,18 @@ public struct PaymentRecord: Decodable, Equatable, Identifiable, Sendable {
     }
 }
 
-public struct PaymentResponse: Decodable, Equatable, Sendable {
-    public let payment: PaymentRecord
-    public let sale: BusinessSale?
-    public let saleId: String?
-    public let salePaymentStatus: String?
-    public let salePaidAmount: MoneyAmount?
-    public let cashSession: CashSession?
-    public let cashMovement: CashMovement?
-    public let receivable: ReceivableRecord?
-    public let idempotencyReplayed: Bool?
+struct PaymentResponse: Decodable, Equatable, Sendable {
+    let payment: PaymentRecord
+    let sale: BusinessSale?
+    let saleId: String?
+    let salePaymentStatus: String?
+    let salePaidAmount: MoneyAmount?
+    let cashSession: CashSession?
+    let cashMovement: CashMovement?
+    let receivable: ReceivableRecord?
+    let idempotencyReplayed: Bool?
 
-    public init(
+    init(
         payment: PaymentRecord,
         sale: BusinessSale? = nil,
         saleId: String? = nil,
@@ -231,7 +231,7 @@ public struct PaymentResponse: Decodable, Equatable, Sendable {
         case idempotencyReplayed
     }
 
-    public init(from decoder: Decoder) throws {
+    init(from decoder: Decoder) throws {
         if let container = try? decoder.container(keyedBy: CodingKeys.self),
            let payment = try? container.decode(PaymentRecord.self, forKey: .payment) {
             self.payment = payment

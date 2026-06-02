@@ -7,7 +7,7 @@
 
 import Foundation
 
-public protocol SalesHistoryRepository: Sendable {
+protocol SalesHistoryRepository: Sendable {
     func searchSales(
         organizationId: String,
         request: SalesHistorySearchRequest

@@ -7,22 +7,22 @@
 
 import Foundation
 
-public actor AsyncOperationGate {
+actor AsyncOperationGate {
     private var activeOperationIds: Set<String> = []
 
-    public init() {}
+    init() {}
 
-    public func begin(_ id: String) -> Bool {
+    func begin(_ id: String) -> Bool {
         guard !activeOperationIds.contains(id) else { return false }
         activeOperationIds.insert(id)
         return true
     }
 
-    public func end(_ id: String) {
+    func end(_ id: String) {
         activeOperationIds.remove(id)
     }
 
-    public func withLock<T: Sendable>(
+    func withLock<T: Sendable>(
         id: String,
         operation: @Sendable () async throws -> T
     ) async throws -> T {
@@ -38,10 +38,10 @@ public actor AsyncOperationGate {
     }
 }
 
-public enum OperationGateError: Error, Equatable, Sendable {
+enum OperationGateError: Error, Equatable, Sendable {
     case alreadyRunning(String)
 
-    public var userMessage: String {
+    var userMessage: String {
         switch self {
         case .alreadyRunning:
             return "Ya hay una operación en proceso. Espera un momento."

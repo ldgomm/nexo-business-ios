@@ -7,15 +7,15 @@
 
 import SwiftUI
 
-public struct PilotReadinessView: View {
+struct PilotReadinessView: View {
     @Bindable private var viewModel: PilotReadinessViewModel
     @State private var exportText: String?
 
-    public init(viewModel: PilotReadinessViewModel) {
+    init(viewModel: PilotReadinessViewModel) {
         self.viewModel = viewModel
     }
 
-    public var body: some View {
+    var body: some View {
         Form {
             summarySection
             contextSection

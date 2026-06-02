@@ -10,23 +10,23 @@ import Observation
 
 @MainActor
 @Observable
-public final class BusinessDocumentsViewModel {
-    public private(set) var documents: [BusinessDocument] = []
-    public private(set) var isLoading = false
-    public private(set) var isGeneratingInternalTicket = false
-    public private(set) var isRegisteringPhysicalSaleNote = false
-    public var physicalSaleNoteNumber = ""
-    public var note = ""
-    public var errorMessage: String?
-    public var infoMessage: String?
+final class BusinessDocumentsViewModel {
+    private(set) var documents: [BusinessDocument] = []
+    private(set) var isLoading = false
+    private(set) var isGeneratingInternalTicket = false
+    private(set) var isRegisteringPhysicalSaleNote = false
+    var physicalSaleNoteNumber = ""
+    var note = ""
+    var errorMessage: String?
+    var infoMessage: String?
 
-    public let organizationId: String
-    public let sale: BusinessSale
-    public let effectivePermissions: Set<String>
+    let organizationId: String
+    let sale: BusinessSale
+    let effectivePermissions: Set<String>
 
     private let repository: BusinessDocumentsRepository
 
-    public init(
+    init(
         organizationId: String,
         sale: BusinessSale,
         effectivePermissions: Set<String>,
@@ -38,11 +38,11 @@ public final class BusinessDocumentsViewModel {
         self.repository = documentsRepository
     }
 
-    public var shouldLoadOnAppear: Bool {
+    var shouldLoadOnAppear: Bool {
         documents.isEmpty && !isLoading
     }
 
-    public var canViewDocuments: Bool {
+    var canViewDocuments: Bool {
         hasPermission([
             "business.documents.view",
             "documents.view",
@@ -53,7 +53,7 @@ public final class BusinessDocumentsViewModel {
         ])
     }
 
-    public var canGenerateInternalTicket: Bool {
+    var canGenerateInternalTicket: Bool {
         !sale.id.isEmpty &&
         !isBusy &&
         hasPermission([
@@ -62,7 +62,7 @@ public final class BusinessDocumentsViewModel {
         ])
     }
 
-    public var canRegisterPhysicalSaleNote: Bool {
+    var canRegisterPhysicalSaleNote: Bool {
         !sale.id.isEmpty &&
         !isBusy &&
         hasPermission([
@@ -72,7 +72,7 @@ public final class BusinessDocumentsViewModel {
         !normalized(physicalSaleNoteNumber).isEmpty
     }
 
-    public var hasAnyDocumentAction: Bool {
+    var hasAnyDocumentAction: Bool {
         hasPermission([
             "business.documents.issue_internal_ticket",
             "documents.issue_internal_ticket",
@@ -81,7 +81,7 @@ public final class BusinessDocumentsViewModel {
         ])
     }
 
-    public var hasElectronicInvoiceWarning: Bool {
+    var hasElectronicInvoiceWarning: Bool {
         hasPermission([
             "business.documents.issue_electronic_invoice",
             "documents.issue_electronic_invoice"
@@ -92,7 +92,7 @@ public final class BusinessDocumentsViewModel {
         isLoading || isGeneratingInternalTicket || isRegisteringPhysicalSaleNote
     }
 
-    public func load() async {
+    func load() async {
         guard canViewDocuments else {
             errorMessage = "No tienes permiso para consultar comprobantes."
             return
@@ -121,7 +121,7 @@ public final class BusinessDocumentsViewModel {
         }
     }
 
-    public func generateInternalTicket() async {
+    func generateInternalTicket() async {
         guard canGenerateInternalTicket else {
             errorMessage = internalTicketValidationMessage()
             return
@@ -155,7 +155,7 @@ public final class BusinessDocumentsViewModel {
         }
     }
 
-    public func registerPhysicalSaleNote() async {
+    func registerPhysicalSaleNote() async {
         guard canRegisterPhysicalSaleNote else {
             errorMessage = physicalSaleNoteValidationMessage()
             return
@@ -190,7 +190,7 @@ public final class BusinessDocumentsViewModel {
         }
     }
 
-    public func resetMessages() {
+    func resetMessages() {
         errorMessage = nil
         infoMessage = nil
     }

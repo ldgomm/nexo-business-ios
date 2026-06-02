@@ -8,8 +8,8 @@
 import Foundation
 import SwiftUI
 
-public enum SaleStatusPresentation {
-    public static func title(for status: String) -> String {
+enum SaleStatusPresentation {
+    static func title(for status: String) -> String {
         switch status.lowercased() {
         case "draft":
             return "Borrador"
@@ -32,7 +32,7 @@ public enum SaleStatusPresentation {
         }
     }
 
-    public static func systemImage(for status: String) -> String {
+    static func systemImage(for status: String) -> String {
         switch status.lowercased() {
         case "confirmed", "closed", "delivered":
             return "checkmark.circle.fill"
@@ -47,15 +47,15 @@ public enum SaleStatusPresentation {
         }
     }
 
-    public static func canConfirm(status: String) -> Bool {
+    static func canConfirm(status: String) -> Bool {
         !["confirmed", "closed", "canceled", "cancelled"].contains(status.lowercased())
     }
 
-    public static func canCancel(status: String) -> Bool {
+    static func canCancel(status: String) -> Bool {
         !["closed", "canceled", "cancelled"].contains(status.lowercased())
     }
 
-    public static func canCollect(status: String) -> Bool {
+    static func canCollect(status: String) -> Bool {
         switch status.lowercased() {
         case "confirmed", "closed", "delivered", "ready", "in_progress", "pending":
             return true
@@ -68,14 +68,14 @@ public enum SaleStatusPresentation {
 
 }
 
-public struct SaleStatusLabel: View {
+struct SaleStatusLabel: View {
     private let status: String
 
-    public init(status: String) {
+    init(status: String) {
         self.status = status
     }
 
-    public var body: some View {
+    var body: some View {
         Label(
             SaleStatusPresentation.title(for: status),
             systemImage: SaleStatusPresentation.systemImage(for: status)

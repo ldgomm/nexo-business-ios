@@ -7,12 +7,12 @@
 
 import SwiftUI
 
-public struct CustomerCreateView: View {
+struct CustomerCreateView: View {
     @Environment(\.dismiss) private var dismiss
     @Bindable private var viewModel: CustomerCreateViewModel
     private let onCreated: (BusinessCustomer) -> Void
 
-    public init(
+    init(
         viewModel: CustomerCreateViewModel,
         onCreated: @escaping (BusinessCustomer) -> Void = { _ in }
     ) {
@@ -20,7 +20,7 @@ public struct CustomerCreateView: View {
         self.onCreated = onCreated
     }
 
-    public var body: some View {
+    var body: some View {
         Form {
             Section("Identificación") {
                 Picker("Tipo", selection: $viewModel.identificationType) {

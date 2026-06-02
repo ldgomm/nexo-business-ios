@@ -7,14 +7,14 @@
 
 import Foundation
 
-public final class BusinessContextAPIRepository: BusinessContextRepository, @unchecked Sendable {
+final class BusinessContextAPIRepository: BusinessContextRepository, @unchecked Sendable {
     private let apiClient: APIClient
 
-    public init(apiClient: APIClient) {
+    init(apiClient: APIClient) {
         self.apiClient = apiClient
     }
 
-    public func getContext(
+    func getContext(
         organizationId: String
     ) async throws -> BusinessContextResponse {
         try await apiClient.send(

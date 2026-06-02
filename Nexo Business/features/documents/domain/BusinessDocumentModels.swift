@@ -7,22 +7,22 @@
 
 import Foundation
 
-public struct BusinessDocument: Decodable, Equatable, Identifiable, Sendable {
-    public let id: String
-    public let saleId: String
-    public let type: String
-    public let status: String
-    public let number: String?
-    public let authorizationNumber: String?
-    public let accessKey: String?
-    public let customerEmail: String?
-    public let pdfUrl: String?
-    public let xmlUrl: String?
-    public let createdAt: Date?
-    public let authorizedAt: Date?
-    public let rejectedAt: Date?
+struct BusinessDocument: Decodable, Equatable, Identifiable, Sendable {
+    let id: String
+    let saleId: String
+    let type: String
+    let status: String
+    let number: String?
+    let authorizationNumber: String?
+    let accessKey: String?
+    let customerEmail: String?
+    let pdfUrl: String?
+    let xmlUrl: String?
+    let createdAt: Date?
+    let authorizedAt: Date?
+    let rejectedAt: Date?
 
-    public init(
+    init(
         id: String,
         saleId: String,
         type: String,
@@ -53,20 +53,20 @@ public struct BusinessDocument: Decodable, Equatable, Identifiable, Sendable {
     }
 }
 
-public struct BusinessDocumentsResponse: Decodable, Equatable, Sendable {
-    public let documents: [BusinessDocument]
+struct BusinessDocumentsResponse: Decodable, Equatable, Sendable {
+    let documents: [BusinessDocument]
 
-    public init(documents: [BusinessDocument]) {
+    init(documents: [BusinessDocument]) {
         self.documents = documents
     }
 }
 
-public struct BusinessDocumentResponse: Decodable, Equatable, Sendable {
-    public let document: BusinessDocument
-    public let sale: BusinessSale?
-    public let idempotencyReplayed: Bool?
+struct BusinessDocumentResponse: Decodable, Equatable, Sendable {
+    let document: BusinessDocument
+    let sale: BusinessSale?
+    let idempotencyReplayed: Bool?
 
-    public init(
+    init(
         document: BusinessDocument,
         sale: BusinessSale? = nil,
         idempotencyReplayed: Bool? = nil
@@ -77,19 +77,19 @@ public struct BusinessDocumentResponse: Decodable, Equatable, Sendable {
     }
 }
 
-public struct GenerateInternalTicketRequest: Encodable, Equatable, Sendable {
-    public let note: String?
+struct GenerateInternalTicketRequest: Encodable, Equatable, Sendable {
+    let note: String?
 
-    public init(note: String? = nil) {
+    init(note: String? = nil) {
         self.note = note
     }
 }
 
-public struct RegisterPhysicalSaleNoteRequest: Encodable, Equatable, Sendable {
-    public let physicalNumber: String
-    public let note: String?
+struct RegisterPhysicalSaleNoteRequest: Encodable, Equatable, Sendable {
+    let physicalNumber: String
+    let note: String?
 
-    public init(
+    init(
         physicalNumber: String,
         note: String? = nil
     ) {

@@ -7,7 +7,7 @@
 
 import SwiftUI
 
-public struct DailyClosureView: View {
+struct DailyClosureView: View {
     @Bindable private var viewModel: DailyClosureViewModel
     private let salesRepository: SalesRepository
     private let cashRepository: CashRepository
@@ -15,7 +15,7 @@ public struct DailyClosureView: View {
     private let receivablesRepository: ReceivablesRepository
     private let documentsRepository: BusinessDocumentsRepository
 
-    public init(
+    init(
         viewModel: DailyClosureViewModel,
         salesRepository: SalesRepository,
         cashRepository: CashRepository,
@@ -31,7 +31,7 @@ public struct DailyClosureView: View {
         self.documentsRepository = documentsRepository
     }
 
-    public var body: some View {
+    var body: some View {
         Form {
             dateSection
             reportSection

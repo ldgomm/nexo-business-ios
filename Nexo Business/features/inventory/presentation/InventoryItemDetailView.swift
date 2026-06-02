@@ -7,11 +7,11 @@
 
 import SwiftUI
 
-public struct InventoryItemDetailView: View {
+struct InventoryItemDetailView: View {
     @Bindable private var viewModel: InventoryItemDetailViewModel
     private let onItemUpdated: (InventoryItem) -> Void
 
-    public init(
+    init(
         viewModel: InventoryItemDetailViewModel,
         onItemUpdated: @escaping (InventoryItem) -> Void = { _ in }
     ) {
@@ -19,7 +19,7 @@ public struct InventoryItemDetailView: View {
         self.onItemUpdated = onItemUpdated
     }
 
-    public var body: some View {
+    var body: some View {
         Form {
             itemSection
             adjustmentSection

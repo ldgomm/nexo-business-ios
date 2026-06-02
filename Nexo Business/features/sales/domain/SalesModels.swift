@@ -7,13 +7,13 @@
 
 import Foundation
 
-public struct SaleDraftItem: Codable, Equatable, Identifiable, Sendable {
-    public let id: String
-    public let catalogItemId: String
-    public let quantity: String
-    public let note: String?
+struct SaleDraftItem: Codable, Equatable, Identifiable, Sendable {
+    let id: String
+    let catalogItemId: String
+    let quantity: String
+    let note: String?
 
-    public init(
+    init(
         id: String = UUID().uuidString,
         catalogItemId: String,
         quantity: String,
@@ -33,7 +33,7 @@ public struct SaleDraftItem: Codable, Equatable, Identifiable, Sendable {
         case notes
     }
 
-    public init(from decoder: Decoder) throws {
+    init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = (try? container.decodeIfPresent(String.self, forKey: .id)) ?? UUID().uuidString
         catalogItemId = try container.decode(String.self, forKey: .catalogItemId)
@@ -52,7 +52,7 @@ public struct SaleDraftItem: Codable, Equatable, Identifiable, Sendable {
             ?? (try? container.decodeIfPresent(String.self, forKey: .notes))
     }
 
-    public func encode(to encoder: Encoder) throws {
+    func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(id, forKey: .id)
         try container.encode(catalogItemId, forKey: .catalogItemId)
@@ -61,17 +61,17 @@ public struct SaleDraftItem: Codable, Equatable, Identifiable, Sendable {
     }
 }
 
-public enum BusinessSalePriceTaxMode: String, Codable, CaseIterable, Sendable {
+enum BusinessSalePriceTaxMode: String, Codable, CaseIterable, Sendable {
     case taxExclusive = "TAX_EXCLUSIVE"
     case taxInclusive = "TAX_INCLUSIVE"
 }
 
-public struct BusinessSaleQuantityRequest: Codable, Equatable, Sendable {
-    public let value: String
-    public let unitCode: String
-    public let allowsDecimal: Bool
+struct BusinessSaleQuantityRequest: Codable, Equatable, Sendable {
+    let value: String
+    let unitCode: String
+    let allowsDecimal: Bool
 
-    public init(
+    init(
         value: String,
         unitCode: String = "unit",
         allowsDecimal: Bool = false
@@ -82,13 +82,13 @@ public struct BusinessSaleQuantityRequest: Codable, Equatable, Sendable {
     }
 }
 
-public struct BusinessSaleItemRequest: Codable, Equatable, Sendable {
-    public let catalogItemId: String
-    public let quantity: BusinessSaleQuantityRequest
-    public let priceTaxMode: String
-    public let notes: String?
+struct BusinessSaleItemRequest: Codable, Equatable, Sendable {
+    let catalogItemId: String
+    let quantity: BusinessSaleQuantityRequest
+    let priceTaxMode: String
+    let notes: String?
 
-    public init(
+    init(
         catalogItemId: String,
         quantity: BusinessSaleQuantityRequest,
         priceTaxMode: String = BusinessSalePriceTaxMode.taxExclusive.rawValue,
@@ -101,14 +101,14 @@ public struct BusinessSaleItemRequest: Codable, Equatable, Sendable {
     }
 }
 
-public struct BusinessSaleCustomerSnapshot: Codable, Equatable, Sendable {
-    public let id: String?
-    public let displayName: String
-    public let identificationType: String?
-    public let identificationNumber: String?
-    public let email: String?
+struct BusinessSaleCustomerSnapshot: Codable, Equatable, Sendable {
+    let id: String?
+    let displayName: String
+    let identificationType: String?
+    let identificationNumber: String?
+    let email: String?
 
-    public init(
+    init(
         id: String? = nil,
         displayName: String,
         identificationType: String? = nil,
@@ -123,16 +123,16 @@ public struct BusinessSaleCustomerSnapshot: Codable, Equatable, Sendable {
     }
 }
 
-public struct SalesPreviewRequest: Encodable, Equatable, Sendable {
-    public let branchId: String
-    public let activityId: String
-    public let customerId: String?
-    public let customerSnapshot: BusinessSaleCustomerSnapshot?
-    public let catalogRevision: String?
-    public let taxConfigurationRevision: String?
-    public let items: [BusinessSaleItemRequest]
+struct SalesPreviewRequest: Encodable, Equatable, Sendable {
+    let branchId: String
+    let activityId: String
+    let customerId: String?
+    let customerSnapshot: BusinessSaleCustomerSnapshot?
+    let catalogRevision: String?
+    let taxConfigurationRevision: String?
+    let items: [BusinessSaleItemRequest]
 
-    public init(
+    init(
         branchId: String,
         activityId: String,
         customerId: String? = nil,
@@ -151,20 +151,20 @@ public struct SalesPreviewRequest: Encodable, Equatable, Sendable {
     }
 }
 
-public struct QuickSaleRequest: Encodable, Equatable, Sendable {
-    public let requestId: String
-    public let branchId: String
-    public let activityId: String
-    public let customerId: String?
-    public let customerSnapshot: BusinessSaleCustomerSnapshot?
-    public let cashSessionId: String?
-    public let autoConfirm: Bool
-    public let catalogRevision: String
-    public let taxConfigurationRevision: String
-    public let items: [BusinessSaleItemRequest]
-    public let notes: String?
+struct QuickSaleRequest: Encodable, Equatable, Sendable {
+    let requestId: String
+    let branchId: String
+    let activityId: String
+    let customerId: String?
+    let customerSnapshot: BusinessSaleCustomerSnapshot?
+    let cashSessionId: String?
+    let autoConfirm: Bool
+    let catalogRevision: String
+    let taxConfigurationRevision: String
+    let items: [BusinessSaleItemRequest]
+    let notes: String?
 
-    public init(
+    init(
         requestId: String = "quick-sale-\(UUID().uuidString.lowercased())",
         branchId: String,
         activityId: String,
@@ -190,7 +190,7 @@ public struct QuickSaleRequest: Encodable, Equatable, Sendable {
         self.notes = notes
     }
 
-    public init(
+    init(
         requestId: String = "quick-sale-\(UUID().uuidString.lowercased())",
         branchId: String,
         activityId: String,
@@ -219,39 +219,39 @@ public struct QuickSaleRequest: Encodable, Equatable, Sendable {
     }
 }
 
-public struct ConfirmSaleRequest: Encodable, Equatable, Sendable {
-    public let notes: String?
+struct ConfirmSaleRequest: Encodable, Equatable, Sendable {
+    let notes: String?
 
-    public init(notes: String? = nil) {
+    init(notes: String? = nil) {
         self.notes = notes
     }
 
-    public init(note: String?) {
+    init(note: String?) {
         self.notes = note
     }
 }
 
-public struct CancelSaleRequest: Encodable, Equatable, Sendable {
-    public let reason: String
-    public let notes: String?
+struct CancelSaleRequest: Encodable, Equatable, Sendable {
+    let reason: String
+    let notes: String?
 
-    public init(reason: String, notes: String? = nil) {
+    init(reason: String, notes: String? = nil) {
         self.reason = reason
         self.notes = notes
     }
 
-    public init(reason: String, note: String?) {
+    init(reason: String, note: String?) {
         self.reason = reason
         self.notes = note
     }
 }
 
-public struct BusinessSaleCustomer: Decodable, Equatable, Sendable {
-    public let id: String?
-    public let displayName: String
-    public let identification: String?
+struct BusinessSaleCustomer: Decodable, Equatable, Sendable {
+    let id: String?
+    let displayName: String
+    let identification: String?
 
-    public init(id: String? = nil, displayName: String, identification: String? = nil) {
+    init(id: String? = nil, displayName: String, identification: String? = nil) {
         self.id = id
         self.displayName = displayName
         self.identification = identification
@@ -267,7 +267,7 @@ public struct BusinessSaleCustomer: Decodable, Equatable, Sendable {
         case identificationNumber
     }
 
-    public init(from decoder: Decoder) throws {
+    init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = (try? container.decodeIfPresent(String.self, forKey: .id))
             ?? (try? container.decodeIfPresent(String.self, forKey: .customerId))
@@ -280,13 +280,13 @@ public struct BusinessSaleCustomer: Decodable, Equatable, Sendable {
     }
 }
 
-public struct BusinessSaleTotals: Decodable, Equatable, Sendable {
-    public let subtotal: MoneyAmount
-    public let discount: MoneyAmount
-    public let tax: MoneyAmount
-    public let total: MoneyAmount
+struct BusinessSaleTotals: Decodable, Equatable, Sendable {
+    let subtotal: MoneyAmount
+    let discount: MoneyAmount
+    let tax: MoneyAmount
+    let total: MoneyAmount
 
-    public init(
+    init(
         subtotal: MoneyAmount,
         discount: MoneyAmount,
         tax: MoneyAmount,
@@ -313,7 +313,7 @@ public struct BusinessSaleTotals: Decodable, Equatable, Sendable {
         case grandTotal
     }
 
-    public init(from decoder: Decoder) throws {
+    init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         subtotal = (try? container.decodeIfPresent(MoneyAmount.self, forKey: .subtotal))
             ?? (try? container.decodeIfPresent(MoneyAmount.self, forKey: .subtotalWithoutTaxes))
@@ -334,7 +334,7 @@ public struct BusinessSaleTotals: Decodable, Equatable, Sendable {
     }
 }
 
-public extension BusinessSaleTotals {
+extension BusinessSaleTotals {
     var subtotalWithoutTaxes: MoneyAmount { subtotal }
     var discountTotal: MoneyAmount { discount }
     var taxTotal: MoneyAmount { tax }
@@ -355,19 +355,19 @@ public extension BusinessSaleTotals {
     }
 }
 
-public typealias SaleTotals = BusinessSaleTotals
+typealias SaleTotals = BusinessSaleTotals
 
-public struct BusinessSaleItem: Decodable, Equatable, Identifiable, Sendable {
-    public let id: String
-    public let catalogItemId: String?
-    public let name: String
-    public let quantity: String
-    public let unitPrice: MoneyAmount?
-    public let subtotal: MoneyAmount?
-    public let total: MoneyAmount?
-    public let note: String?
+struct BusinessSaleItem: Decodable, Equatable, Identifiable, Sendable {
+    let id: String
+    let catalogItemId: String?
+    let name: String
+    let quantity: String
+    let unitPrice: MoneyAmount?
+    let subtotal: MoneyAmount?
+    let total: MoneyAmount?
+    let note: String?
 
-    public init(
+    init(
         id: String,
         catalogItemId: String? = nil,
         name: String,
@@ -407,7 +407,7 @@ public struct BusinessSaleItem: Decodable, Equatable, Identifiable, Sendable {
         case notes
     }
 
-    public init(from decoder: Decoder) throws {
+    init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = (try? container.decodeIfPresent(String.self, forKey: .id))
             ?? (try? container.decodeIfPresent(String.self, forKey: .lineId))
@@ -441,28 +441,28 @@ public struct BusinessSaleItem: Decodable, Equatable, Identifiable, Sendable {
     }
 }
 
-public typealias SalePreviewItem = BusinessSaleItem
+typealias SalePreviewItem = BusinessSaleItem
 
-public struct BusinessSale: Decodable, Equatable, Identifiable, Sendable {
-    public let id: String
-    public let number: String?
-    public let organizationId: String?
-    public let branchId: String
-    public let activityId: String?
-    public let customerId: String?
-    public let customerName: String?
-    public let customer: BusinessSaleCustomer?
-    public let status: String
-    public let paymentStatus: String?
-    public let documentStatus: String?
-    public let totals: BusinessSaleTotals
-    public let items: [BusinessSaleItem]
-    public let createdAt: Date?
-    public let confirmedAt: Date?
-    public let closedAt: Date?
-    public let updatedAt: Date?
+struct BusinessSale: Decodable, Equatable, Identifiable, Sendable {
+    let id: String
+    let number: String?
+    let organizationId: String?
+    let branchId: String
+    let activityId: String?
+    let customerId: String?
+    let customerName: String?
+    let customer: BusinessSaleCustomer?
+    let status: String
+    let paymentStatus: String?
+    let documentStatus: String?
+    let totals: BusinessSaleTotals
+    let items: [BusinessSaleItem]
+    let createdAt: Date?
+    let confirmedAt: Date?
+    let closedAt: Date?
+    let updatedAt: Date?
 
-    public init(
+    init(
         id: String,
         number: String? = nil,
         organizationId: String? = nil,
@@ -527,7 +527,7 @@ public struct BusinessSale: Decodable, Equatable, Identifiable, Sendable {
         case updatedAt
     }
 
-    public init(from decoder: Decoder) throws {
+    init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decode(String.self, forKey: .id)
         number = (try? container.decodeIfPresent(String.self, forKey: .number))
@@ -576,14 +576,14 @@ public struct BusinessSale: Decodable, Equatable, Identifiable, Sendable {
     }
 }
 
-public typealias BusinessSaleSummary = BusinessSale
+typealias BusinessSaleSummary = BusinessSale
 
-public struct SalesPreviewResponse: Decodable, Equatable, Sendable {
-    public let items: [BusinessSaleItem]
-    public let totals: BusinessSaleTotals
-    public let warnings: [String]
+struct SalesPreviewResponse: Decodable, Equatable, Sendable {
+    let items: [BusinessSaleItem]
+    let totals: BusinessSaleTotals
+    let warnings: [String]
 
-    public init(
+    init(
         items: [BusinessSaleItem],
         totals: BusinessSaleTotals,
         warnings: [String] = []
@@ -602,7 +602,7 @@ public struct SalesPreviewResponse: Decodable, Equatable, Sendable {
         case warnings
     }
 
-    public init(from decoder: Decoder) throws {
+    init(from decoder: Decoder) throws {
         if let container = try? decoder.container(keyedBy: CodingKeys.self) {
             if let preview = try? container.decode(SalesPreviewResponse.self, forKey: .preview) {
                 self = preview
@@ -635,10 +635,10 @@ public struct SalesPreviewResponse: Decodable, Equatable, Sendable {
     }
 }
 
-public struct BusinessSaleDetailResponse: Decodable, Equatable, Sendable {
-    public let sale: BusinessSale
+struct BusinessSaleDetailResponse: Decodable, Equatable, Sendable {
+    let sale: BusinessSale
 
-    public init(sale: BusinessSale) {
+    init(sale: BusinessSale) {
         self.sale = sale
     }
 
@@ -646,7 +646,7 @@ public struct BusinessSaleDetailResponse: Decodable, Equatable, Sendable {
         case sale
     }
 
-    public init(from decoder: Decoder) throws {
+    init(from decoder: Decoder) throws {
         if let container = try? decoder.container(keyedBy: CodingKeys.self),
            let sale = try? container.decode(BusinessSale.self, forKey: .sale) {
             self.sale = sale
@@ -657,11 +657,11 @@ public struct BusinessSaleDetailResponse: Decodable, Equatable, Sendable {
     }
 }
 
-public struct QuickSaleResponse: Decodable, Equatable, Sendable {
-    public let sale: BusinessSale
-    public let idempotencyReplayed: Bool?
+struct QuickSaleResponse: Decodable, Equatable, Sendable {
+    let sale: BusinessSale
+    let idempotencyReplayed: Bool?
 
-    public init(sale: BusinessSale, idempotencyReplayed: Bool? = nil) {
+    init(sale: BusinessSale, idempotencyReplayed: Bool? = nil) {
         self.sale = sale
         self.idempotencyReplayed = idempotencyReplayed
     }
@@ -671,7 +671,7 @@ public struct QuickSaleResponse: Decodable, Equatable, Sendable {
         case idempotencyReplayed
     }
 
-    public init(from decoder: Decoder) throws {
+    init(from decoder: Decoder) throws {
         if let container = try? decoder.container(keyedBy: CodingKeys.self),
            let sale = try? container.decode(BusinessSale.self, forKey: .sale) {
             self.sale = sale
@@ -684,11 +684,11 @@ public struct QuickSaleResponse: Decodable, Equatable, Sendable {
     }
 }
 
-public struct ConfirmSaleResponse: Decodable, Equatable, Sendable {
-    public let sale: BusinessSale
-    public let idempotencyReplayed: Bool?
+struct ConfirmSaleResponse: Decodable, Equatable, Sendable {
+    let sale: BusinessSale
+    let idempotencyReplayed: Bool?
 
-    public init(sale: BusinessSale, idempotencyReplayed: Bool? = nil) {
+    init(sale: BusinessSale, idempotencyReplayed: Bool? = nil) {
         self.sale = sale
         self.idempotencyReplayed = idempotencyReplayed
     }
@@ -698,7 +698,7 @@ public struct ConfirmSaleResponse: Decodable, Equatable, Sendable {
         case idempotencyReplayed
     }
 
-    public init(from decoder: Decoder) throws {
+    init(from decoder: Decoder) throws {
         if let container = try? decoder.container(keyedBy: CodingKeys.self),
            let sale = try? container.decode(BusinessSale.self, forKey: .sale) {
             self.sale = sale
@@ -711,11 +711,11 @@ public struct ConfirmSaleResponse: Decodable, Equatable, Sendable {
     }
 }
 
-public struct CancelSaleResponse: Decodable, Equatable, Sendable {
-    public let sale: BusinessSale
-    public let idempotencyReplayed: Bool?
+struct CancelSaleResponse: Decodable, Equatable, Sendable {
+    let sale: BusinessSale
+    let idempotencyReplayed: Bool?
 
-    public init(sale: BusinessSale, idempotencyReplayed: Bool? = nil) {
+    init(sale: BusinessSale, idempotencyReplayed: Bool? = nil) {
         self.sale = sale
         self.idempotencyReplayed = idempotencyReplayed
     }
@@ -725,7 +725,7 @@ public struct CancelSaleResponse: Decodable, Equatable, Sendable {
         case idempotencyReplayed
     }
 
-    public init(from decoder: Decoder) throws {
+    init(from decoder: Decoder) throws {
         if let container = try? decoder.container(keyedBy: CodingKeys.self),
            let sale = try? container.decode(BusinessSale.self, forKey: .sale) {
             self.sale = sale
@@ -738,4 +738,4 @@ public struct CancelSaleResponse: Decodable, Equatable, Sendable {
     }
 }
 
-public typealias BusinessSalesListResponse = BusinessSalesHistoryResponse
+typealias BusinessSalesListResponse = BusinessSalesHistoryResponse

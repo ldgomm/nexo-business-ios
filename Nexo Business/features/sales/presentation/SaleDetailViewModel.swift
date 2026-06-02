@@ -10,23 +10,23 @@ import Observation
 
 @MainActor
 @Observable
-public final class SaleDetailViewModel {
-    public private(set) var sale: BusinessSale?
-    public private(set) var isLoading = false
-    public private(set) var isConfirming = false
-    public private(set) var isCanceling = false
-    public var cancelReason = ""
-    public var errorMessage: String?
-    public var infoMessage: String?
+final class SaleDetailViewModel {
+    private(set) var sale: BusinessSale?
+    private(set) var isLoading = false
+    private(set) var isConfirming = false
+    private(set) var isCanceling = false
+    var cancelReason = ""
+    var errorMessage: String?
+    var infoMessage: String?
 
-    public let organizationId: String
-    public let saleId: String
-    public let revisions: BusinessRevisions
-    public let effectivePermissions: Set<String>
+    let organizationId: String
+    let saleId: String
+    let revisions: BusinessRevisions
+    let effectivePermissions: Set<String>
 
     private let repository: SalesRepository
 
-    public init(
+    init(
         organizationId: String,
         saleId: String,
         revisions: BusinessRevisions,
@@ -42,7 +42,7 @@ public final class SaleDetailViewModel {
         self.repository = salesRepository
     }
 
-    public var canConfirm: Bool {
+    var canConfirm: Bool {
         guard let sale else { return false }
         return !isLoading &&
         !isConfirming &&
@@ -51,7 +51,7 @@ public final class SaleDetailViewModel {
         SaleStatusPresentation.canConfirm(status: sale.status)
     }
 
-    public var canCancel: Bool {
+    var canCancel: Bool {
         guard let sale else { return false }
         return !isLoading &&
         !isConfirming &&
@@ -60,7 +60,7 @@ public final class SaleDetailViewModel {
         SaleStatusPresentation.canCancel(status: sale.status)
     }
 
-    public var canCollect: Bool {
+    var canCollect: Bool {
         guard let sale else { return false }
         return !isLoading &&
         !isConfirming &&
@@ -80,7 +80,7 @@ public final class SaleDetailViewModel {
     }
 
 
-    public var canManageDocuments: Bool {
+    var canManageDocuments: Bool {
         guard sale != nil else { return false }
         return hasPermission([
             "business.documents.view",
@@ -94,11 +94,11 @@ public final class SaleDetailViewModel {
         ])
     }
 
-    public var shouldLoadOnAppear: Bool {
+    var shouldLoadOnAppear: Bool {
         sale == nil && !isLoading
     }
 
-    public func load() async {
+    func load() async {
         guard !isLoading else { return }
 
         isLoading = true
@@ -122,11 +122,11 @@ public final class SaleDetailViewModel {
         }
     }
 
-    public func refresh() async {
+    func refresh() async {
         await load()
     }
 
-    public func confirm() async {
+    func confirm() async {
         guard let sale else {
             errorMessage = "No se encontró la venta. Actualiza e inténtalo nuevamente."
             return
@@ -164,7 +164,7 @@ public final class SaleDetailViewModel {
         }
     }
 
-    public func cancel() async {
+    func cancel() async {
         guard let sale else {
             errorMessage = "No se encontró la venta. Actualiza e inténtalo nuevamente."
             return

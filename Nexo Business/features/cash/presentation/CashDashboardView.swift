@@ -1,26 +1,23 @@
-//
-//  CashDashboardView.swift
-//  Nexo Business
-//
-//  Created by José Ruiz on 29/5/26.
-//
-
 import SwiftUI
 
-public struct CashDashboardView: View {
+struct CashDashboardView: View {
     @Bindable private var viewModel: CashDashboardViewModel
 
-    public init(viewModel: CashDashboardViewModel) {
+    init(viewModel: CashDashboardViewModel) {
         self.viewModel = viewModel
     }
 
-    public var body: some View {
+    var body: some View {
         Form {
-            statusSection
+            heroSection
             messagesSection
-            openSection
-            movementSection
-            closeSection
+
+            if viewModel.isOpen {
+                movementSection
+                closeSection
+            } else {
+                openSection
+            }
         }
         .navigationTitle("Caja")
         .toolbar {
@@ -41,8 +38,8 @@ public struct CashDashboardView: View {
     }
 
     @ViewBuilder
-    private var statusSection: some View {
-        Section("Estado de caja") {
+    private var heroSection: some View {
+        Section {
             switch viewModel.state {
             case .idle, .loading:
                 HStack {
@@ -64,10 +61,18 @@ public struct CashDashboardView: View {
 
             case let .loaded(session):
                 if let session {
-                    CashSessionSummaryView(session: session)
+                    CashSessionHeroView(session: session)
                 } else {
-                    Label("No hay caja abierta", systemImage: "lock.open")
-                        .foregroundStyle(.secondary)
+                    VStack(alignment: .leading, spacing: 10) {
+                        Label("Caja cerrada", systemImage: "lock")
+                            .font(.headline)
+                            .foregroundStyle(.orange)
+
+                        Text("Abre caja al iniciar operación para cobrar en efectivo y controlar el cierre del día.")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(.vertical, 6)
                 }
             }
         }
@@ -77,15 +82,13 @@ public struct CashDashboardView: View {
     private var messagesSection: some View {
         if let message = viewModel.errorMessage, !message.isEmpty {
             Section {
-                Label(message, systemImage: "exclamationmark.triangle")
-                    .foregroundStyle(.red)
+                NexoMessageBanner(message, style: .error)
             }
         }
 
         if let message = viewModel.successMessage, !message.isEmpty {
             Section {
-                Label(message, systemImage: "checkmark.circle")
-                    .foregroundStyle(.green)
+                NexoMessageBanner(message, style: .success)
             }
         }
     }
@@ -112,7 +115,7 @@ public struct CashDashboardView: View {
     }
 
     private var movementSection: some View {
-        Section("Movimientos") {
+        Section("Movimiento manual") {
             Picker("Tipo", selection: $viewModel.movementType) {
                 ForEach(CashMovementType.allCases) { type in
                     Text(type.displayName).tag(type)
@@ -157,42 +160,57 @@ public struct CashDashboardView: View {
     }
 
     private func moneyText(_ amount: MoneyAmount?) -> String {
-        guard let amount else { return "—" }
-        return "\(amount.amount) \(amount.currency)"
+        amount?.displayText ?? "—"
     }
 }
 
-private struct CashSessionSummaryView: View {
+private struct CashSessionHeroView: View {
     let session: CashSession
 
     var body: some View {
-        LabeledContent("Estado", value: session.status)
-        LabeledContent("Monto inicial", value: moneyText(session.openingAmount))
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 5) {
+                    Label(session.isOpen ? "Caja abierta" : "Caja cerrada", systemImage: session.isOpen ? "checkmark.circle.fill" : "lock")
+                        .font(.headline)
+                        .foregroundStyle(session.isOpen ? .green : .secondary)
 
-        if let expectedAmount = session.expectedAmount {
-            LabeledContent("Esperado", value: moneyText(expectedAmount))
+                    if let openedAt = session.openedAt {
+                        Text("Apertura: \(openedAt.formatted(date: .abbreviated, time: .shortened))")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                Spacer()
+
+                if let expectedAmount = session.expectedAmount {
+                    VStack(alignment: .trailing, spacing: 3) {
+                        Text("Esperado")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Text(expectedAmount.displayText)
+                            .font(.title3.weight(.bold))
+                            .monospacedDigit()
+                    }
+                }
+            }
+
+            Divider()
+
+            VStack(spacing: 8) {
+                NexoMoneyTotalView(title: "Monto inicial", amount: session.openingAmount ?? MoneyAmount(amount: "0.00"))
+
+                if let countedAmount = session.countedAmount {
+                    NexoMoneyTotalView(title: "Contado", amount: countedAmount)
+                }
+
+                if let differenceAmount = session.differenceAmount {
+                    NexoMoneyTotalView(title: "Diferencia", amount: differenceAmount, isProminent: true)
+                }
+            }
         }
-
-        if let countedAmount = session.countedAmount {
-            LabeledContent("Contado", value: moneyText(countedAmount))
-        }
-
-        if let differenceAmount = session.differenceAmount {
-            LabeledContent("Diferencia", value: moneyText(differenceAmount))
-        }
-
-        if let openedAt = session.openedAt {
-            LabeledContent("Apertura", value: openedAt.formatted(date: .abbreviated, time: .shortened))
-        }
-
-        if let closedAt = session.closedAt {
-            LabeledContent("Cierre", value: closedAt.formatted(date: .abbreviated, time: .shortened))
-        }
-    }
-
-    private func moneyText(_ amount: MoneyAmount?) -> String {
-        guard let amount else { return "—" }
-        return "\(amount.amount) \(amount.currency)"
+        .padding(.vertical, 6)
     }
 }
 

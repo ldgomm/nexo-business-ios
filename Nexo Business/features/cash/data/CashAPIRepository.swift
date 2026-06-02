@@ -7,27 +7,27 @@
 
 import Foundation
 
-public enum BusinessCashRoutes {
-    public static let current = "/api/v1/business/cash/current"
-    public static let open = "/api/v1/business/cash/open"
+enum BusinessCashRoutes {
+    static let current = "/api/v1/business/cash/current"
+    static let open = "/api/v1/business/cash/open"
     
-    public static func movements(cashSessionId: String) -> String {
+    static func movements(cashSessionId: String) -> String {
         "/api/v1/business/cash/\(cashSessionId)/movements"
     }
     
-    public static func close(cashSessionId: String) -> String {
+    static func close(cashSessionId: String) -> String {
         "/api/v1/business/cash/\(cashSessionId)/close"
     }
 }
 
-public final class CashAPIRepository: CashRepository, @unchecked Sendable {
+final class CashAPIRepository: CashRepository, @unchecked Sendable {
     private let apiClient: APIClient
     
-    public init(apiClient: APIClient) {
+    init(apiClient: APIClient) {
         self.apiClient = apiClient
     }
     
-    public func current(
+    func current(
         organizationId: String,
         branchId: String
     ) async throws -> CashCurrentSessionResponse {
@@ -46,7 +46,7 @@ public final class CashAPIRepository: CashRepository, @unchecked Sendable {
         )
     }
     
-    public func open(
+    func open(
         organizationId: String,
         idempotencyKey: IdempotencyKey,
         request body: OpenCashSessionRequest
@@ -65,7 +65,7 @@ public final class CashAPIRepository: CashRepository, @unchecked Sendable {
         )
     }
     
-    public func registerMovement(
+    func registerMovement(
         organizationId: String,
         cashSessionId: String,
         idempotencyKey: IdempotencyKey,
@@ -84,7 +84,7 @@ public final class CashAPIRepository: CashRepository, @unchecked Sendable {
         )
     }
     
-    public func close(
+    func close(
         organizationId: String,
         cashSessionId: String,
         idempotencyKey: IdempotencyKey,

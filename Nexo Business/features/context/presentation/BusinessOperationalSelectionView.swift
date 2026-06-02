@@ -7,7 +7,7 @@
 
 import SwiftUI
 
-public struct BusinessOperationalSelectionView: View {
+struct BusinessOperationalSelectionView: View {
     private let context: BusinessContextResponse
     private let reason: String?
     private let continueAction: (String, String) -> Void
@@ -17,7 +17,7 @@ public struct BusinessOperationalSelectionView: View {
     @State private var selectedBranchId: String
     @State private var selectedActivityId: String
 
-    public init(
+    init(
         context: BusinessContextResponse,
         reason: String? = nil,
         continueAction: @escaping (String, String) -> Void,
@@ -34,7 +34,7 @@ public struct BusinessOperationalSelectionView: View {
         _selectedActivityId = State(initialValue: Self.initialActivityId(context: context))
     }
 
-    public var body: some View {
+    var body: some View {
         NavigationStack {
             Form {
                 Section("Negocio") {

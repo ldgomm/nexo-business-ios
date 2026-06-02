@@ -7,7 +7,7 @@
 
 import Foundation
 
-public extension PreviewData {
+extension PreviewData {
     static let organizations = [
         BusinessOrganizationAccess(
             id: businessContext.organization.id,
@@ -30,10 +30,10 @@ public extension PreviewData {
     ]
 }
 
-public final class PreviewBusinessOrganizationAccessRepository: BusinessOrganizationAccessRepository, @unchecked Sendable {
-    public init() {}
+final class PreviewBusinessOrganizationAccessRepository: BusinessOrganizationAccessRepository, @unchecked Sendable {
+    init() {}
 
-    public func listOrganizations() async throws -> BusinessOrganizationAccessResponse {
+    func listOrganizations() async throws -> BusinessOrganizationAccessResponse {
         BusinessOrganizationAccessResponse(organizations: PreviewData.organizations)
     }
 }

@@ -11,14 +11,14 @@ import Foundation
 import Network
 #endif
 
-public enum NetworkConnectionStatus: String, Equatable, Sendable {
+enum NetworkConnectionStatus: String, Equatable, Sendable {
     case unknown
     case satisfied
     case unsatisfied
     case constrained
     case expensive
 
-    public var isUsable: Bool {
+    var isUsable: Bool {
         switch self {
         case .satisfied, .constrained, .expensive:
             return true
@@ -27,7 +27,7 @@ public enum NetworkConnectionStatus: String, Equatable, Sendable {
         }
     }
 
-    public var userMessage: String {
+    var userMessage: String {
         switch self {
         case .unknown:
             return "No se pudo determinar el estado de red."
@@ -43,26 +43,26 @@ public enum NetworkConnectionStatus: String, Equatable, Sendable {
     }
 }
 
-public protocol NetworkStatusProviding: Sendable {
+protocol NetworkStatusProviding: Sendable {
     func currentStatus() async -> NetworkConnectionStatus
 }
 
-public final class StaticNetworkStatusProvider: NetworkStatusProviding, @unchecked Sendable {
+final class StaticNetworkStatusProvider: NetworkStatusProviding, @unchecked Sendable {
     private let status: NetworkConnectionStatus
 
-    public init(status: NetworkConnectionStatus) {
+    init(status: NetworkConnectionStatus) {
         self.status = status
     }
 
-    public func currentStatus() async -> NetworkConnectionStatus {
+    func currentStatus() async -> NetworkConnectionStatus {
         status
     }
 }
 
-public final class SystemNetworkStatusProvider: NetworkStatusProviding, @unchecked Sendable {
-    public init() {}
+final class SystemNetworkStatusProvider: NetworkStatusProviding, @unchecked Sendable {
+    init() {}
 
-    public func currentStatus() async -> NetworkConnectionStatus {
+    func currentStatus() async -> NetworkConnectionStatus {
         #if canImport(Network)
         return await withCheckedContinuation { continuation in
             let monitor = NWPathMonitor()

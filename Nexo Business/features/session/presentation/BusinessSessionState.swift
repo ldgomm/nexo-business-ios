@@ -7,7 +7,7 @@
 
 import Foundation
 
-public enum BusinessSessionState: Equatable {
+enum BusinessSessionState: Equatable {
     case bootstrapping
     case signedOut(message: String? = nil)
     case loadingOrganizations

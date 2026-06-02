@@ -7,25 +7,25 @@
 
 import Foundation
 
-public struct LoginRequest: Encodable, Sendable {
-    public let email: String
-    public let password: String
+struct LoginRequest: Encodable, Sendable {
+    let email: String
+    let password: String
 
-    public init(email: String, password: String) {
+    init(email: String, password: String) {
         self.email = email
         self.password = password
     }
 }
 
-public struct LoginResponse: Decodable, Sendable {
-    public let accessToken: String
-    public let refreshToken: String?
-    public let expiresAt: Date?
-    public let user: AuthenticatedUser?
+struct LoginResponse: Decodable, Sendable {
+    let accessToken: String
+    let refreshToken: String?
+    let expiresAt: Date?
+    let user: AuthenticatedUser?
 }
 
-public struct AuthenticatedUser: Decodable, Equatable, Sendable {
-    public let id: String
-    public let email: String
-    public let displayName: String?
+struct AuthenticatedUser: Decodable, Equatable, Sendable {
+    let id: String
+    let email: String
+    let displayName: String?
 }

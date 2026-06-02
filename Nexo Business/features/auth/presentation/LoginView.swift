@@ -7,14 +7,14 @@
 
 import SwiftUI
 
-public struct LoginView: View {
+struct LoginView: View {
     @Bindable private var viewModel: LoginViewModel
 
-    public init(viewModel: LoginViewModel) {
+    init(viewModel: LoginViewModel) {
         self.viewModel = viewModel
     }
 
-    public var body: some View {
+    var body: some View {
         VStack(alignment: .leading, spacing: 18) {
             VStack(alignment: .leading, spacing: 6) {
                 Text("Nexo Business")

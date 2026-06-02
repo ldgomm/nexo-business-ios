@@ -7,7 +7,7 @@
 
 import Foundation
 
-public protocol BusinessDailyReportRepository: Sendable {
+protocol BusinessDailyReportRepository: Sendable {
     func dailyReport(
         organizationId: String,
         branchId: String,

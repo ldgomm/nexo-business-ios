@@ -7,7 +7,7 @@
 
 import Foundation
 
-public protocol BusinessDocumentsRepository: Sendable {
+protocol BusinessDocumentsRepository: Sendable {
     func list(
         organizationId: String,
         saleId: String

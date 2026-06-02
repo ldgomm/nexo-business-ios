@@ -7,14 +7,14 @@
 
 import SwiftUI
 
-public struct BusinessDocumentsView: View {
+struct BusinessDocumentsView: View {
     @Bindable private var viewModel: BusinessDocumentsViewModel
 
-    public init(viewModel: BusinessDocumentsViewModel) {
+    init(viewModel: BusinessDocumentsViewModel) {
         self.viewModel = viewModel
     }
 
-    public var body: some View {
+    var body: some View {
         Form {
             saleSection
             documentsSection

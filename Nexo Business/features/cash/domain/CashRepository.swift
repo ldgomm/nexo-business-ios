@@ -7,7 +7,7 @@
 
 import Foundation
 
-public protocol CashRepository: Sendable {
+protocol CashRepository: Sendable {
     func current(
         organizationId: String,
         branchId: String

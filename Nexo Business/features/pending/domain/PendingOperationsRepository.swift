@@ -7,7 +7,7 @@
 
 import Foundation
 
-public protocol PendingOperationsRepository: Sendable {
+protocol PendingOperationsRepository: Sendable {
     func pendingSales(
         organizationId: String,
         branchId: String,

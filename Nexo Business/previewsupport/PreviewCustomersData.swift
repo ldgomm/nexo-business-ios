@@ -7,8 +7,8 @@
 
 import Foundation
 
-public enum PreviewCustomersData {
-    public static let customers: [BusinessCustomer] = [
+enum PreviewCustomersData {
+    static let customers: [BusinessCustomer] = [
         BusinessCustomerPresentation.finalConsumer,
         BusinessCustomer(
             id: "cus_maria",
@@ -36,11 +36,11 @@ public enum PreviewCustomersData {
         )
     ]
 
-    public static let searchResponse = CustomersSearchResponse(
+    static let searchResponse = CustomersSearchResponse(
         customers: customers
     )
 
-    public static let createdCustomer = BusinessCustomer(
+    static let createdCustomer = BusinessCustomer(
         id: "cus_created_preview",
         displayName: "Cliente creado preview",
         identificationType: .cedula,
@@ -53,7 +53,7 @@ public enum PreviewCustomersData {
         updatedAt: Date()
     )
 
-    public static let createResponse = CustomerResponse(
+    static let createResponse = CustomerResponse(
         customer: createdCustomer,
         idempotencyReplayed: false
     )

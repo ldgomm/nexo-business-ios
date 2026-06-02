@@ -7,7 +7,7 @@
 
 import Foundation
 
-public enum SalesHistoryStatusFilter: String, CaseIterable, Identifiable, Sendable, Hashable {
+enum SalesHistoryStatusFilter: String, CaseIterable, Identifiable, Sendable, Hashable {
     case all
     case pending
     case confirmed
@@ -17,9 +17,9 @@ public enum SalesHistoryStatusFilter: String, CaseIterable, Identifiable, Sendab
     case closed
     case canceled
 
-    public var id: String { rawValue }
+    var id: String { rawValue }
 
-    public var queryValue: String? {
+    var queryValue: String? {
         switch self {
         case .all:
             return nil
@@ -28,7 +28,7 @@ public enum SalesHistoryStatusFilter: String, CaseIterable, Identifiable, Sendab
         }
     }
 
-    public var displayName: String {
+    var displayName: String {
         switch self {
         case .all:
             return "Todas"
@@ -50,14 +50,14 @@ public enum SalesHistoryStatusFilter: String, CaseIterable, Identifiable, Sendab
     }
 }
 
-public struct SalesHistorySearchRequest: Equatable, Sendable {
-    public let branchId: String
-    public let query: String?
-    public let status: SalesHistoryStatusFilter
-    public let date: Date?
-    public let limit: Int
+struct SalesHistorySearchRequest: Equatable, Sendable {
+    let branchId: String
+    let query: String?
+    let status: SalesHistoryStatusFilter
+    let date: Date?
+    let limit: Int
 
-    public init(
+    init(
         branchId: String,
         query: String? = nil,
         status: SalesHistoryStatusFilter = .all,
@@ -72,12 +72,12 @@ public struct SalesHistorySearchRequest: Equatable, Sendable {
     }
 }
 
-public struct BusinessSalesHistoryResponse: Decodable, Equatable, Sendable {
-    public let sales: [BusinessSale]
-    public let total: Int?
-    public let hasMore: Bool?
+struct BusinessSalesHistoryResponse: Decodable, Equatable, Sendable {
+    let sales: [BusinessSale]
+    let total: Int?
+    let hasMore: Bool?
 
-    public init(
+    init(
         sales: [BusinessSale],
         total: Int? = nil,
         hasMore: Bool? = nil
@@ -96,7 +96,7 @@ public struct BusinessSalesHistoryResponse: Decodable, Equatable, Sendable {
         case hasMore
     }
 
-    public init(from decoder: Decoder) throws {
+    init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
 
         sales = try container.decodeIfPresent([BusinessSale].self, forKey: .sales)

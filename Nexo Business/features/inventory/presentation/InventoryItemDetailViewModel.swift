@@ -10,25 +10,25 @@ import Observation
 
 @MainActor
 @Observable
-public final class InventoryItemDetailViewModel {
-    public private(set) var item: InventoryItem
-    public private(set) var movements: [InventoryMovement] = []
-    public private(set) var isLoadingMovements = false
-    public private(set) var isAdjusting = false
-    public var adjustmentType: InventoryAdjustmentType = .increase
-    public var adjustmentQuantity = ""
-    public var adjustmentReason = ""
-    public var adjustmentNote = ""
-    public var errorMessage: String?
-    public var infoMessage: String?
+final class InventoryItemDetailViewModel {
+    private(set) var item: InventoryItem
+    private(set) var movements: [InventoryMovement] = []
+    private(set) var isLoadingMovements = false
+    private(set) var isAdjusting = false
+    var adjustmentType: InventoryAdjustmentType = .increase
+    var adjustmentQuantity = ""
+    var adjustmentReason = ""
+    var adjustmentNote = ""
+    var errorMessage: String?
+    var infoMessage: String?
 
-    public let organizationId: String
-    public private(set) var catalogRevision: String
-    public let effectivePermissions: Set<String>
+    let organizationId: String
+    private(set) var catalogRevision: String
+    let effectivePermissions: Set<String>
 
     private let repository: InventoryRepository
 
-    public init(
+    init(
         organizationId: String,
         catalogRevision: String,
         item: InventoryItem,
@@ -42,7 +42,7 @@ public final class InventoryItemDetailViewModel {
         self.repository = inventoryRepository
     }
 
-    public var canViewMovements: Bool {
+    var canViewMovements: Bool {
         hasPermission([
             "business.inventory.view_movements",
             "inventory.view_movements",
@@ -51,7 +51,7 @@ public final class InventoryItemDetailViewModel {
         ])
     }
 
-    public var canAdjust: Bool {
+    var canAdjust: Bool {
         !isAdjusting &&
         item.trackStock &&
         hasPermission([
@@ -62,7 +62,7 @@ public final class InventoryItemDetailViewModel {
         !normalized(adjustmentReason).isEmpty
     }
 
-    public func loadMovements() async {
+    func loadMovements() async {
         guard canViewMovements else { return }
         guard !isLoadingMovements else { return }
 
@@ -87,7 +87,7 @@ public final class InventoryItemDetailViewModel {
         }
     }
 
-    public func adjust() async {
+    func adjust() async {
         guard canAdjust else {
             errorMessage = validationMessage()
             return

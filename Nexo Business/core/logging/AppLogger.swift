@@ -7,26 +7,26 @@
 
 import Foundation
 
-public protocol AppLogging: Sendable {
+protocol AppLogging: Sendable {
     func info(_ message: String)
     func warning(_ message: String)
     func error(_ message: String)
 }
 
-public final class AppLogger: AppLogging, @unchecked Sendable {
-    public static let shared = AppLogger()
+final class AppLogger: AppLogging, @unchecked Sendable {
+    static let shared = AppLogger()
 
     private init() {}
 
-    public func info(_ message: String) {
+    func info(_ message: String) {
         log(level: "INFO", message: message)
     }
 
-    public func warning(_ message: String) {
+    func warning(_ message: String) {
         log(level: "WARN", message: message)
     }
 
-    public func error(_ message: String) {
+    func error(_ message: String) {
         log(level: "ERROR", message: message)
     }
 
@@ -37,20 +37,20 @@ public final class AppLogger: AppLogging, @unchecked Sendable {
     }
 }
 
-public final class MemoryAppLogger: AppLogging, @unchecked Sendable {
-    public private(set) var entries: [String] = []
+final class MemoryAppLogger: AppLogging, @unchecked Sendable {
+    private(set) var entries: [String] = []
 
-    public init() {}
+    init() {}
 
-    public func info(_ message: String) {
+    func info(_ message: String) {
         entries.append("INFO: \(SecureLogSanitizer.sanitize(message))")
     }
 
-    public func warning(_ message: String) {
+    func warning(_ message: String) {
         entries.append("WARN: \(SecureLogSanitizer.sanitize(message))")
     }
 
-    public func error(_ message: String) {
+    func error(_ message: String) {
         entries.append("ERROR: \(SecureLogSanitizer.sanitize(message))")
     }
 }

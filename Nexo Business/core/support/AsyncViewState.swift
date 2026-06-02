@@ -7,7 +7,7 @@
 
 import Foundation
 
-public enum AsyncViewState<Value: Equatable>: Equatable {
+enum AsyncViewState<Value: Equatable>: Equatable {
     case idle
     case loading
     case loaded(Value)

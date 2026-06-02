@@ -10,22 +10,22 @@ import Observation
 
 @MainActor
 @Observable
-public final class CustomerCreateViewModel {
-    public var identificationType: BusinessCustomerIdentificationType = .cedula
-    public var identificationNumber = ""
-    public var displayName = ""
-    public var email = ""
-    public var phone = ""
-    public var address = ""
-    public private(set) var createdCustomer: BusinessCustomer?
-    public private(set) var isSaving = false
-    public var errorMessage: String?
-    public var infoMessage: String?
+final class CustomerCreateViewModel {
+    var identificationType: BusinessCustomerIdentificationType = .cedula
+    var identificationNumber = ""
+    var displayName = ""
+    var email = ""
+    var phone = ""
+    var address = ""
+    private(set) var createdCustomer: BusinessCustomer?
+    private(set) var isSaving = false
+    var errorMessage: String?
+    var infoMessage: String?
 
     private let organizationId: String
     private let repository: CustomersRepository
 
-    public init(
+    init(
         organizationId: String,
         customersRepository: CustomersRepository
     ) {
@@ -33,13 +33,13 @@ public final class CustomerCreateViewModel {
         self.repository = customersRepository
     }
 
-    public var canSave: Bool {
+    var canSave: Bool {
         !isSaving &&
         !normalized(displayName).isEmpty &&
         !normalized(identificationNumber).isEmpty
     }
 
-    public func save() async -> BusinessCustomer? {
+    func save() async -> BusinessCustomer? {
         guard canSave else {
             errorMessage = validationMessage()
             return nil

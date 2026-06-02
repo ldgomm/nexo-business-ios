@@ -1,20 +1,13 @@
-//
-//  ReceivableCollectionView.swift
-//  Nexo Business
-//
-//  Created by José Ruiz on 29/5/26.
-//
-
 import SwiftUI
 
-public struct ReceivableCollectionView: View {
+struct ReceivableCollectionView: View {
     @Bindable private var viewModel: ReceivableCollectionViewModel
 
-    public init(viewModel: ReceivableCollectionViewModel) {
+    init(viewModel: ReceivableCollectionViewModel) {
         self.viewModel = viewModel
     }
 
-    public var body: some View {
+    var body: some View {
         Form {
             Section("Cuenta por cobrar") {
                 LabeledContent("ID", value: viewModel.receivable.id)
@@ -49,7 +42,7 @@ public struct ReceivableCollectionView: View {
                 Section("Caja") {
                     if viewModel.isLoadingCash {
                         ProgressView("Consultando caja…")
-                    } else if let session = viewModel.currentCashSession, session.status == "open" {
+                    } else if let session = viewModel.currentCashSession, session.isOpen {
                         Label("Caja abierta", systemImage: "checkmark.circle.fill")
                             .foregroundStyle(.green)
                         LabeledContent("Sesión", value: session.id)
@@ -111,7 +104,7 @@ public struct ReceivableCollectionView: View {
     }
 
     private func money(_ value: MoneyAmount) -> String {
-        "\(value.currency) \(value.amount)"
+        value.displayText
     }
 }
 

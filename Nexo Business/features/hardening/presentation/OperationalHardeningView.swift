@@ -7,14 +7,14 @@
 
 import SwiftUI
 
-public struct OperationalHardeningView: View {
+struct OperationalHardeningView: View {
     @Bindable private var viewModel: OperationalHardeningViewModel
 
-    public init(viewModel: OperationalHardeningViewModel) {
+    init(viewModel: OperationalHardeningViewModel) {
         self.viewModel = viewModel
     }
 
-    public var body: some View {
+    var body: some View {
         Form {
             content
         }

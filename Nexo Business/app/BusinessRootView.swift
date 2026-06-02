@@ -7,13 +7,13 @@
 
 import SwiftUI
 
-public struct BusinessRootView: View {
+struct BusinessRootView: View {
     private let container: BusinessAppContainer
 
     @State private var sessionViewModel: BusinessSessionViewModel
     @State private var loginViewModel: LoginViewModel
 
-    public init(container: BusinessAppContainer) {
+    init(container: BusinessAppContainer) {
         self.container = container
 
         let sessionViewModel = BusinessSessionViewModel(
@@ -34,7 +34,7 @@ public struct BusinessRootView: View {
         )
     }
 
-    public var body: some View {
+    var body: some View {
         Group {
             content
         }

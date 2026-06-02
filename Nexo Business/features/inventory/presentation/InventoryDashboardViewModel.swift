@@ -10,27 +10,27 @@ import Observation
 
 @MainActor
 @Observable
-public final class InventoryDashboardViewModel {
-    public private(set) var state: AsyncViewState<[InventoryItem]> = .idle
-    public private(set) var items: [InventoryItem] = []
-    public private(set) var isLoading = false
-    public var searchQuery = ""
-    public var stockStatus: InventoryItemStockStatus = .all
-    public var errorMessage: String?
-    public var infoMessage: String?
-    public var lowStockCount: Int?
-    public var outOfStockCount: Int?
-    public var totalCount: Int?
+final class InventoryDashboardViewModel {
+    private(set) var state: AsyncViewState<[InventoryItem]> = .idle
+    private(set) var items: [InventoryItem] = []
+    private(set) var isLoading = false
+    var searchQuery = ""
+    var stockStatus: InventoryItemStockStatus = .all
+    var errorMessage: String?
+    var infoMessage: String?
+    var lowStockCount: Int?
+    var outOfStockCount: Int?
+    var totalCount: Int?
 
-    public let organizationId: String
-    public let branchId: String
-    public let activityId: String
-    public private(set) var catalogRevision: String
-    public let effectivePermissions: Set<String>
+    let organizationId: String
+    let branchId: String
+    let activityId: String
+    private(set) var catalogRevision: String
+    let effectivePermissions: Set<String>
 
     private let repository: InventoryRepository
 
-    public init(
+    init(
         organizationId: String,
         branchId: String,
         activityId: String,
@@ -46,7 +46,7 @@ public final class InventoryDashboardViewModel {
         self.repository = inventoryRepository
     }
 
-    public var canView: Bool {
+    var canView: Bool {
         hasPermission([
             "business.inventory.view",
             "inventory.view",
@@ -55,14 +55,14 @@ public final class InventoryDashboardViewModel {
         ])
     }
 
-    public var canAdjust: Bool {
+    var canAdjust: Bool {
         hasPermission([
             "business.inventory.adjust",
             "inventory.adjust"
         ])
     }
 
-    public func load() async {
+    func load() async {
         guard canView else {
             errorMessage = "No tienes permiso para consultar inventario."
             state = .failed(errorMessage ?? "")
@@ -112,11 +112,11 @@ public final class InventoryDashboardViewModel {
         }
     }
 
-    public func refresh() async {
+    func refresh() async {
         await load()
     }
 
-    public func makeDetailViewModel(for item: InventoryItem) -> InventoryItemDetailViewModel {
+    func makeDetailViewModel(for item: InventoryItem) -> InventoryItemDetailViewModel {
         InventoryItemDetailViewModel(
             organizationId: organizationId,
             catalogRevision: catalogRevision,
@@ -126,7 +126,7 @@ public final class InventoryDashboardViewModel {
         )
     }
 
-    public func updateItem(_ item: InventoryItem) {
+    func updateItem(_ item: InventoryItem) {
         if let index = items.firstIndex(where: { $0.id == item.id }) {
             items[index] = item
             state = .loaded(items)

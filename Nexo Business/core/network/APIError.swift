@@ -7,7 +7,7 @@
 
 import Foundation
 
-public enum APIError: Error, Equatable, Sendable {
+enum APIError: Error, Equatable, Sendable {
     case invalidURL
     case missingAccessToken
     case emptyResponse
@@ -16,7 +16,7 @@ public enum APIError: Error, Equatable, Sendable {
     case transport(String)
     case server(statusCode: Int, code: String?, message: String, requestId: String?)
 
-    public var statusCode: Int? {
+    var statusCode: Int? {
         switch self {
         case let .server(statusCode, _, _, _):
             return statusCode
@@ -25,7 +25,7 @@ public enum APIError: Error, Equatable, Sendable {
         }
     }
 
-    public var code: String? {
+    var code: String? {
         switch self {
         case let .server(_, code, _, _):
             return code
@@ -34,7 +34,7 @@ public enum APIError: Error, Equatable, Sendable {
         }
     }
 
-    public var requestId: String? {
+    var requestId: String? {
         switch self {
         case let .server(_, _, _, requestId):
             return requestId
@@ -43,15 +43,15 @@ public enum APIError: Error, Equatable, Sendable {
         }
     }
 
-    public var isUnauthorized: Bool {
+    var isUnauthorized: Bool {
         statusCode == 401
     }
 
-    public var isRevisionConflict: Bool {
+    var isRevisionConflict: Bool {
         statusCode == 409 || statusCode == 428
     }
 
-    public var isRetriable: Bool {
+    var isRetriable: Bool {
         switch self {
         case .transport:
             return true
@@ -62,7 +62,7 @@ public enum APIError: Error, Equatable, Sendable {
         }
     }
 
-    public var userMessage: String {
+    var userMessage: String {
         switch self {
         case .invalidURL:
             return "URL inválida."
@@ -85,7 +85,7 @@ public enum APIError: Error, Equatable, Sendable {
         }
     }
 
-    public var supportMessage: String {
+    var supportMessage: String {
         if let requestId, !requestId.isEmpty {
             return "Código de soporte: \(requestId)"
         }
@@ -93,8 +93,8 @@ public enum APIError: Error, Equatable, Sendable {
     }
 }
 
-public enum APIErrorHumanizer {
-    public static func message(
+enum APIErrorHumanizer {
+    static func message(
         statusCode: Int,
         code: String?,
         fallback: String
@@ -126,13 +126,13 @@ public enum APIErrorHumanizer {
     }
 }
 
-public struct APIErrorEnvelope: Decodable, Sendable {
-    public let error: APIErrorBody
+struct APIErrorEnvelope: Decodable, Sendable {
+    let error: APIErrorBody
 }
 
-public struct APIErrorBody: Decodable, Sendable {
-    public let code: String?
-    public let message: String
-    public let requestId: String?
-    public let details: [String: String]?
+struct APIErrorBody: Decodable, Sendable {
+    let code: String?
+    let message: String
+    let requestId: String?
+    let details: [String: String]?
 }

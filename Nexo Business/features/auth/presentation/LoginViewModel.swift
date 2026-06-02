@@ -10,17 +10,17 @@ import Observation
 
 @MainActor
 @Observable
-public final class LoginViewModel {
-    public var email = ""
-    public var password = ""
-    public var isLoading = false
-    public var errorMessage: String?
-    public var didLogin = false
+final class LoginViewModel {
+    var email = ""
+    var password = ""
+    var isLoading = false
+    var errorMessage: String?
+    var didLogin = false
 
     private let repository: AuthRepository
     private let onLoginSucceeded: (() async -> Void)?
 
-    public init(
+    init(
         authRepository: AuthRepository,
         onLoginSucceeded: (() async -> Void)? = nil
     ) {
@@ -28,7 +28,7 @@ public final class LoginViewModel {
         self.onLoginSucceeded = onLoginSucceeded
     }
 
-    public func login() async {
+    func login() async {
         errorMessage = nil
         isLoading = true
 

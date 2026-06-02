@@ -7,7 +7,7 @@
 
 import Foundation
 
-public extension PreviewData {
+extension PreviewData {
     static let paidHistorySale = BusinessSale(
         id: "sale_paid_preview_001",
         organizationId: businessContext.organization.id,

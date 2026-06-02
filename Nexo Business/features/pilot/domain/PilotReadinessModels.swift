@@ -7,12 +7,12 @@
 
 import Foundation
 
-public enum PilotReadinessSeverity: String, Codable, CaseIterable, Sendable {
+enum PilotReadinessSeverity: String, Codable, CaseIterable, Sendable {
     case blocker
     case warning
     case info
 
-    public var displayName: String {
+    var displayName: String {
         switch self {
         case .blocker:
             return "Bloqueante"
@@ -24,7 +24,7 @@ public enum PilotReadinessSeverity: String, Codable, CaseIterable, Sendable {
     }
 }
 
-public enum PilotChecklistCategory: String, Codable, CaseIterable, Identifiable, Sendable {
+enum PilotChecklistCategory: String, Codable, CaseIterable, Identifiable, Sendable {
     case access
     case operation
     case cash
@@ -36,9 +36,9 @@ public enum PilotChecklistCategory: String, Codable, CaseIterable, Identifiable,
     case closing
     case support
 
-    public var id: String { rawValue }
+    var id: String { rawValue }
 
-    public var displayName: String {
+    var displayName: String {
         switch self {
         case .access:
             return "Acceso"
@@ -63,7 +63,7 @@ public enum PilotChecklistCategory: String, Codable, CaseIterable, Identifiable,
         }
     }
 
-    public var sortOrder: Int {
+    var sortOrder: Int {
         switch self {
         case .access:
             return 0
@@ -89,17 +89,17 @@ public enum PilotChecklistCategory: String, Codable, CaseIterable, Identifiable,
     }
 }
 
-public struct PilotChecklistItem: Codable, Equatable, Identifiable, Sendable {
-    public let id: String
-    public let category: PilotChecklistCategory
-    public let title: String
-    public let detail: String
-    public let severity: PilotReadinessSeverity
-    public let isRequired: Bool
-    public var isDone: Bool
-    public var updatedAt: Date?
+struct PilotChecklistItem: Codable, Equatable, Identifiable, Sendable {
+    let id: String
+    let category: PilotChecklistCategory
+    let title: String
+    let detail: String
+    let severity: PilotReadinessSeverity
+    let isRequired: Bool
+    var isDone: Bool
+    var updatedAt: Date?
 
-    public init(
+    init(
         id: String,
         category: PilotChecklistCategory,
         title: String,
@@ -120,13 +120,13 @@ public struct PilotChecklistItem: Codable, Equatable, Identifiable, Sendable {
     }
 }
 
-public struct PilotReadinessIssue: Equatable, Identifiable, Sendable {
-    public let id: String
-    public let title: String
-    public let detail: String
-    public let severity: PilotReadinessSeverity
+struct PilotReadinessIssue: Equatable, Identifiable, Sendable {
+    let id: String
+    let title: String
+    let detail: String
+    let severity: PilotReadinessSeverity
 
-    public init(
+    init(
         id: String,
         title: String,
         detail: String,
@@ -139,16 +139,16 @@ public struct PilotReadinessIssue: Equatable, Identifiable, Sendable {
     }
 }
 
-public struct PilotReadinessSnapshot: Equatable, Sendable {
-    public let score: Int
-    public let completedRequired: Int
-    public let totalRequired: Int
-    public let completedOptional: Int
-    public let totalOptional: Int
-    public let blockers: [PilotReadinessIssue]
-    public let warnings: [PilotReadinessIssue]
+struct PilotReadinessSnapshot: Equatable, Sendable {
+    let score: Int
+    let completedRequired: Int
+    let totalRequired: Int
+    let completedOptional: Int
+    let totalOptional: Int
+    let blockers: [PilotReadinessIssue]
+    let warnings: [PilotReadinessIssue]
 
-    public init(
+    init(
         score: Int,
         completedRequired: Int,
         totalRequired: Int,
@@ -166,11 +166,11 @@ public struct PilotReadinessSnapshot: Equatable, Sendable {
         self.warnings = warnings
     }
 
-    public var isReadyForPilot: Bool {
+    var isReadyForPilot: Bool {
         blockers.isEmpty && score >= 90
     }
 
-    public var statusTitle: String {
+    var statusTitle: String {
         if isReadyForPilot {
             return "Listo para piloto"
         }
@@ -183,8 +183,8 @@ public struct PilotReadinessSnapshot: Equatable, Sendable {
     }
 }
 
-public enum PilotChecklistFactory {
-    public static func defaultItems() -> [PilotChecklistItem] {
+enum PilotChecklistFactory {
+    static func defaultItems() -> [PilotChecklistItem] {
         [
             PilotChecklistItem(
                 id: "session_restore_verified",

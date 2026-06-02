@@ -7,26 +7,26 @@
 
 import Foundation
 
-public enum BusinessInventoryRoutes {
-    public static let items = "/api/v1/business/inventory/items"
+enum BusinessInventoryRoutes {
+    static let items = "/api/v1/business/inventory/items"
 
-    public static func movements(inventoryItemId: String) -> String {
+    static func movements(inventoryItemId: String) -> String {
         "/api/v1/business/inventory/items/\(inventoryItemId)/movements"
     }
 
-    public static func adjustments(inventoryItemId: String) -> String {
+    static func adjustments(inventoryItemId: String) -> String {
         "/api/v1/business/inventory/items/\(inventoryItemId)/adjustments"
     }
 }
 
-public final class InventoryAPIRepository: InventoryRepository, @unchecked Sendable {
+final class InventoryAPIRepository: InventoryRepository, @unchecked Sendable {
     private let apiClient: APIClient
 
-    public init(apiClient: APIClient) {
+    init(apiClient: APIClient) {
         self.apiClient = apiClient
     }
 
-    public func listItems(
+    func listItems(
         organizationId: String,
         branchId: String,
         activityId: String,
@@ -63,7 +63,7 @@ public final class InventoryAPIRepository: InventoryRepository, @unchecked Senda
         )
     }
 
-    public func listMovements(
+    func listMovements(
         organizationId: String,
         inventoryItemId: String,
         limit: Int = 30
@@ -80,7 +80,7 @@ public final class InventoryAPIRepository: InventoryRepository, @unchecked Senda
         )
     }
 
-    public func adjust(
+    func adjust(
         organizationId: String,
         inventoryItemId: String,
         catalogRevision: String,

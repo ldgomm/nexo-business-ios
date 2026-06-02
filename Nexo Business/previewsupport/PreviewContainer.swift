@@ -7,7 +7,7 @@
 
 import Foundation
 
-public extension BusinessAppContainer {
+extension BusinessAppContainer {
     static var preview: BusinessAppContainer {
         let tokenStore = InMemoryAuthTokenStore(
             tokens: AuthTokens(

@@ -7,20 +7,20 @@
 
 import Foundation
 
-public enum BusinessPendingRoutes {
-    public static let sales = "/api/v1/business/sales"
-    public static let receivables = "/api/v1/business/receivables"
-    public static let documents = "/api/v1/business/documents"
+enum BusinessPendingRoutes {
+    static let sales = "/api/v1/business/sales"
+    static let receivables = "/api/v1/business/receivables"
+    static let documents = "/api/v1/business/documents"
 }
 
-public final class PendingOperationsAPIRepository: PendingOperationsRepository, @unchecked Sendable {
+final class PendingOperationsAPIRepository: PendingOperationsRepository, @unchecked Sendable {
     private let apiClient: APIClient
 
-    public init(apiClient: APIClient) {
+    init(apiClient: APIClient) {
         self.apiClient = apiClient
     }
 
-    public func pendingSales(
+    func pendingSales(
         organizationId: String,
         branchId: String,
         limit: Int = 50
@@ -42,7 +42,7 @@ public final class PendingOperationsAPIRepository: PendingOperationsRepository, 
         )
     }
 
-    public func pendingReceivables(
+    func pendingReceivables(
         organizationId: String,
         branchId: String,
         limit: Int = 50
@@ -63,7 +63,7 @@ public final class PendingOperationsAPIRepository: PendingOperationsRepository, 
         )
     }
 
-    public func pendingDocuments(
+    func pendingDocuments(
         organizationId: String,
         branchId: String,
         limit: Int = 50

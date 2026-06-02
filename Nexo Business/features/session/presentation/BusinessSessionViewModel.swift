@@ -10,10 +10,10 @@ import Observation
 
 @MainActor
 @Observable
-public final class BusinessSessionViewModel {
-    public private(set) var state: BusinessSessionState = .bootstrapping
-    public private(set) var context: BusinessContextResponse?
-    public private(set) var operationalSelection: BusinessOperationalSelection?
+final class BusinessSessionViewModel {
+    private(set) var state: BusinessSessionState = .bootstrapping
+    private(set) var context: BusinessContextResponse?
+    private(set) var operationalSelection: BusinessOperationalSelection?
 
     private let tokenStore: AuthTokenStoring
     private let selectionStore: BusinessSelectionStoring
@@ -21,7 +21,7 @@ public final class BusinessSessionViewModel {
     private let contextRepository: BusinessContextRepository
     private var didBootstrap = false
 
-    public init(
+    init(
         tokenStore: AuthTokenStoring,
         selectionStore: BusinessSelectionStoring,
         organizationAccessRepository: BusinessOrganizationAccessRepository,
@@ -33,13 +33,13 @@ public final class BusinessSessionViewModel {
         self.contextRepository = contextRepository
     }
 
-    public func bootstrapIfNeeded() async {
+    func bootstrapIfNeeded() async {
         guard !didBootstrap else { return }
         didBootstrap = true
         await bootstrap()
     }
 
-    public func retryBootstrapOrRefresh() async {
+    func retryBootstrapOrRefresh() async {
         if await tokenStore.tokens() == nil {
             context = nil
             operationalSelection = nil
@@ -55,11 +55,11 @@ public final class BusinessSessionViewModel {
         }
     }
 
-    public func loadOrganizationsAfterLogin() async {
+    func loadOrganizationsAfterLogin() async {
         await loadOrganizations()
     }
 
-    public func selectOrganization(_ organization: BusinessOrganizationAccess) async {
+    func selectOrganization(_ organization: BusinessOrganizationAccess) async {
         do {
             try await selectionStore.saveOrganizationId(organization.id)
             context = nil
@@ -70,7 +70,7 @@ public final class BusinessSessionViewModel {
         }
     }
 
-    public func selectOperationalContext(branchId: String, activityId: String) async {
+    func selectOperationalContext(branchId: String, activityId: String) async {
         guard let context else {
             state = .failed("No se encontró el contexto del negocio. Actualiza e inténtalo otra vez.")
             return
@@ -110,7 +110,7 @@ public final class BusinessSessionViewModel {
         }
     }
 
-    public func refreshContext() async {
+    func refreshContext() async {
         if let organizationId = operationalSelection?.organizationId ?? context?.organization.id {
             await loadContext(organizationId: organizationId)
             return
@@ -124,7 +124,7 @@ public final class BusinessSessionViewModel {
         }
     }
 
-    public func changeOrganization() async {
+    func changeOrganization() async {
         do {
             try await selectionStore.clearAll()
         } catch {
@@ -137,7 +137,7 @@ public final class BusinessSessionViewModel {
         await loadOrganizations()
     }
 
-    public func changeOperationalContext() async {
+    func changeOperationalContext() async {
         guard let context else {
             await refreshContext()
             return
@@ -157,7 +157,7 @@ public final class BusinessSessionViewModel {
         )
     }
 
-    public func logout() async {
+    func logout() async {
         try? await tokenStore.clear()
         try? await selectionStore.clearAll()
         context = nil

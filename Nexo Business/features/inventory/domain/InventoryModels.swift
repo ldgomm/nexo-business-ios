@@ -7,15 +7,15 @@
 
 import Foundation
 
-public enum InventoryItemStockStatus: String, Codable, CaseIterable, Identifiable, Sendable, Hashable {
+enum InventoryItemStockStatus: String, Codable, CaseIterable, Identifiable, Sendable, Hashable {
     case all
     case active
     case lowStock = "low_stock"
     case outOfStock = "out_of_stock"
 
-    public var id: String { rawValue }
+    var id: String { rawValue }
 
-    public var queryValue: String? {
+    var queryValue: String? {
         switch self {
         case .all:
             return nil
@@ -28,7 +28,7 @@ public enum InventoryItemStockStatus: String, Codable, CaseIterable, Identifiabl
         }
     }
 
-    public var displayName: String {
+    var displayName: String {
         switch self {
         case .all:
             return "Todos"
@@ -42,14 +42,14 @@ public enum InventoryItemStockStatus: String, Codable, CaseIterable, Identifiabl
     }
 }
 
-public enum InventoryAdjustmentType: String, Codable, CaseIterable, Identifiable, Sendable, Hashable {
+enum InventoryAdjustmentType: String, Codable, CaseIterable, Identifiable, Sendable, Hashable {
     case increase
     case decrease
     case set
 
-    public var id: String { rawValue }
+    var id: String { rawValue }
 
-    public var displayName: String {
+    var displayName: String {
         switch self {
         case .increase:
             return "Aumentar"
@@ -61,12 +61,12 @@ public enum InventoryAdjustmentType: String, Codable, CaseIterable, Identifiable
     }
 }
 
-public struct InventoryQuantity: Codable, Equatable, Sendable {
-    public let quantity: String
-    public let unitCode: String?
-    public let unitName: String?
+struct InventoryQuantity: Codable, Equatable, Sendable {
+    let quantity: String
+    let unitCode: String?
+    let unitName: String?
 
-    public init(
+    init(
         quantity: String,
         unitCode: String? = nil,
         unitName: String? = nil
@@ -76,7 +76,7 @@ public struct InventoryQuantity: Codable, Equatable, Sendable {
         self.unitName = unitName
     }
 
-    public var displayText: String {
+    var displayText: String {
         if let unitName, !unitName.isEmpty {
             return "\(quantity) \(unitName)"
         }
@@ -87,22 +87,22 @@ public struct InventoryQuantity: Codable, Equatable, Sendable {
     }
 }
 
-public struct InventoryItem: Decodable, Equatable, Identifiable, Sendable {
-    public let id: String
-    public let catalogItemId: String
-    public let name: String
-    public let sku: String?
-    public let barcode: String?
-    public let status: String
-    public let stockStatus: String?
-    public let trackStock: Bool
-    public let available: InventoryQuantity
-    public let reserved: InventoryQuantity?
-    public let lowStockThreshold: InventoryQuantity?
-    public let price: MoneyAmount?
-    public let updatedAt: Date?
+struct InventoryItem: Decodable, Equatable, Identifiable, Sendable {
+    let id: String
+    let catalogItemId: String
+    let name: String
+    let sku: String?
+    let barcode: String?
+    let status: String
+    let stockStatus: String?
+    let trackStock: Bool
+    let available: InventoryQuantity
+    let reserved: InventoryQuantity?
+    let lowStockThreshold: InventoryQuantity?
+    let price: MoneyAmount?
+    let updatedAt: Date?
 
-    public init(
+    init(
         id: String,
         catalogItemId: String,
         name: String,
@@ -160,7 +160,7 @@ public struct InventoryItem: Decodable, Equatable, Identifiable, Sendable {
         case unitName
     }
 
-    public init(from decoder: Decoder) throws {
+    init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
 
         id = try container.decodeFirstString(for: [.id, .mongoId, .inventoryItemId])
@@ -197,14 +197,14 @@ public struct InventoryItem: Decodable, Equatable, Identifiable, Sendable {
     }
 }
 
-public struct InventoryItemsResponse: Decodable, Equatable, Sendable {
-    public let items: [InventoryItem]
-    public let catalogRevision: String?
-    public let totalCount: Int?
-    public let lowStockCount: Int?
-    public let outOfStockCount: Int?
+struct InventoryItemsResponse: Decodable, Equatable, Sendable {
+    let items: [InventoryItem]
+    let catalogRevision: String?
+    let totalCount: Int?
+    let lowStockCount: Int?
+    let outOfStockCount: Int?
 
-    public init(
+    init(
         items: [InventoryItem],
         catalogRevision: String? = nil,
         totalCount: Int? = nil,
@@ -229,7 +229,7 @@ public struct InventoryItemsResponse: Decodable, Equatable, Sendable {
         case outOfStockCount
     }
 
-    public init(from decoder: Decoder) throws {
+    init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         items = try container.decodeIfPresent([InventoryItem].self, forKey: .items)
             ?? container.decodeIfPresent([InventoryItem].self, forKey: .inventoryItems)
@@ -243,17 +243,17 @@ public struct InventoryItemsResponse: Decodable, Equatable, Sendable {
     }
 }
 
-public struct InventoryMovement: Decodable, Equatable, Identifiable, Sendable {
-    public let id: String
-    public let inventoryItemId: String
-    public let type: String
-    public let quantity: InventoryQuantity
-    public let previousQuantity: InventoryQuantity?
-    public let newQuantity: InventoryQuantity?
-    public let reason: String?
-    public let createdAt: Date?
+struct InventoryMovement: Decodable, Equatable, Identifiable, Sendable {
+    let id: String
+    let inventoryItemId: String
+    let type: String
+    let quantity: InventoryQuantity
+    let previousQuantity: InventoryQuantity?
+    let newQuantity: InventoryQuantity?
+    let reason: String?
+    let createdAt: Date?
 
-    public init(
+    init(
         id: String,
         inventoryItemId: String,
         type: String,
@@ -274,21 +274,21 @@ public struct InventoryMovement: Decodable, Equatable, Identifiable, Sendable {
     }
 }
 
-public struct InventoryMovementsResponse: Decodable, Equatable, Sendable {
-    public let movements: [InventoryMovement]
+struct InventoryMovementsResponse: Decodable, Equatable, Sendable {
+    let movements: [InventoryMovement]
 
-    public init(movements: [InventoryMovement]) {
+    init(movements: [InventoryMovement]) {
         self.movements = movements
     }
 }
 
-public struct InventoryAdjustmentRequest: Encodable, Equatable, Sendable {
-    public let type: InventoryAdjustmentType
-    public let quantity: String
-    public let reason: String
-    public let note: String?
+struct InventoryAdjustmentRequest: Encodable, Equatable, Sendable {
+    let type: InventoryAdjustmentType
+    let quantity: String
+    let reason: String
+    let note: String?
 
-    public init(
+    init(
         type: InventoryAdjustmentType,
         quantity: String,
         reason: String,
@@ -301,13 +301,13 @@ public struct InventoryAdjustmentRequest: Encodable, Equatable, Sendable {
     }
 }
 
-public struct InventoryAdjustmentResponse: Decodable, Equatable, Sendable {
-    public let item: InventoryItem
-    public let movement: InventoryMovement?
-    public let catalogRevision: String?
-    public let idempotencyReplayed: Bool?
+struct InventoryAdjustmentResponse: Decodable, Equatable, Sendable {
+    let item: InventoryItem
+    let movement: InventoryMovement?
+    let catalogRevision: String?
+    let idempotencyReplayed: Bool?
 
-    public init(
+    init(
         item: InventoryItem,
         movement: InventoryMovement? = nil,
         catalogRevision: String? = nil,

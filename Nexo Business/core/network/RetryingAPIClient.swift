@@ -7,12 +7,12 @@
 
 import Foundation
 
-public final class RetryingAPIClient: APIClient, @unchecked Sendable {
+final class RetryingAPIClient: APIClient, @unchecked Sendable {
     private let wrapped: APIClient
     private let policy: RetryPolicy
     private let logger: AppLogging?
 
-    public init(
+    init(
         wrapping wrapped: APIClient,
         policy: RetryPolicy = .businessDefault,
         logger: AppLogging? = nil
@@ -22,7 +22,7 @@ public final class RetryingAPIClient: APIClient, @unchecked Sendable {
         self.logger = logger
     }
 
-    public func send<Response: Decodable>(_ request: APIRequest<Response>) async throws -> Response {
+    func send<Response: Decodable>(_ request: APIRequest<Response>) async throws -> Response {
         var attempt = 1
         var lastError: Error?
 

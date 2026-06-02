@@ -7,15 +7,15 @@
 
 import Foundation
 
-public struct APIRequest<Response: Decodable>: Sendable {
-    public let method: HTTPMethod
-    public let path: String
-    public let queryItems: [URLQueryItem]
-    public let headers: [String: String]
-    public let body: Data?
-    public let requiresAuth: Bool
+struct APIRequest<Response: Decodable>: Sendable {
+    let method: HTTPMethod
+    let path: String
+    let queryItems: [URLQueryItem]
+    let headers: [String: String]
+    let body: Data?
+    let requiresAuth: Bool
 
-    public init(
+    init(
         method: HTTPMethod,
         path: String,
         queryItems: [URLQueryItem] = [],
@@ -32,7 +32,7 @@ public struct APIRequest<Response: Decodable>: Sendable {
     }
 }
 
-public extension APIRequest {
+extension APIRequest {
     static func json<Body: Encodable>(
         method: HTTPMethod,
         path: String,

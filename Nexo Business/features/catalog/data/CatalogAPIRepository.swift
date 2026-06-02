@@ -7,15 +7,15 @@
 
 import Foundation
 
-public enum BusinessCatalogRoutes {
-    public static let items = "/api/v1/business/catalog/items"
+enum BusinessCatalogRoutes {
+    static let items = "/api/v1/business/catalog/items"
 }
 
-public final class CatalogAPIRepository: CatalogRepository, @unchecked Sendable {
+final class CatalogAPIRepository: CatalogRepository, @unchecked Sendable {
     private let apiClient: APIClient
     private let revisionRegistry: BusinessRevisionRegistry
 
-    public init(
+    init(
         apiClient: APIClient,
         revisionRegistry: BusinessRevisionRegistry = .shared
     ) {
@@ -23,7 +23,7 @@ public final class CatalogAPIRepository: CatalogRepository, @unchecked Sendable 
         self.revisionRegistry = revisionRegistry
     }
 
-    public func search(
+    func search(
         organizationId: String,
         branchId: String,
         activityId: String,

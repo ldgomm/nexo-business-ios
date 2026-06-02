@@ -1,13 +1,6 @@
-//
-//  SaleCartView.swift
-//  Nexo Business
-//
-//  Created by José Ruiz on 29/5/26.
-//
-
 import SwiftUI
 
-public struct SaleCartView: View {
+struct SaleCartView: View {
     @Bindable private var viewModel: SaleCartViewModel
     private let customersRepository: CustomersRepository
     private let cashRepository: CashRepository
@@ -15,7 +8,7 @@ public struct SaleCartView: View {
     private let receivablesRepository: ReceivablesRepository
     private let documentsRepository: BusinessDocumentsRepository
 
-    public init(
+    init(
         viewModel: SaleCartViewModel,
         customersRepository: CustomersRepository = UnavailableCustomersRepository(),
         cashRepository: CashRepository,
@@ -31,18 +24,82 @@ public struct SaleCartView: View {
         self.documentsRepository = documentsRepository
     }
 
-    public var body: some View {
+    var body: some View {
         Form {
+            orderStateSection
+            cashSection
             customerSection
-            searchSection
-            resultsSection
-            cartSection
-            previewSection
+
+            if viewModel.createdSale == nil {
+                searchSection
+                resultsSection
+                cartSection
+                previewSection
+            } else {
+                lockedCartSection
+            }
+
             saleSection
             messagesSection
             actionsSection
         }
-        .navigationTitle("Venta rápida")
+        .navigationTitle(viewModel.createdSale == nil ? "Nueva venta" : "Venta registrada")
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                if viewModel.canStartNewOrder {
+                    Button("Nueva") {
+                        viewModel.startNewOrder()
+                    }
+                }
+            }
+        }
+    }
+
+    private var orderStateSection: some View {
+        Section {
+            HStack(alignment: .center, spacing: 12) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(viewModel.createdSale == nil ? "Venta en curso" : "Venta cerrada")
+                        .font(.headline)
+
+                    Text(orderStateDescription)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer()
+
+                NexoStatusBadge(
+                    viewModel.orderState.displayName,
+                    systemImage: orderStateIcon,
+                    style: orderStateStyle
+                )
+            }
+        }
+    }
+
+    private var cashSection: some View {
+        Section("Caja") {
+            SaleCartCashCard(
+                organizationId: viewModel.organizationId,
+                branchId: viewModel.branchId,
+                permissions: viewModel.effectivePermissions,
+                cashRepository: cashRepository,
+                onSessionChanged: { session in
+                    viewModel.cashSessionId = session?.isOpen == true ? session?.id : nil
+                },
+                dashboardDestination: {
+                    CashDashboardView(
+                        viewModel: CashDashboardViewModel(
+                            organizationId: viewModel.organizationId,
+                            branchId: viewModel.branchId,
+                            permissions: viewModel.effectivePermissions,
+                            cashRepository: cashRepository
+                        )
+                    )
+                }
+            )
+        }
     }
 
     private var customerSection: some View {
@@ -55,8 +112,9 @@ public struct SaleCartView: View {
                 } label: {
                     Label("Quitar cliente", systemImage: "xmark.circle")
                 }
+                .disabled(!viewModel.canEditCart)
             } else {
-                Label("Sin cliente identificado", systemImage: "person.crop.circle.badge.questionmark")
+                Label("Consumidor final", systemImage: "person.crop.circle")
                     .foregroundStyle(.secondary)
             }
 
@@ -74,15 +132,17 @@ public struct SaleCartView: View {
             } label: {
                 Label("Seleccionar cliente", systemImage: "person.text.rectangle")
             }
+            .disabled(!viewModel.canEditCart)
         }
     }
 
     private var searchSection: some View {
-        Section("Buscar producto o servicio") {
+        Section("Agregar producto") {
             TextField("Nombre, SKU o código", text: $viewModel.searchQuery)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
                 .submitLabel(.search)
+                .disabled(!viewModel.canSearchCatalog)
                 .onSubmit {
                     Task { await viewModel.searchCatalog() }
                 }
@@ -96,7 +156,7 @@ public struct SaleCartView: View {
                     Label("Buscar", systemImage: "magnifyingglass")
                 }
             }
-            .disabled(viewModel.isSearching)
+            .disabled(!viewModel.canSearchCatalog)
         }
     }
 
@@ -111,6 +171,7 @@ public struct SaleCartView: View {
                         CatalogResultRow(item: item)
                     }
                     .buttonStyle(.plain)
+                    .disabled(!viewModel.canEditCart)
                 }
             }
         }
@@ -129,6 +190,7 @@ public struct SaleCartView: View {
                     SaleCartRow(
                         item: item,
                         quantity: quantityBinding(for: item),
+                        isEditable: viewModel.canEditCart,
                         removeAction: {
                             viewModel.removeFromCart(cartItemId: item.id)
                         }
@@ -138,16 +200,29 @@ public struct SaleCartView: View {
         }
     }
 
+    private var lockedCartSection: some View {
+        Section("Carrito registrado") {
+            ForEach(viewModel.cartItems) { item in
+                SaleCartRow(
+                    item: item,
+                    quantity: quantityBinding(for: item),
+                    isEditable: false,
+                    removeAction: {}
+                )
+            }
+        }
+    }
+
     @ViewBuilder
     private var previewSection: some View {
         if let preview = viewModel.preview {
-            Section("Preview validado por backend") {
+            Section("Cálculo validado") {
                 ForEach(preview.items, id: \.id) { item in
                     VStack(alignment: .leading, spacing: 4) {
                         Text(item.name)
                             .font(.subheadline.weight(.semibold))
 
-                        Text("Cantidad: \(item.quantity)")
+                        Text("Cantidad: \(item.quantity.cleanQuantityText)")
                             .font(.caption)
                             .foregroundStyle(.secondary)
 
@@ -159,9 +234,9 @@ public struct SaleCartView: View {
                     .padding(.vertical, 4)
                 }
 
-                LabeledContent("Subtotal", value: money(preview.totals.subtotalWithoutTaxes))
-                LabeledContent("Impuestos", value: money(preview.totals.taxTotal))
-                LabeledContent("Total", value: money(preview.totals.grandTotal))
+                NexoMoneyTotalView(title: "Subtotal", amount: preview.totals.subtotalWithoutTaxes)
+                NexoMoneyTotalView(title: "Impuestos", amount: preview.totals.taxTotal)
+                NexoMoneyTotalView(title: "Total", amount: preview.totals.grandTotal, isProminent: true)
             }
         }
     }
@@ -169,27 +244,8 @@ public struct SaleCartView: View {
     @ViewBuilder
     private var saleSection: some View {
         if let sale = viewModel.createdSale {
-            Section("Venta creada") {
-                LabeledContent("ID", value: sale.id)
-                LabeledContent("Estado", value: sale.status)
-                if let paymentStatus = sale.paymentStatus {
-                    LabeledContent("Pago", value: paymentStatus)
-                }
-                if let documentStatus = sale.documentStatus {
-                    LabeledContent("Documento", value: documentStatus)
-                }
-                LabeledContent("Total", value: money(sale.totals.grandTotal))
-
-                NavigationLink("Abrir detalle de venta") {
-                    SaleDetailView(
-                        viewModel: viewModel.makeSaleDetailViewModel(for: sale),
-                        customersRepository: customersRepository,
-                        cashRepository: cashRepository,
-                        paymentsRepository: paymentsRepository,
-                        receivablesRepository: receivablesRepository,
-                        documentsRepository: documentsRepository
-                    )
-                }
+            Section {
+                NexoSaleSuccessCard(sale: sale)
             }
         }
     }
@@ -198,51 +254,125 @@ public struct SaleCartView: View {
     private var messagesSection: some View {
         if let message = viewModel.errorMessage {
             Section {
-                Label(message, systemImage: "exclamationmark.triangle")
-                    .font(.footnote)
-                    .foregroundStyle(.red)
+                NexoMessageBanner(message, style: .error)
             }
         }
 
         if let message = viewModel.infoMessage {
             Section {
-                Label(message, systemImage: "info.circle")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
+                NexoMessageBanner(message, style: viewModel.createdSale == nil ? .info : .success)
             }
         }
     }
 
+    @ViewBuilder
     private var actionsSection: some View {
-        Section {
-            Button {
-                Task { await viewModel.loadPreview() }
-            } label: {
-                if viewModel.isPreviewing {
-                    ProgressView()
-                } else {
-                    Label("Previsualizar venta", systemImage: "doc.text.magnifyingglass")
+        if let sale = viewModel.createdSale {
+            Section("Siguiente acción") {
+                NavigationLink {
+                    PaymentRegisterView(
+                        viewModel: PaymentRegisterViewModel(
+                            organizationId: viewModel.organizationId,
+                            branchId: sale.branchId,
+                            sale: sale,
+                            effectivePermissions: viewModel.effectivePermissions,
+                            cashRepository: cashRepository,
+                            paymentsRepository: paymentsRepository,
+                            receivablesRepository: receivablesRepository
+                        ),
+                        customersRepository: customersRepository
+                    )
+                } label: {
+                    Label("Cobrar ahora", systemImage: "dollarsign.circle.fill")
+                }
+
+                Button {
+                    viewModel.startNewOrder()
+                } label: {
+                    Label("Nueva venta", systemImage: "plus.circle")
+                }
+
+                NavigationLink {
+                    SaleDetailView(
+                        viewModel: viewModel.makeSaleDetailViewModel(for: sale),
+                        customersRepository: customersRepository,
+                        cashRepository: cashRepository,
+                        paymentsRepository: paymentsRepository,
+                        receivablesRepository: receivablesRepository,
+                        documentsRepository: documentsRepository
+                    )
+                } label: {
+                    Label("Ver detalle", systemImage: "doc.text.magnifyingglass")
                 }
             }
-            .disabled(!viewModel.canPreview)
-
-            Button {
-                Task { await viewModel.createQuickSale() }
-            } label: {
-                if viewModel.isCreatingSale {
-                    ProgressView()
-                } else {
-                    Label("Crear venta rápida", systemImage: "checkmark.circle")
+        } else {
+            Section("Acciones") {
+                Button {
+                    Task { await viewModel.loadPreview() }
+                } label: {
+                    if viewModel.isPreviewing {
+                        ProgressView()
+                    } else {
+                        Label("Calcular total", systemImage: "doc.text.magnifyingglass")
+                    }
                 }
-            }
-            .disabled(!viewModel.canCreateSale)
+                .disabled(!viewModel.canPreview)
 
-            Button(role: .destructive) {
-                viewModel.clearCart()
-            } label: {
-                Label("Limpiar carrito", systemImage: "trash")
+                Button {
+                    Task { await viewModel.createQuickSale() }
+                } label: {
+                    if viewModel.isCreatingSale {
+                        ProgressView()
+                    } else {
+                        Label("Registrar venta", systemImage: "checkmark.seal.fill")
+                    }
+                }
+                .disabled(!viewModel.canCreateSale)
+
+                Button(role: .destructive) {
+                    viewModel.clearCart()
+                } label: {
+                    Label("Limpiar carrito", systemImage: "trash")
+                }
+                .disabled(!viewModel.canClearCart)
             }
-            .disabled(viewModel.cartItems.isEmpty)
+        }
+    }
+
+    private var orderStateDescription: String {
+        switch viewModel.orderState {
+        case .editing:
+            return "Agrega productos, revisa cantidades y registra una sola venta por carrito."
+        case .previewing:
+            return "Estamos calculando subtotal, impuestos y total con el backend."
+        case .creating:
+            return "Registrando venta. No cierres esta pantalla."
+        case .created:
+            return "Esta venta ya quedó registrada y el carrito está bloqueado."
+        }
+    }
+
+    private var orderStateIcon: String {
+        switch viewModel.orderState {
+        case .editing:
+            return "pencil"
+        case .previewing:
+            return "clock"
+        case .creating:
+            return "arrow.triangle.2.circlepath"
+        case .created:
+            return "checkmark"
+        }
+    }
+
+    private var orderStateStyle: NexoMessageStyle {
+        switch viewModel.orderState {
+        case .editing:
+            return .info
+        case .previewing, .creating:
+            return .warning
+        case .created:
+            return .success
         }
     }
 
@@ -261,7 +391,103 @@ public struct SaleCartView: View {
     }
 
     private func money(_ value: MoneyAmount) -> String {
-        "\(value.currency) \(value.amount)"
+        value.displayText
+    }
+}
+
+private struct SaleCartCashCard<DashboardDestination: View>: View {
+    @State private var viewModel: CashDashboardViewModel
+    private let onSessionChanged: (CashSession?) -> Void
+    private let dashboardDestination: () -> DashboardDestination
+
+    init(
+        organizationId: String,
+        branchId: String,
+        permissions: Set<String>,
+        cashRepository: CashRepository,
+        onSessionChanged: @escaping (CashSession?) -> Void,
+        @ViewBuilder dashboardDestination: @escaping () -> DashboardDestination
+    ) {
+        _viewModel = State(
+            initialValue: CashDashboardViewModel(
+                organizationId: organizationId,
+                branchId: branchId,
+                permissions: permissions,
+                cashRepository: cashRepository
+            )
+        )
+        self.onSessionChanged = onSessionChanged
+        self.dashboardDestination = dashboardDestination
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            if viewModel.isLoading {
+                ProgressView("Consultando caja…")
+            } else if let session = viewModel.currentSession, session.isOpen {
+                HStack(alignment: .top) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Label("Caja abierta", systemImage: "checkmark.circle.fill")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(.green)
+
+                        if let expected = session.expectedAmount {
+                            Text("Esperado: \(expected.displayText)")
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+
+                    Spacer()
+
+                    NavigationLink("Ver caja") {
+                        dashboardDestination()
+                    }
+                    .font(.footnote.weight(.semibold))
+                }
+            } else {
+                VStack(alignment: .leading, spacing: 8) {
+                    Label("Caja cerrada", systemImage: "lock")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.orange)
+
+                    Text("Puedes registrar ventas pendientes, pero para cobrar en efectivo necesitas abrir caja.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+
+                    HStack {
+                        Button {
+                            Task {
+                                viewModel.openingAmount = "0.00"
+                                await viewModel.openCash()
+                                onSessionChanged(viewModel.currentSession)
+                            }
+                        } label: {
+                            if viewModel.isMutating {
+                                ProgressView()
+                            } else {
+                                Label("Abrir caja", systemImage: "lock.open")
+                            }
+                        }
+                        .disabled(!viewModel.canOpen || viewModel.isMutating)
+
+                        NavigationLink("Ver caja") {
+                            dashboardDestination()
+                        }
+                    }
+                }
+            }
+
+            if let message = viewModel.errorMessage {
+                NexoMessageBanner(message, style: .error)
+            }
+        }
+        .task {
+            if viewModel.state == .idle {
+                await viewModel.load()
+                onSessionChanged(viewModel.currentSession)
+            }
+        }
     }
 }
 
@@ -297,7 +523,7 @@ private struct CatalogResultRow: View {
 
             VStack(alignment: .trailing, spacing: 4) {
                 if let price = item.price {
-                    Text("\(price.currency) \(price.amount)")
+                    Text(price.displayText)
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.primary)
                 }
@@ -326,6 +552,7 @@ private struct CatalogResultRow: View {
 private struct SaleCartRow: View {
     let item: SaleCartItem
     @Binding var quantity: String
+    let isEditable: Bool
     let removeAction: () -> Void
 
     var body: some View {
@@ -335,7 +562,7 @@ private struct SaleCartRow: View {
                     .font(.subheadline.weight(.semibold))
 
                 if let price = item.catalogItem.price {
-                    Text("\(price.currency) \(price.amount)")
+                    Text(price.displayText)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -348,11 +575,14 @@ private struct SaleCartRow: View {
                 .multilineTextAlignment(.trailing)
                 .frame(width: 72)
                 .textFieldStyle(.roundedBorder)
+                .disabled(!isEditable)
 
-            Button(role: .destructive, action: removeAction) {
-                Image(systemName: "minus.circle")
+            if isEditable {
+                Button(role: .destructive, action: removeAction) {
+                    Image(systemName: "minus.circle")
+                }
+                .buttonStyle(.borderless)
             }
-            .buttonStyle(.borderless)
         }
         .padding(.vertical, 4)
     }

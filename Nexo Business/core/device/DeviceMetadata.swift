@@ -7,16 +7,16 @@
 
 import Foundation
 
-public struct DeviceMetadata: Equatable, Sendable {
-    public let requestId: String
-    public let correlationId: String
-    public let deviceId: String
-    public let appName: String
-    public let appVersion: String
-    public let appBuild: String
-    public let platform: String
+struct DeviceMetadata: Equatable, Sendable {
+    let requestId: String
+    let correlationId: String
+    let deviceId: String
+    let appName: String
+    let appVersion: String
+    let appBuild: String
+    let platform: String
 
-    public init(
+    init(
         requestId: String = UUID().uuidString,
         correlationId: String = UUID().uuidString,
         deviceId: String,
@@ -35,18 +35,18 @@ public struct DeviceMetadata: Equatable, Sendable {
     }
 }
 
-public protocol DeviceMetadataProviding: Sendable {
+protocol DeviceMetadataProviding: Sendable {
     func deviceMetadata() -> DeviceMetadata
 }
 
-public struct StaticDeviceMetadataProvider: DeviceMetadataProviding {
+struct StaticDeviceMetadataProvider: DeviceMetadataProviding {
     private let base: DeviceMetadata
 
-    public init(base: DeviceMetadata) {
+    init(base: DeviceMetadata) {
         self.base = base
     }
 
-    public func deviceMetadata() -> DeviceMetadata {
+    func deviceMetadata() -> DeviceMetadata {
         DeviceMetadata(
             requestId: UUID().uuidString,
             correlationId: base.correlationId,
@@ -58,7 +58,7 @@ public struct StaticDeviceMetadataProvider: DeviceMetadataProviding {
         )
     }
 
-    public static func stagingDefault(
+    static func stagingDefault(
         deviceId: String = "ios-business-15a"
     ) -> StaticDeviceMetadataProvider {
         StaticDeviceMetadataProvider(

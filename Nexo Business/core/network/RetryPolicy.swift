@@ -7,12 +7,12 @@
 
 import Foundation
 
-public struct RetryPolicy: Equatable, Sendable {
-    public let maxAttempts: Int
-    public let baseDelayNanoseconds: UInt64
-    public let retryableStatusCodes: Set<Int>
+struct RetryPolicy: Equatable, Sendable {
+    let maxAttempts: Int
+    let baseDelayNanoseconds: UInt64
+    let retryableStatusCodes: Set<Int>
 
-    public init(
+    init(
         maxAttempts: Int,
         baseDelayNanoseconds: UInt64,
         retryableStatusCodes: Set<Int>
@@ -22,13 +22,13 @@ public struct RetryPolicy: Equatable, Sendable {
         self.retryableStatusCodes = retryableStatusCodes
     }
 
-    public static let businessDefault = RetryPolicy(
+    static let businessDefault = RetryPolicy(
         maxAttempts: 2,
         baseDelayNanoseconds: 350_000_000,
         retryableStatusCodes: [408, 429, 500, 502, 503, 504]
     )
 
-    public func shouldRetry(error: Error, attempt: Int) -> Bool {
+    func shouldRetry(error: Error, attempt: Int) -> Bool {
         guard attempt < maxAttempts else { return false }
 
         if let apiError = error as? APIError {
@@ -45,7 +45,7 @@ public struct RetryPolicy: Equatable, Sendable {
         return false
     }
 
-    public func delayNanoseconds(for attempt: Int) -> UInt64 {
+    func delayNanoseconds(for attempt: Int) -> UInt64 {
         guard attempt > 1 else { return baseDelayNanoseconds }
         return baseDelayNanoseconds * UInt64(attempt)
     }

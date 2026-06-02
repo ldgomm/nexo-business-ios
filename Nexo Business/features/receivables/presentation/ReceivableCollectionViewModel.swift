@@ -1,28 +1,21 @@
-//
-//  ReceivableCollectionViewModel.swift
-//  Nexo Business
-//
-//  Created by José Ruiz on 29/5/26.
-//
-
 import Foundation
 import Observation
 
 @MainActor
 @Observable
-public final class ReceivableCollectionViewModel {
-    public let receivable: ReceivableRecord
-    public private(set) var currentCashSession: CashSession?
-    public private(set) var isLoadingCash = false
-    public private(set) var isSubmitting = false
-    public private(set) var paymentResult: PaymentRecord?
-    public private(set) var updatedReceivable: ReceivableRecord?
-    public var selectedMethod: BusinessPaymentMethod = .cash
-    public var amount: String
-    public var reference = ""
-    public var note = ""
-    public var errorMessage: String?
-    public var infoMessage: String?
+final class ReceivableCollectionViewModel {
+    let receivable: ReceivableRecord
+    private(set) var currentCashSession: CashSession?
+    private(set) var isLoadingCash = false
+    private(set) var isSubmitting = false
+    private(set) var paymentResult: PaymentRecord?
+    private(set) var updatedReceivable: ReceivableRecord?
+    var selectedMethod: BusinessPaymentMethod = .cash
+    var amount: String
+    var reference = ""
+    var note = ""
+    var errorMessage: String?
+    var infoMessage: String?
 
     private let organizationId: String
     private let branchId: String
@@ -30,7 +23,7 @@ public final class ReceivableCollectionViewModel {
     private let cashRepository: CashRepository
     private let receivablesRepository: ReceivablesRepository
 
-    public init(
+    init(
         organizationId: String,
         branchId: String,
         receivable: ReceivableRecord,
@@ -47,7 +40,7 @@ public final class ReceivableCollectionViewModel {
         self.amount = receivable.balance?.amount ?? receivable.amount.amount
     }
 
-    public var canCollect: Bool {
+    var canCollect: Bool {
         guard !isSubmitting else { return false }
         guard hasPermission([
             "business.receivables.collect",
@@ -58,13 +51,13 @@ public final class ReceivableCollectionViewModel {
         guard isValidAmount(amount) else { return false }
 
         if selectedMethod == .cash {
-            return currentCashSession?.status == "open"
+            return currentCashSession?.isOpen == true
         }
 
         return true
     }
 
-    public func load() async {
+    func load() async {
         guard !branchId.isEmpty else {
             errorMessage = "Falta sucursal activa. Actualiza el contexto."
             return
@@ -92,7 +85,7 @@ public final class ReceivableCollectionViewModel {
         }
     }
 
-    public func collect() async {
+    func collect() async {
         guard canCollect else {
             errorMessage = validationMessage()
             return
@@ -141,7 +134,7 @@ public final class ReceivableCollectionViewModel {
             return "Ingresa un monto válido mayor a cero."
         }
 
-        if selectedMethod == .cash && currentCashSession?.status != "open" {
+        if selectedMethod == .cash && currentCashSession?.isOpen != true {
             return "Necesitas una caja abierta para registrar abonos en efectivo."
         }
 

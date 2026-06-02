@@ -7,26 +7,26 @@
 
 import Foundation
 
-public actor InMemoryAuthTokenStore: AuthTokenStoring {
+actor InMemoryAuthTokenStore: AuthTokenStoring {
     private var stored: AuthTokens?
 
-    public init(tokens: AuthTokens? = nil) {
+    init(tokens: AuthTokens? = nil) {
         self.stored = tokens
     }
 
-    public func tokens() async -> AuthTokens? {
+    func tokens() async -> AuthTokens? {
         stored
     }
 
-    public func accessToken() async -> String? {
+    func accessToken() async -> String? {
         stored?.accessToken
     }
 
-    public func save(tokens: AuthTokens) async throws {
+    func save(tokens: AuthTokens) async throws {
         stored = tokens
     }
 
-    public func clear() async throws {
+    func clear() async throws {
         stored = nil
     }
 }

@@ -7,34 +7,34 @@
 
 import Foundation
 
-public struct BusinessUser: Decodable, Equatable, Sendable {
-    public let id: String
-    public let displayName: String
-    public let email: String
+struct BusinessUser: Decodable, Equatable, Sendable {
+    let id: String
+    let displayName: String
+    let email: String
 }
 
-public struct BusinessOrganization: Decodable, Equatable, Sendable {
-    public let id: String
-    public let commercialName: String
-    public let legalName: String
-    public let taxId: String
-    public let countryCode: String
+struct BusinessOrganization: Decodable, Equatable, Sendable {
+    let id: String
+    let commercialName: String
+    let legalName: String
+    let taxId: String
+    let countryCode: String
 }
 
-public struct BusinessBranch: Decodable, Equatable, Identifiable, Sendable {
-    public let id: String
-    public let name: String
-    public let code: String?
-    public let status: String
+struct BusinessBranch: Decodable, Equatable, Identifiable, Sendable {
+    let id: String
+    let name: String
+    let code: String?
+    let status: String
 }
 
-public struct BusinessActivity: Decodable, Equatable, Identifiable, Sendable {
-    public let id: String
-    public let code: String
-    public let name: String
-    public let activityType: String
-    public let workflowMode: String
-    public let status: String
+struct BusinessActivity: Decodable, Equatable, Identifiable, Sendable {
+    let id: String
+    let code: String
+    let name: String
+    let activityType: String
+    let workflowMode: String
+    let status: String
 
     private enum CodingKeys: String, CodingKey {
         case id
@@ -45,7 +45,7 @@ public struct BusinessActivity: Decodable, Equatable, Identifiable, Sendable {
         case status
     }
 
-    public init(
+    init(
         id: String,
         code: String,
         name: String,
@@ -61,7 +61,7 @@ public struct BusinessActivity: Decodable, Equatable, Identifiable, Sendable {
         self.status = status
     }
 
-    public init(from decoder: Decoder) throws {
+    init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
 
         let id = try container.decode(String.self, forKey: .id)
@@ -93,13 +93,13 @@ public struct BusinessActivity: Decodable, Equatable, Identifiable, Sendable {
     }
 }
 
-public struct BusinessReadiness: Decodable, Equatable, Sendable {
-    public let status: String
-    public let score: Int?
-    public let blockers: [String]
-    public let warnings: [String]
+struct BusinessReadiness: Decodable, Equatable, Sendable {
+    let status: String
+    let score: Int?
+    let blockers: [String]
+    let warnings: [String]
 
-    public init(
+    init(
         status: String,
         score: Int?,
         blockers: [String],
@@ -112,28 +112,28 @@ public struct BusinessReadiness: Decodable, Equatable, Sendable {
     }
 }
 
-public struct BusinessModuleReadiness: Decodable, Equatable, Sendable {
-    public let code: String
-    public let ready: Bool
-    public let active: Bool
-    public let missingDependencies: [String]
-    public let warnings: [String]
-    public let blockers: [String]
+struct BusinessModuleReadiness: Decodable, Equatable, Sendable {
+    let code: String
+    let ready: Bool
+    let active: Bool
+    let missingDependencies: [String]
+    let warnings: [String]
+    let blockers: [String]
 }
 
-public struct BusinessContextResponse: Decodable, Equatable, Sendable {
-    public let user: BusinessUser
-    public let organization: BusinessOrganization
-    public let branches: [BusinessBranch]
-    public let activities: [BusinessActivity]
-    public let activeModules: Set<ModuleCode>
-    public let effectivePermissions: Set<String>
-    public let revisions: BusinessRevisions
-    public let readiness: BusinessReadiness
+struct BusinessContextResponse: Decodable, Equatable, Sendable {
+    let user: BusinessUser
+    let organization: BusinessOrganization
+    let branches: [BusinessBranch]
+    let activities: [BusinessActivity]
+    let activeModules: Set<ModuleCode>
+    let effectivePermissions: Set<String>
+    let revisions: BusinessRevisions
+    let readiness: BusinessReadiness
 
-    public let activeBranchId: String?
-    public let activeActivityId: String?
-    public let moduleReadiness: [BusinessModuleReadiness]
+    let activeBranchId: String?
+    let activeActivityId: String?
+    let moduleReadiness: [BusinessModuleReadiness]
 
     private enum CodingKeys: String, CodingKey {
         case user
@@ -151,7 +151,7 @@ public struct BusinessContextResponse: Decodable, Equatable, Sendable {
         case moduleReadiness
     }
 
-    public init(
+    init(
         user: BusinessUser,
         organization: BusinessOrganization,
         branches: [BusinessBranch],
@@ -177,7 +177,7 @@ public struct BusinessContextResponse: Decodable, Equatable, Sendable {
         self.moduleReadiness = moduleReadiness
     }
 
-    public init(from decoder: Decoder) throws {
+    init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
 
         self.user = try container.decode(BusinessUser.self, forKey: .user)

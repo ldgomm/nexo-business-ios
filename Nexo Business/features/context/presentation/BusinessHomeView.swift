@@ -1,13 +1,6 @@
-//
-//  BusinessHomeView.swift
-//  Nexo Business
-//
-//  Created by José Ruiz on 29/5/26.
-//
-
 import SwiftUI
 
-public struct BusinessHomeView: View {
+struct BusinessHomeView: View {
     private let context: BusinessContextResponse
     private let operationalSelection: BusinessOperationalSelection
     private let container: BusinessAppContainer
@@ -16,7 +9,7 @@ public struct BusinessHomeView: View {
     private let onChangeOperation: () -> Void
     private let onLogout: () -> Void
 
-    public init(
+    init(
         context: BusinessContextResponse,
         operationalSelection: BusinessOperationalSelection,
         container: BusinessAppContainer,
@@ -34,188 +27,347 @@ public struct BusinessHomeView: View {
         self.onLogout = onLogout
     }
 
-    public var body: some View {
-        NavigationStack {
-            loadedContent(context)
-                .navigationTitle("Nexo Business")
-                .toolbar {
-                    ToolbarItem(placement: .topBarTrailing) {
-                        Menu {
-                            Button {
-                                onRefresh()
-                            } label: {
-                                Label("Actualizar contexto", systemImage: "arrow.clockwise")
-                            }
+    var body: some View {
+        TabView {
+            sellTab
+                .tabItem {
+                    Label("Vender", systemImage: "cart.badge.plus")
+                }
 
-                            Button {
-                                onChangeOperation()
-                            } label: {
-                                Label("Cambiar sucursal/actividad", systemImage: "slider.horizontal.3")
-                            }
+            pendingTab
+                .tabItem {
+                    Label("Pendientes", systemImage: "tray.full")
+                }
 
-                            Button {
-                                onChangeOrganization()
-                            } label: {
-                                Label("Cambiar negocio", systemImage: "building.2")
-                            }
+            cashTab
+                .tabItem {
+                    Label("Caja", systemImage: "banknote")
+                }
 
-                            Button(role: .destructive) {
-                                onLogout()
-                            } label: {
-                                Label("Cerrar sesión", systemImage: "rectangle.portrait.and.arrow.right")
-                            }
-                        } label: {
-                            Image(systemName: "ellipsis.circle")
-                        }
-                    }
+            historyTab
+                .tabItem {
+                    Label("Historial", systemImage: "clock.arrow.circlepath")
+                }
+
+            moreTab
+                .tabItem {
+                    Label("Más", systemImage: "ellipsis.circle")
                 }
         }
     }
 
-    private func loadedContent(_ context: BusinessContextResponse) -> some View {
-        let moduleGate = ModuleGate(activeModules: context.activeModules)
-        let permissionGate = PermissionGate(effectivePermissions: context.effectivePermissions)
-        let organizationId = context.organization.id
-        let branchId = operationalSelection.branchId
-        let activityId = operationalSelection.activityId
-        let revisions = context.revisions
-        let permissions = context.effectivePermissions
+    private var sellTab: some View {
+        NavigationStack {
+            if moduleGate.allows(.coreSales), hasSalesAccess(permissionGate) {
+                SaleCartView(
+                    viewModel: SaleCartViewModel(
+                        organizationId: organizationId,
+                        branchId: branchId,
+                        activityId: activityId,
+                        revisions: revisions,
+                        effectivePermissions: permissions,
+                        catalogRepository: container.catalogRepository,
+                        salesRepository: container.salesRepository
+                    ),
+                    customersRepository: container.customersRepository,
+                    cashRepository: container.cashRepository,
+                    paymentsRepository: container.paymentsRepository,
+                    receivablesRepository: container.receivablesRepository,
+                    documentsRepository: container.documentsRepository
+                )
+                .toolbar {
+                    commonToolbar
+                }
+            } else {
+                LockedOperationalView(
+                    title: "Ventas no habilitadas",
+                    message: "Tu usuario no tiene permiso para crear ventas en este contexto.",
+                    systemImage: "lock"
+                )
+                .navigationTitle("Vender")
+                .toolbar {
+                    commonToolbar
+                }
+            }
+        }
+    }
 
-        return List {
-            Section("Negocio") {
+    private var pendingTab: some View {
+        NavigationStack {
+            if hasPendingAccess(permissionGate) {
+                DailyClosureView(
+                    viewModel: DailyClosureViewModel(
+                        organizationId: organizationId,
+                        branchId: branchId,
+                        revisions: revisions,
+                        effectivePermissions: permissions,
+                        pendingRepository: container.pendingOperationsRepository,
+                        dailyReportRepository: container.dailyReportRepository,
+                        cashRepository: container.cashRepository
+                    ),
+                    salesRepository: container.salesRepository,
+                    cashRepository: container.cashRepository,
+                    paymentsRepository: container.paymentsRepository,
+                    receivablesRepository: container.receivablesRepository,
+                    documentsRepository: container.documentsRepository
+                )
+                .toolbar {
+                    commonToolbar
+                }
+            } else {
+                LockedOperationalView(
+                    title: "Pendientes no habilitados",
+                    message: "Tu usuario no tiene permiso para consultar pendientes o cierre diario.",
+                    systemImage: "tray.full"
+                )
+                .navigationTitle("Pendientes")
+                .toolbar {
+                    commonToolbar
+                }
+            }
+        }
+    }
+
+    private var cashTab: some View {
+        NavigationStack {
+            if moduleGate.allows(.coreCash), hasCashAccess(permissionGate) {
+                CashDashboardView(
+                    viewModel: CashDashboardViewModel(
+                        organizationId: organizationId,
+                        branchId: branchId,
+                        permissions: permissions,
+                        cashRepository: container.cashRepository
+                    )
+                )
+                .toolbar {
+                    commonToolbar
+                }
+            } else {
+                LockedOperationalView(
+                    title: "Caja no habilitada",
+                    message: "Tu usuario no tiene permiso para abrir, consultar o cerrar caja.",
+                    systemImage: "banknote"
+                )
+                .navigationTitle("Caja")
+                .toolbar {
+                    commonToolbar
+                }
+            }
+        }
+    }
+
+    private var historyTab: some View {
+        NavigationStack {
+            if hasHistoryAccess(permissionGate) {
+                SalesHistoryView(
+                    viewModel: SalesHistoryViewModel(
+                        organizationId: organizationId,
+                        branchId: branchId,
+                        revisions: revisions,
+                        effectivePermissions: permissions,
+                        historyRepository: container.salesHistoryRepository
+                    ),
+                    salesRepository: container.salesRepository,
+                    cashRepository: container.cashRepository,
+                    paymentsRepository: container.paymentsRepository,
+                    receivablesRepository: container.receivablesRepository,
+                    documentsRepository: container.documentsRepository
+                )
+                .toolbar {
+                    commonToolbar
+                }
+            } else {
+                LockedOperationalView(
+                    title: "Historial no habilitado",
+                    message: "Tu usuario no tiene permiso para consultar ventas anteriores.",
+                    systemImage: "clock.arrow.circlepath"
+                )
+                .navigationTitle("Historial")
+                .toolbar {
+                    commonToolbar
+                }
+            }
+        }
+    }
+
+    private var moreTab: some View {
+        NavigationStack {
+            List {
+                operationSummarySection
+                businessSection
+                toolsSection
+                contextSection
+                modulesSection
+                accountSection
+            }
+            .navigationTitle("Más")
+            .toolbar {
+                commonToolbar
+            }
+        }
+    }
+
+    private var operationSummarySection: some View {
+        Section {
+            VStack(alignment: .leading, spacing: 8) {
                 Text(context.organization.commercialName)
                     .font(.headline)
-                Text("RUC: \(context.organization.taxId)")
+
+                Text("\(selectedBranchName) · \(selectedActivityName)")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+
+                HStack(spacing: 8) {
+                    NexoStatusBadge(context.readiness.status, systemImage: "checkmark.seal", style: context.readiness.status.lowercased() == "ready" ? .success : .warning)
+                }
+            }
+            .padding(.vertical, 4)
+        }
+    }
+
+    private var businessSection: some View {
+        Section("Negocio") {
+            LabeledContent("Nombre", value: context.organization.commercialName)
+            LabeledContent("RUC", value: context.organization.taxId)
+            LabeledContent("País", value: context.organization.countryCode)
+        }
+    }
+
+    @ViewBuilder
+    private var toolsSection: some View {
+        Section("Herramientas") {
+            if hasCustomerAccess(permissionGate) {
+                NavigationLink {
+                    CustomerDirectoryView(
+                        viewModel: CustomerDirectoryViewModel(
+                            organizationId: organizationId,
+                            effectivePermissions: permissions,
+                            customersRepository: container.customersRepository
+                        )
+                    )
+                } label: {
+                    Label("Clientes", systemImage: "person.2")
+                }
             }
 
-            Section("Contexto operativo") {
-                LabeledContent("Sucursal", value: selectedBranchName)
-                LabeledContent("Actividad", value: selectedActivityName)
+            if hasInventoryAccess(permissionGate) {
+                BusinessHomeInventorySection(
+                    organizationId: organizationId,
+                    branchId: branchId,
+                    activityId: activityId,
+                    catalogRevision: revisions.catalogRevision,
+                    effectivePermissions: permissions,
+                    inventoryRepository: container.inventoryRepository
+                )
+            }
+        }
+    }
+
+    private var contextSection: some View {
+        Section("Contexto operativo") {
+            LabeledContent("Sucursal", value: selectedBranchName)
+            LabeledContent("Actividad", value: selectedActivityName)
+            LabeledContent("Catálogo", value: revisions.catalogRevision)
+            LabeledContent("Impuestos", value: revisions.taxConfigurationRevision)
+
+            Button {
+                onChangeOperation()
+            } label: {
+                Label("Cambiar sucursal o actividad", systemImage: "slider.horizontal.3")
+            }
+        }
+    }
+
+    private var modulesSection: some View {
+        Section("Módulos activos") {
+            ForEach(context.activeModules.map(\.rawValue).sorted(), id: \.self) { module in
+                Text(module)
+                    .font(.footnote.monospaced())
+            }
+        }
+    }
+
+    private var accountSection: some View {
+        Section("Cuenta") {
+            Button {
+                onRefresh()
+            } label: {
+                Label("Actualizar contexto", systemImage: "arrow.clockwise")
+            }
+
+            Button {
+                onChangeOrganization()
+            } label: {
+                Label("Cambiar negocio", systemImage: "building.2")
+            }
+
+            Button(role: .destructive) {
+                onLogout()
+            } label: {
+                Label("Cerrar sesión", systemImage: "rectangle.portrait.and.arrow.right")
+            }
+        }
+    }
+
+    @ToolbarContentBuilder
+    private var commonToolbar: some ToolbarContent {
+        ToolbarItem(placement: .topBarTrailing) {
+            Menu {
+                Button {
+                    onRefresh()
+                } label: {
+                    Label("Actualizar contexto", systemImage: "arrow.clockwise")
+                }
 
                 Button {
                     onChangeOperation()
                 } label: {
-                    Label("Cambiar sucursal o actividad", systemImage: "slider.horizontal.3")
-                }
-            }
-
-            Section("Estado") {
-                LabeledContent("Readiness", value: context.readiness.status)
-                LabeledContent("Catalog revision", value: revisions.catalogRevision)
-                LabeledContent("Tax revision", value: revisions.taxConfigurationRevision)
-            }
-
-            Section("Operación") {
-                if moduleGate.allows(.coreSales), hasSalesAccess(permissionGate) {
-                    NavigationLink("Venta rápida") {
-                        SaleCartView(
-                            viewModel: SaleCartViewModel(
-                                organizationId: organizationId,
-                                branchId: branchId,
-                                activityId: activityId,
-                                revisions: revisions,
-                                effectivePermissions: permissions,
-                                catalogRepository: container.catalogRepository,
-                                salesRepository: container.salesRepository
-                            ),
-                            cashRepository: container.cashRepository,
-                            paymentsRepository: container.paymentsRepository,
-                            receivablesRepository: container.receivablesRepository,
-                            documentsRepository: container.documentsRepository
-                        )
-                    }
-                } else {
-                    Label("Ventas no habilitadas para este usuario", systemImage: "lock")
-                        .foregroundStyle(.secondary)
+                    Label("Cambiar sucursal/actividad", systemImage: "slider.horizontal.3")
                 }
 
-                if moduleGate.allows(.coreCash), hasCashAccess(permissionGate) {
-                    NavigationLink("Caja operativa") {
-                        CashDashboardView(
-                            viewModel: CashDashboardViewModel(
-                                organizationId: organizationId,
-                                branchId: branchId,
-                                permissions: permissions,
-                                cashRepository: container.cashRepository
-                            )
-                        )
-                    }
-                } else {
-                    Label("Caja no habilitada para este usuario", systemImage: "lock")
-                        .foregroundStyle(.secondary)
+                Button {
+                    onChangeOrganization()
+                } label: {
+                    Label("Cambiar negocio", systemImage: "building.2")
                 }
 
-                if hasCustomerAccess(permissionGate) {
-                    NavigationLink("Clientes") {
-                        CustomerDirectoryView(
-                            viewModel: CustomerDirectoryViewModel(
-                                organizationId: organizationId,
-                                effectivePermissions: permissions,
-                                customersRepository: container.customersRepository
-                            )
-                        )
-                    }
+                Button(role: .destructive) {
+                    onLogout()
+                } label: {
+                    Label("Cerrar sesión", systemImage: "rectangle.portrait.and.arrow.right")
                 }
-
-                if hasPendingAccess(permissionGate) {
-                    NavigationLink("Pendientes y cierre diario") {
-                        DailyClosureView(
-                            viewModel: DailyClosureViewModel(
-                                organizationId: organizationId,
-                                branchId: branchId,
-                                revisions: revisions,
-                                effectivePermissions: permissions,
-                                pendingRepository: container.pendingOperationsRepository,
-                                dailyReportRepository: container.dailyReportRepository,
-                                cashRepository: container.cashRepository
-                            ),
-                            salesRepository: container.salesRepository,
-                            cashRepository: container.cashRepository,
-                            paymentsRepository: container.paymentsRepository,
-                            receivablesRepository: container.receivablesRepository,
-                            documentsRepository: container.documentsRepository
-                        )
-                    }
-                }
-
-                if hasHistoryAccess(permissionGate) {
-                    NavigationLink("Historial y búsqueda") {
-                        SalesHistoryView(
-                            viewModel: SalesHistoryViewModel(
-                                organizationId: organizationId,
-                                branchId: branchId,
-                                revisions: revisions,
-                                effectivePermissions: permissions,
-                                historyRepository: container.salesHistoryRepository
-                            ),
-                            salesRepository: container.salesRepository,
-                            cashRepository: container.cashRepository,
-                            paymentsRepository: container.paymentsRepository,
-                            receivablesRepository: container.receivablesRepository,
-                            documentsRepository: container.documentsRepository
-                        )
-                    }
-                }
-
-                if hasInventoryAccess(permissionGate) {
-                    BusinessHomeInventorySection(
-                        organizationId: organizationId,
-                        branchId: branchId,
-                        activityId: activityId,
-                        catalogRevision: revisions.catalogRevision,
-                        effectivePermissions: permissions,
-                        inventoryRepository: container.inventoryRepository
-                    )
-                }
-            }
-
-            Section("Módulos activos") {
-                ForEach(context.activeModules.map(\.rawValue).sorted(), id: \.self) { module in
-                    Text(module)
-                        .font(.footnote.monospaced())
-                }
+            } label: {
+                Image(systemName: "ellipsis.circle")
             }
         }
+    }
+
+    private var moduleGate: ModuleGate {
+        ModuleGate(activeModules: context.activeModules)
+    }
+
+    private var permissionGate: PermissionGate {
+        PermissionGate(effectivePermissions: context.effectivePermissions)
+    }
+
+    private var organizationId: String {
+        context.organization.id
+    }
+
+    private var branchId: String {
+        operationalSelection.branchId
+    }
+
+    private var activityId: String {
+        operationalSelection.activityId
+    }
+
+    private var revisions: BusinessRevisions {
+        context.revisions
+    }
+
+    private var permissions: Set<String> {
+        context.effectivePermissions
     }
 
     private var selectedBranchName: String {
@@ -272,5 +424,19 @@ public struct BusinessHomeView: View {
         permissionGate.allows("inventory.view") ||
         permissionGate.allows("business.inventory.adjust") ||
         permissionGate.allows("inventory.adjust")
+    }
+}
+
+private struct LockedOperationalView: View {
+    let title: String
+    let message: String
+    let systemImage: String
+
+    var body: some View {
+        ContentUnavailableView {
+            Label(title, systemImage: systemImage)
+        } description: {
+            Text(message)
+        }
     }
 }

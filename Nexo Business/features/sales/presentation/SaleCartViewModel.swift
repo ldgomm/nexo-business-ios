@@ -1,20 +1,13 @@
-//
-//  SaleCartViewModel.swift
-//  Nexo Business
-//
-//  Created by José Ruiz on 29/5/26.
-//
-
 import Foundation
 import Observation
 
-public struct SaleCartItem: Equatable, Identifiable, Sendable {
-    public let id: String
-    public let catalogItem: BusinessCatalogItem
-    public var quantity: String
-    public var note: String?
+struct SaleCartItem: Equatable, Identifiable, Sendable {
+    let id: String
+    let catalogItem: BusinessCatalogItem
+    var quantity: String
+    var note: String?
 
-    public init(
+    init(
         id: String = UUID().uuidString,
         catalogItem: BusinessCatalogItem,
         quantity: String = "1",
@@ -27,32 +20,53 @@ public struct SaleCartItem: Equatable, Identifiable, Sendable {
     }
 }
 
+enum SaleCartOrderState: Equatable, Sendable {
+    case editing
+    case previewing
+    case creating
+    case created
+
+    var displayName: String {
+        switch self {
+        case .editing:
+            return "En edición"
+        case .previewing:
+            return "Calculando"
+        case .creating:
+            return "Registrando"
+        case .created:
+            return "Registrada"
+        }
+    }
+}
+
 @MainActor
 @Observable
-public final class SaleCartViewModel {
-    public var searchQuery = ""
-    public var cashSessionId: String?
-    public private(set) var searchResults: [BusinessCatalogItem] = []
-    public private(set) var cartItems: [SaleCartItem] = []
-    public private(set) var preview: SalesPreviewResponse?
-    public private(set) var createdSale: BusinessSale?
-    public private(set) var isSearching = false
-    public private(set) var isPreviewing = false
-    public private(set) var isCreatingSale = false
-    public private(set) var selectedCustomer: BusinessCustomer?
-    public var errorMessage: String?
-    public var infoMessage: String?
+final class SaleCartViewModel {
+    var searchQuery = ""
+    var cashSessionId: String?
+    private(set) var searchResults: [BusinessCatalogItem] = []
+    private(set) var cartItems: [SaleCartItem] = []
+    private(set) var preview: SalesPreviewResponse?
+    private(set) var createdSale: BusinessSale?
+    private(set) var orderState: SaleCartOrderState = .editing
+    private(set) var isSearching = false
+    private(set) var isPreviewing = false
+    private(set) var isCreatingSale = false
+    private(set) var selectedCustomer: BusinessCustomer?
+    var errorMessage: String?
+    var infoMessage: String?
 
-    public let organizationId: String
-    public let branchId: String
-    public let activityId: String
-    public private(set) var revisions: BusinessRevisions
-    public let effectivePermissions: Set<String>
+    let organizationId: String
+    let branchId: String
+    let activityId: String
+    private(set) var revisions: BusinessRevisions
+    let effectivePermissions: Set<String>
 
     private let catalogRepository: CatalogRepository
     private let salesRepository: SalesRepository
 
-    public init(
+    init(
         organizationId: String,
         branchId: String,
         activityId: String,
@@ -72,34 +86,65 @@ public final class SaleCartViewModel {
         self.salesRepository = salesRepository
     }
 
-    public var canPreview: Bool {
-        !cartItems.isEmpty && !isPreviewing && !isCreatingSale
+    var canSearchCatalog: Bool {
+        !isSearching && !isOrderLocked
     }
 
-    public var canCreateSale: Bool {
-        !cartItems.isEmpty && !isPreviewing && !isCreatingSale
+    var canEditCart: Bool {
+        !isOrderLocked && !isPreviewing && !isCreatingSale
     }
 
-    public var customerIdForRequest: String? {
+    var canPreview: Bool {
+        canEditCart && !cartItems.isEmpty
+    }
+
+    var canCreateSale: Bool {
+        canEditCart && !cartItems.isEmpty
+    }
+
+    var canClearCart: Bool {
+        canEditCart && !cartItems.isEmpty
+    }
+
+    var canStartNewOrder: Bool {
+        createdSale != nil || !cartItems.isEmpty || preview != nil || selectedCustomer != nil
+    }
+
+    var isOrderLocked: Bool {
+        createdSale != nil || orderState == .created || orderState == .creating
+    }
+
+    var customerIdForRequest: String? {
         guard let selectedCustomer else { return nil }
         return selectedCustomer.identificationType == .finalConsumer ? nil : selectedCustomer.id
     }
 
-    public func selectCustomer(_ customer: BusinessCustomer) {
+    var totalForDisplay: MoneyAmount? {
+        createdSale?.totals.grandTotal ?? preview?.totals.grandTotal
+    }
+
+    func selectCustomer(_ customer: BusinessCustomer) {
+        guard ensureOrderIsEditable() else { return }
         selectedCustomer = customer
         preview = nil
-        createdSale = nil
         errorMessage = nil
         infoMessage = nil
     }
 
-    public func clearCustomer() {
+    func clearCustomer() {
+        guard ensureOrderIsEditable() else { return }
         selectedCustomer = nil
         preview = nil
-        createdSale = nil
+        errorMessage = nil
+        infoMessage = nil
     }
 
-    public func searchCatalog() async {
+    func searchCatalog() async {
+        guard !isOrderLocked else {
+            errorMessage = "Esta venta ya fue registrada. Inicia una nueva venta para continuar."
+            return
+        }
+
         let query = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
 
         guard !query.isEmpty else {
@@ -109,6 +154,7 @@ public final class SaleCartViewModel {
         }
 
         guard validateOperationalContext() else { return }
+        guard !isSearching else { return }
 
         isSearching = true
         errorMessage = nil
@@ -137,10 +183,11 @@ public final class SaleCartViewModel {
         }
     }
 
-    public func addToCart(_ item: BusinessCatalogItem) {
+    func addToCart(_ item: BusinessCatalogItem) {
+        guard ensureOrderIsEditable() else { return }
+
         errorMessage = nil
         infoMessage = nil
-        createdSale = nil
         preview = nil
 
         if let index = cartItems.firstIndex(where: { $0.catalogItem.id == item.id }) {
@@ -156,42 +203,65 @@ public final class SaleCartViewModel {
         )
     }
 
-    public func updateQuantity(cartItemId: String, quantity: String) {
+    func updateQuantity(cartItemId: String, quantity: String) {
+        guard ensureOrderIsEditable() else { return }
         guard let index = cartItems.firstIndex(where: { $0.id == cartItemId }) else { return }
 
         let normalized = normalizeQuantity(quantity)
         cartItems[index].quantity = normalized
         preview = nil
-        createdSale = nil
     }
 
-    public func quantity(for cartItemId: String) -> String {
+    func quantity(for cartItemId: String) -> String {
         cartItems.first(where: { $0.id == cartItemId })?.quantity ?? ""
     }
 
-    public func removeFromCart(cartItemId: String) {
+    func removeFromCart(cartItemId: String) {
+        guard ensureOrderIsEditable() else { return }
         cartItems.removeAll { $0.id == cartItemId }
         preview = nil
-        createdSale = nil
     }
 
-    public func clearCart() {
+    func clearCart() {
+        guard ensureOrderIsEditable() else { return }
+        cartItems = []
+        preview = nil
+        errorMessage = nil
+        infoMessage = nil
+        orderState = .editing
+    }
+
+    func startNewOrder() {
+        searchQuery = ""
+        searchResults = []
         cartItems = []
         preview = nil
         createdSale = nil
+        selectedCustomer = nil
         errorMessage = nil
         infoMessage = nil
+        orderState = .editing
     }
 
-    public func loadPreview() async {
+    func loadPreview() async {
+        guard !isOrderLocked else {
+            errorMessage = "Esta venta ya fue registrada. Inicia una nueva venta para continuar."
+            return
+        }
+
         guard validateCart() else { return }
+        guard !isPreviewing, !isCreatingSale else { return }
 
         isPreviewing = true
+        orderState = .previewing
         errorMessage = nil
         infoMessage = nil
 
         defer {
             isPreviewing = false
+            if createdSale == nil {
+                orderState = .editing
+            }
         }
 
         do {
@@ -216,10 +286,19 @@ public final class SaleCartViewModel {
         }
     }
 
-    public func createQuickSale() async {
+    func createQuickSale() async {
+        guard !isCreatingSale else { return }
+
+        guard createdSale == nil else {
+            orderState = .created
+            errorMessage = "Esta venta ya fue registrada. Inicia una nueva venta para continuar."
+            return
+        }
+
         guard validateCart() else { return }
 
         isCreatingSale = true
+        orderState = .creating
         errorMessage = nil
         infoMessage = nil
 
@@ -247,17 +326,21 @@ public final class SaleCartViewModel {
             )
 
             createdSale = response.sale
+            preview = nil
+            orderState = .created
             infoMessage = response.idempotencyReplayed == true
-                ? "Venta recuperada de un intento anterior."
-                : "Venta creada. Revísala y confírmala para continuar."
+                ? "Venta recuperada sin duplicar la operación."
+                : "Venta registrada. Ahora puedes cobrarla o iniciar una nueva venta."
         } catch let error as APIError {
+            orderState = .editing
             handle(apiError: error)
         } catch {
+            orderState = .editing
             errorMessage = error.localizedDescription
         }
     }
 
-    public func makeSaleDetailViewModel(for sale: BusinessSale) -> SaleDetailViewModel {
+    func makeSaleDetailViewModel(for sale: BusinessSale) -> SaleDetailViewModel {
         SaleDetailViewModel(
             organizationId: organizationId,
             saleId: sale.id,
@@ -266,6 +349,14 @@ public final class SaleCartViewModel {
             effectivePermissions: effectivePermissions,
             salesRepository: salesRepository
         )
+    }
+
+    private func ensureOrderIsEditable() -> Bool {
+        guard !isOrderLocked else {
+            errorMessage = "Esta venta ya fue registrada. Toca Nueva venta para continuar."
+            return false
+        }
+        return true
     }
 
     private func draftItems() -> [BusinessSaleItemRequest] {
@@ -278,7 +369,7 @@ public final class SaleCartViewModel {
                     allowsDecimal: resolvedAllowsDecimal(for: item.catalogItem)
                 ),
                 priceTaxMode: BusinessSalePriceTaxMode.taxExclusive.rawValue,
-                notes: item.note?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfBlank
+                notes: item.note?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfBlankForUI
             )
         }
     }
@@ -355,11 +446,5 @@ public final class SaleCartViewModel {
 
     private func resolvedAllowsDecimal(for item: BusinessCatalogItem) -> Bool {
         item.allowsDecimalQuantity ?? item.unit?.allowsDecimal ?? false
-    }
-}
-
-private extension String {
-    var nilIfBlank: String? {
-        isEmpty ? nil : self
     }
 }

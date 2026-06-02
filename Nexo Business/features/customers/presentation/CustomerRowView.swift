@@ -7,11 +7,11 @@
 
 import SwiftUI
 
-public struct CustomerRowView: View {
+struct CustomerRowView: View {
     private let customer: BusinessCustomer
     private let showsAccessory: Bool
 
-    public init(
+    init(
         customer: BusinessCustomer,
         showsAccessory: Bool = false
     ) {
@@ -19,7 +19,7 @@ public struct CustomerRowView: View {
         self.showsAccessory = showsAccessory
     }
 
-    public var body: some View {
+    var body: some View {
         HStack(alignment: .top, spacing: 12) {
             Image(systemName: customer.identificationType == .finalConsumer ? "person.crop.circle" : "person.text.rectangle")
                 .foregroundStyle(.secondary)

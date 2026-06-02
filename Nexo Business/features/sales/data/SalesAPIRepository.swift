@@ -7,28 +7,28 @@
 
 import Foundation
 
-public enum BusinessSalesRoutes {
-    public static let preview = "/api/v1/business/sales/preview"
-    public static let quickSale = "/api/v1/business/sales/quick"
+enum BusinessSalesRoutes {
+    static let preview = "/api/v1/business/sales/preview"
+    static let quickSale = "/api/v1/business/sales/quick"
 
-    public static func detail(saleId: String) -> String {
+    static func detail(saleId: String) -> String {
         "/api/v1/business/sales/\(saleId)"
     }
 
-    public static func confirm(saleId: String) -> String {
+    static func confirm(saleId: String) -> String {
         "/api/v1/business/sales/\(saleId)/confirm"
     }
 
-    public static func cancel(saleId: String) -> String {
+    static func cancel(saleId: String) -> String {
         "/api/v1/business/sales/\(saleId)/cancel"
     }
 }
 
-public final class SalesAPIRepository: SalesRepository, @unchecked Sendable {
+final class SalesAPIRepository: SalesRepository, @unchecked Sendable {
     private let apiClient: APIClient
     private let revisionRegistry: BusinessRevisionRegistry
 
-    public init(
+    init(
         apiClient: APIClient,
         revisionRegistry: BusinessRevisionRegistry = .shared
     ) {
@@ -36,7 +36,7 @@ public final class SalesAPIRepository: SalesRepository, @unchecked Sendable {
         self.revisionRegistry = revisionRegistry
     }
 
-    public func preview(
+    func preview(
         organizationId: String,
         revisions: BusinessRevisions,
         request body: SalesPreviewRequest
@@ -73,7 +73,7 @@ public final class SalesAPIRepository: SalesRepository, @unchecked Sendable {
         )
     }
 
-    public func quickSale(
+    func quickSale(
         organizationId: String,
         revisions: BusinessRevisions,
         idempotencyKey: IdempotencyKey,
@@ -116,7 +116,7 @@ public final class SalesAPIRepository: SalesRepository, @unchecked Sendable {
         )
     }
 
-    public func getSale(
+    func getSale(
         organizationId: String,
         saleId: String
     ) async throws -> BusinessSaleDetailResponse {
@@ -131,7 +131,7 @@ public final class SalesAPIRepository: SalesRepository, @unchecked Sendable {
         )
     }
 
-    public func confirm(
+    func confirm(
         organizationId: String,
         saleId: String,
         revisions: BusinessRevisions,
@@ -154,7 +154,7 @@ public final class SalesAPIRepository: SalesRepository, @unchecked Sendable {
         )
     }
 
-    public func cancel(
+    func cancel(
         organizationId: String,
         saleId: String,
         revisions: BusinessRevisions,

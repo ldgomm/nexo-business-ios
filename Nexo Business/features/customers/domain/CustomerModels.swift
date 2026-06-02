@@ -7,7 +7,7 @@
 
 import Foundation
 
-public enum BusinessCustomerIdentificationType: String, Codable, CaseIterable, Identifiable, Sendable {
+enum BusinessCustomerIdentificationType: String, Codable, CaseIterable, Identifiable, Sendable {
     case finalConsumer = "final_consumer"
     case cedula = "cedula"
     case ruc = "ruc"
@@ -15,9 +15,9 @@ public enum BusinessCustomerIdentificationType: String, Codable, CaseIterable, I
     case foreign = "foreign"
     case unknown = "unknown"
 
-    public var id: String { rawValue }
+    var id: String { rawValue }
 
-    public var displayName: String {
+    var displayName: String {
         switch self {
         case .finalConsumer:
             return "Consumidor final"
@@ -35,19 +35,19 @@ public enum BusinessCustomerIdentificationType: String, Codable, CaseIterable, I
     }
 }
 
-public struct BusinessCustomer: Decodable, Equatable, Identifiable, Sendable {
-    public let id: String
-    public let displayName: String
-    public let identificationType: BusinessCustomerIdentificationType
-    public let identificationNumber: String
-    public let email: String?
-    public let phone: String?
-    public let address: String?
-    public let status: String?
-    public let createdAt: Date?
-    public let updatedAt: Date?
+struct BusinessCustomer: Decodable, Equatable, Identifiable, Sendable {
+    let id: String
+    let displayName: String
+    let identificationType: BusinessCustomerIdentificationType
+    let identificationNumber: String
+    let email: String?
+    let phone: String?
+    let address: String?
+    let status: String?
+    let createdAt: Date?
+    let updatedAt: Date?
 
-    public init(
+    init(
         id: String,
         displayName: String,
         identificationType: BusinessCustomerIdentificationType,
@@ -86,7 +86,7 @@ public struct BusinessCustomer: Decodable, Equatable, Identifiable, Sendable {
         case updatedAt
     }
 
-    public init(from decoder: Decoder) throws {
+    init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decode(String.self, forKey: .id)
         displayName = try container.decodeIfPresent(String.self, forKey: .displayName)
@@ -106,16 +106,16 @@ public struct BusinessCustomer: Decodable, Equatable, Identifiable, Sendable {
     }
 }
 
-public struct CreateCustomerRequest: Encodable, Equatable, Sendable {
-    public let displayName: String
-    public let identificationType: BusinessCustomerIdentificationType
-    public let identificationNumber: String
-    public let email: String?
-    public let phone: String?
-    public let address: String?
-    public let notes: String?
+struct CreateCustomerRequest: Encodable, Equatable, Sendable {
+    let displayName: String
+    let identificationType: BusinessCustomerIdentificationType
+    let identificationNumber: String
+    let email: String?
+    let phone: String?
+    let address: String?
+    let notes: String?
 
-    public init(
+    init(
         displayName: String,
         identificationType: BusinessCustomerIdentificationType,
         identificationNumber: String,
@@ -143,7 +143,7 @@ public struct CreateCustomerRequest: Encodable, Equatable, Sendable {
         case notes
     }
 
-    public func encode(to encoder: Encoder) throws {
+    func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(displayName, forKey: .displayName)
         try container.encode(identificationType, forKey: .identificationType)
@@ -155,19 +155,19 @@ public struct CreateCustomerRequest: Encodable, Equatable, Sendable {
     }
 }
 
-public struct CustomersSearchResponse: Decodable, Equatable, Sendable {
-    public let customers: [BusinessCustomer]
+struct CustomersSearchResponse: Decodable, Equatable, Sendable {
+    let customers: [BusinessCustomer]
 
-    public init(customers: [BusinessCustomer]) {
+    init(customers: [BusinessCustomer]) {
         self.customers = customers
     }
 }
 
-public struct CustomerResponse: Decodable, Equatable, Sendable {
-    public let customer: BusinessCustomer
-    public let idempotencyReplayed: Bool?
+struct CustomerResponse: Decodable, Equatable, Sendable {
+    let customer: BusinessCustomer
+    let idempotencyReplayed: Bool?
 
-    public init(customer: BusinessCustomer, idempotencyReplayed: Bool? = nil) {
+    init(customer: BusinessCustomer, idempotencyReplayed: Bool? = nil) {
         self.customer = customer
         self.idempotencyReplayed = idempotencyReplayed
     }
@@ -177,7 +177,7 @@ public struct CustomerResponse: Decodable, Equatable, Sendable {
         case idempotencyReplayed
     }
 
-    public init(from decoder: Decoder) throws {
+    init(from decoder: Decoder) throws {
         if let container = try? decoder.container(keyedBy: CodingKeys.self),
            let customer = try? container.decode(BusinessCustomer.self, forKey: .customer) {
             self.customer = customer

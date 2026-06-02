@@ -1,23 +1,18 @@
-//
-//  SaleBuilderViewModel.swift
-//  Nexo Business
-//
-//  Created by José Ruiz on 29/5/26.
-//
-
 import Foundation
 import Observation
 
 @MainActor
 @Observable
-public final class SaleBuilderViewModel {
-    public var catalogItemId = ""
-    public var quantity = "1"
-    public var cashSessionId: String?
-    public private(set) var preview: SalesPreviewResponse?
-    public private(set) var createdSale: BusinessSale?
-    public var isLoading = false
-    public var errorMessage: String?
+final class SaleBuilderViewModel {
+    var catalogItemId = ""
+    var quantity = "1"
+    var cashSessionId: String?
+    private(set) var preview: SalesPreviewResponse?
+    private(set) var createdSale: BusinessSale?
+    private(set) var orderState: SaleCartOrderState = .editing
+    var isLoading = false
+    var errorMessage: String?
+    var infoMessage: String?
 
     private let organizationId: String
     private let branchId: String
@@ -25,7 +20,7 @@ public final class SaleBuilderViewModel {
     private let revisions: BusinessRevisions
     private let repository: SalesRepository
 
-    public init(
+    init(
         organizationId: String,
         branchId: String,
         activityId: String,
@@ -41,14 +36,37 @@ public final class SaleBuilderViewModel {
         self.repository = salesRepository
     }
 
-    public func loadPreview() async {
+    var isOrderLocked: Bool {
+        createdSale != nil || orderState == .created
+    }
+
+    var canPreview: Bool {
+        !catalogItemId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !isLoading && !isOrderLocked
+    }
+
+    var canCreateSale: Bool {
+        !catalogItemId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !isLoading && !isOrderLocked
+    }
+
+    func loadPreview() async {
+        guard !isOrderLocked else {
+            errorMessage = "Esta venta ya fue registrada. Inicia una nueva venta para continuar."
+            return
+        }
+
         guard validateDraft() else { return }
+        guard !isLoading else { return }
 
         isLoading = true
+        orderState = .previewing
         errorMessage = nil
+        infoMessage = nil
 
         defer {
             isLoading = false
+            if createdSale == nil {
+                orderState = .editing
+            }
         }
 
         do {
@@ -64,19 +82,27 @@ public final class SaleBuilderViewModel {
                 )
             )
         } catch let error as APIError {
-            print("❌ Preview APIError:", error)
             errorMessage = error.userMessage
         } catch {
-            print("❌ Preview Error:", error)
             errorMessage = error.localizedDescription
         }
     }
 
-    public func createQuickSale() async {
+    func createQuickSale() async {
+        guard !isLoading else { return }
+
+        guard createdSale == nil else {
+            orderState = .created
+            errorMessage = "Esta venta ya fue registrada. Inicia una nueva venta para continuar."
+            return
+        }
+
         guard validateDraft() else { return }
 
         isLoading = true
+        orderState = .creating
         errorMessage = nil
+        infoMessage = nil
 
         defer {
             isLoading = false
@@ -101,13 +127,28 @@ public final class SaleBuilderViewModel {
             )
 
             createdSale = response.sale
+            preview = nil
+            orderState = .created
+            infoMessage = response.idempotencyReplayed == true
+                ? "Venta recuperada sin duplicar la operación."
+                : "Venta registrada. Ahora puedes cobrarla o iniciar una nueva venta."
         } catch let error as APIError {
-            print("❌ QuickSale APIError:", error)
+            orderState = .editing
             errorMessage = error.userMessage
         } catch {
-            print("❌ QuickSale Error:", error)
+            orderState = .editing
             errorMessage = error.localizedDescription
         }
+    }
+
+    func startNewOrder() {
+        catalogItemId = ""
+        quantity = "1"
+        preview = nil
+        createdSale = nil
+        errorMessage = nil
+        infoMessage = nil
+        orderState = .editing
     }
 
     private func draftItems() -> [BusinessSaleItemRequest] {

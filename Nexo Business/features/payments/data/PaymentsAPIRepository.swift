@@ -7,18 +7,18 @@
 
 import Foundation
 
-public enum BusinessPaymentsRoutes {
-    public static let register = "/api/v1/business/payments"
+enum BusinessPaymentsRoutes {
+    static let register = "/api/v1/business/payments"
 }
 
-public final class PaymentsAPIRepository: PaymentsRepository, @unchecked Sendable {
+final class PaymentsAPIRepository: PaymentsRepository, @unchecked Sendable {
     private let apiClient: APIClient
 
-    public init(apiClient: APIClient) {
+    init(apiClient: APIClient) {
         self.apiClient = apiClient
     }
 
-    public func register(
+    func register(
         organizationId: String,
         idempotencyKey: IdempotencyKey,
         request body: RegisterPaymentRequest

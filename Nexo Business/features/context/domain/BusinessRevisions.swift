@@ -7,11 +7,11 @@
 
 import Foundation
 
-public struct BusinessRevisions: Codable, Equatable, Sendable {
-    public let catalogRevision: String
-    public let taxConfigurationRevision: String
+struct BusinessRevisions: Codable, Equatable, Sendable {
+    let catalogRevision: String
+    let taxConfigurationRevision: String
 
-    public init(
+    init(
         catalogRevision: String,
         taxConfigurationRevision: String
     ) {
@@ -19,7 +19,7 @@ public struct BusinessRevisions: Codable, Equatable, Sendable {
         self.taxConfigurationRevision = taxConfigurationRevision
     }
 
-    public var headers: [String: String] {
+    var headers: [String: String] {
         [
             BusinessHeaders.catalogRevision: catalogRevision,
             BusinessHeaders.taxConfigurationRevision: taxConfigurationRevision

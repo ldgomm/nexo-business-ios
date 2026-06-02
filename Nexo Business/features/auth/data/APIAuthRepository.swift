@@ -7,11 +7,11 @@
 
 import Foundation
 
-public final class APIAuthRepository: AuthRepository, @unchecked Sendable {
+final class APIAuthRepository: AuthRepository, @unchecked Sendable {
     private let apiClient: APIClient
     private let tokenStore: AuthTokenStoring
 
-    public init(
+    init(
         apiClient: APIClient,
         tokenStore: AuthTokenStoring
     ) {
@@ -19,7 +19,7 @@ public final class APIAuthRepository: AuthRepository, @unchecked Sendable {
         self.tokenStore = tokenStore
     }
 
-    public func login(
+    func login(
         email: String,
         password: String
     ) async throws -> LoginResponse {
@@ -43,7 +43,7 @@ public final class APIAuthRepository: AuthRepository, @unchecked Sendable {
         return response
     }
 
-    public func logout() async throws {
+    func logout() async throws {
         try await tokenStore.clear()
     }
 }

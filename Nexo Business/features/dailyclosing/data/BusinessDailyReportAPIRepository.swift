@@ -7,18 +7,18 @@
 
 import Foundation
 
-public enum BusinessDailyReportRoutes {
-    public static let daily = "/api/v1/business/reports/daily"
+enum BusinessDailyReportRoutes {
+    static let daily = "/api/v1/business/reports/daily"
 }
 
-public final class BusinessDailyReportAPIRepository: BusinessDailyReportRepository, @unchecked Sendable {
+final class BusinessDailyReportAPIRepository: BusinessDailyReportRepository, @unchecked Sendable {
     private let apiClient: APIClient
 
-    public init(apiClient: APIClient) {
+    init(apiClient: APIClient) {
         self.apiClient = apiClient
     }
 
-    public func dailyReport(
+    func dailyReport(
         organizationId: String,
         branchId: String,
         businessDate: String

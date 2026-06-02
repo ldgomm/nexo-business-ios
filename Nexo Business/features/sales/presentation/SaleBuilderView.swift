@@ -1,65 +1,98 @@
-//
-//  SaleBuilderView.swift
-//  Nexo Admin
-//
-//  Created by José Ruiz on 29/5/26.
-//
-
 import SwiftUI
 
-public struct SaleBuilderView: View {
+struct SaleBuilderView: View {
     @Bindable private var viewModel: SaleBuilderViewModel
 
-    public init(viewModel: SaleBuilderViewModel) {
+    init(viewModel: SaleBuilderViewModel) {
         self.viewModel = viewModel
     }
 
-    public var body: some View {
+    var body: some View {
         Form {
-            Section("Producto") {
-                TextField("Catalog item id", text: $viewModel.catalogItemId)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
+            Section {
+                HStack {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(viewModel.createdSale == nil ? "Venta en curso" : "Venta cerrada")
+                            .font(.headline)
+                        Text(viewModel.isOrderLocked ? "Esta venta ya fue registrada." : "Registra una sola venta por orden.")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    NexoStatusBadge(viewModel.orderState.displayName)
+                }
+            }
 
-                TextField("Cantidad", text: $viewModel.quantity)
-                    .keyboardType(.decimalPad)
+            if !viewModel.isOrderLocked {
+                Section("Producto") {
+                    TextField("Catalog item id", text: $viewModel.catalogItemId)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+
+                    TextField("Cantidad", text: $viewModel.quantity)
+                        .keyboardType(.decimalPad)
+                }
             }
 
             if let preview = viewModel.preview {
-                Section("Preview") {
-                    LabeledContent("Subtotal", value: preview.totals.subtotalWithoutTaxes.amount)
-                    LabeledContent("Impuestos", value: preview.totals.taxTotal.amount)
-                    LabeledContent("Total", value: preview.totals.grandTotal.amount)
+                Section("Cálculo validado") {
+                    NexoMoneyTotalView(title: "Subtotal", amount: preview.totals.subtotalWithoutTaxes)
+                    NexoMoneyTotalView(title: "Impuestos", amount: preview.totals.taxTotal)
+                    NexoMoneyTotalView(title: "Total", amount: preview.totals.grandTotal, isProminent: true)
                 }
             }
 
             if let sale = viewModel.createdSale {
-                Section("Venta") {
-                    LabeledContent("ID", value: sale.id)
-                    LabeledContent("Estado", value: sale.status)
-                    LabeledContent("Total", value: sale.totals.grandTotal.amount)
+                Section {
+                    NexoSaleSuccessCard(sale: sale)
                 }
             }
 
             if let message = viewModel.errorMessage {
-                Text(message)
-                    .font(.footnote)
-                    .foregroundStyle(.red)
+                Section {
+                    NexoMessageBanner(message, style: .error)
+                }
             }
 
-            Section {
-                Button("Previsualizar") {
-                    Task { await viewModel.loadPreview() }
+            if let message = viewModel.infoMessage {
+                Section {
+                    NexoMessageBanner(message, style: .success)
                 }
-                .disabled(viewModel.catalogItemId.isEmpty || viewModel.isLoading)
+            }
 
-                Button("Crear venta rápida") {
-                    Task { await viewModel.createQuickSale() }
+            Section("Acciones") {
+                if viewModel.createdSale == nil {
+                    Button {
+                        Task { await viewModel.loadPreview() }
+                    } label: {
+                        if viewModel.isLoading && viewModel.orderState == .previewing {
+                            ProgressView()
+                        } else {
+                            Label("Calcular total", systemImage: "doc.text.magnifyingglass")
+                        }
+                    }
+                    .disabled(!viewModel.canPreview)
+
+                    Button {
+                        Task { await viewModel.createQuickSale() }
+                    } label: {
+                        if viewModel.isLoading && viewModel.orderState == .creating {
+                            ProgressView()
+                        } else {
+                            Label("Registrar venta", systemImage: "checkmark.seal.fill")
+                        }
+                    }
+                    .disabled(!viewModel.canCreateSale)
                 }
-                .disabled(viewModel.catalogItemId.isEmpty || viewModel.isLoading)
+
+                Button {
+                    viewModel.startNewOrder()
+                } label: {
+                    Label("Nueva venta", systemImage: "plus.circle")
+                }
             }
         }
-        .navigationTitle("Venta rápida")
+        .navigationTitle(viewModel.createdSale == nil ? "Nueva venta" : "Venta registrada")
     }
 }
 

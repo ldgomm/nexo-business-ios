@@ -7,13 +7,13 @@
 
 import SwiftUI
 
-public struct PilotHomeSection: View {
+struct PilotHomeSection: View {
     private let context: BusinessContextResponse
     private let selectedBranchId: String
     private let selectedActivityId: String
     private let store: PilotChecklistStoring
 
-    public init(
+    init(
         context: BusinessContextResponse,
         selectedBranchId: String,
         selectedActivityId: String,
@@ -25,7 +25,7 @@ public struct PilotHomeSection: View {
         self.store = store
     }
 
-    public var body: some View {
+    var body: some View {
         NavigationLink {
             PilotReadinessView(
                 viewModel: PilotReadinessViewModel(

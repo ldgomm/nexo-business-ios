@@ -1,37 +1,30 @@
-//
-//  DailyClosureViewModel.swift
-//  Nexo Business
-//
-//  Created by José Ruiz on 29/5/26.
-//
-
 import Foundation
 import Observation
 
 @MainActor
 @Observable
-public final class DailyClosureViewModel {
-    public private(set) var reportState: AsyncViewState<BusinessDailyReport?> = .idle
-    public private(set) var cashState: AsyncViewState<CashSession?> = .idle
-    public private(set) var pendingSales: [BusinessSale] = []
-    public private(set) var pendingReceivables: [ReceivableRecord] = []
-    public private(set) var pendingDocuments: [BusinessDocument] = []
+final class DailyClosureViewModel {
+    private(set) var reportState: AsyncViewState<BusinessDailyReport?> = .idle
+    private(set) var cashState: AsyncViewState<CashSession?> = .idle
+    private(set) var pendingSales: [BusinessSale] = []
+    private(set) var pendingReceivables: [ReceivableRecord] = []
+    private(set) var pendingDocuments: [BusinessDocument] = []
 
-    public private(set) var isLoading = false
-    public var businessDate: Date
-    public var errorMessage: String?
-    public var infoMessage: String?
+    private(set) var isLoading = false
+    var businessDate: Date
+    var errorMessage: String?
+    var infoMessage: String?
 
-    public let organizationId: String
-    public let branchId: String
-    public let revisions: BusinessRevisions
-    public let effectivePermissions: Set<String>
+    let organizationId: String
+    let branchId: String
+    let revisions: BusinessRevisions
+    let effectivePermissions: Set<String>
 
     private let pendingRepository: PendingOperationsRepository
     private let dailyReportRepository: BusinessDailyReportRepository
     private let cashRepository: CashRepository
 
-    public init(
+    init(
         organizationId: String,
         branchId: String,
         revisions: BusinessRevisions,
@@ -51,29 +44,29 @@ public final class DailyClosureViewModel {
         self.businessDate = businessDate
     }
 
-    public var selectedBusinessDateString: String {
+    var selectedBusinessDateString: String {
         BusinessDayFormatter.string(from: businessDate)
     }
 
-    public var currentCashSession: CashSession? {
+    var currentCashSession: CashSession? {
         if case let .loaded(session) = cashState {
             return session
         }
         return nil
     }
 
-    public var report: BusinessDailyReport? {
+    var report: BusinessDailyReport? {
         if case let .loaded(report) = reportState {
             return report
         }
         return nil
     }
 
-    public var hasPendingWork: Bool {
+    var hasPendingWork: Bool {
         !pendingSales.isEmpty || !pendingReceivables.isEmpty || !pendingDocuments.isEmpty
     }
 
-    public var canViewDailyClosure: Bool {
+    var canViewDailyClosure: Bool {
         hasPermission([
             "business.reports.today",
             "reports.today",
@@ -88,15 +81,15 @@ public final class DailyClosureViewModel {
         ])
     }
 
-    public var canCloseCash: Bool {
-        currentCashSession?.status == "open" &&
+    var canCloseCash: Bool {
+        currentCashSession?.isOpen == true &&
         hasPermission([
             "business.cash.close",
             "cash.close"
         ])
     }
 
-    public func load() async {
+    func load() async {
         guard !branchId.isEmpty else {
             reportState = .failed("Falta una sucursal operativa.")
             cashState = .failed("Falta una sucursal operativa.")
@@ -204,11 +197,11 @@ public final class DailyClosureViewModel {
         }
     }
 
-    public func refresh() async {
+    func refresh() async {
         await load()
     }
 
-    public func updateBusinessDate(_ date: Date) {
+    func updateBusinessDate(_ date: Date) {
         businessDate = date
         reportState = .idle
         pendingSales = []
@@ -218,7 +211,7 @@ public final class DailyClosureViewModel {
         errorMessage = nil
     }
 
-    public func makeSaleDetailViewModel(
+    func makeSaleDetailViewModel(
         saleId: String,
         initialSale: BusinessSale? = nil,
         salesRepository: SalesRepository
@@ -233,7 +226,7 @@ public final class DailyClosureViewModel {
         )
     }
 
-    public func makeReceivableCollectionViewModel(
+    func makeReceivableCollectionViewModel(
         receivable: ReceivableRecord,
         cashRepository: CashRepository,
         receivablesRepository: ReceivablesRepository
@@ -253,8 +246,8 @@ public final class DailyClosureViewModel {
     }
 }
 
-public enum BusinessDayFormatter {
-    public static func string(from date: Date) -> String {
+enum BusinessDayFormatter {
+    static func string(from date: Date) -> String {
         let formatter = DateFormatter()
         formatter.calendar = Calendar(identifier: .gregorian)
         formatter.locale = Locale(identifier: "en_US_POSIX")

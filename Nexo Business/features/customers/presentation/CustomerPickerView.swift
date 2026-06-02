@@ -7,12 +7,12 @@
 
 import SwiftUI
 
-public struct CustomerPickerView: View {
+struct CustomerPickerView: View {
     @Environment(\.dismiss) private var dismiss
     @Bindable private var viewModel: CustomerPickerViewModel
     private let onSelect: (BusinessCustomer) -> Void
 
-    public init(
+    init(
         viewModel: CustomerPickerViewModel,
         onSelect: @escaping (BusinessCustomer) -> Void
     ) {
@@ -20,7 +20,7 @@ public struct CustomerPickerView: View {
         self.onSelect = onSelect
     }
 
-    public var body: some View {
+    var body: some View {
         List {
             Section("Buscar") {
                 TextField("Nombre, cédula, RUC o correo", text: $viewModel.query)

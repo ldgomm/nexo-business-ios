@@ -7,10 +7,10 @@
 
 import Foundation
 
-public final class PreviewSalesHistoryRepository: SalesHistoryRepository, @unchecked Sendable {
-    public init() {}
+final class PreviewSalesHistoryRepository: SalesHistoryRepository, @unchecked Sendable {
+    init() {}
 
-    public func searchSales(
+    func searchSales(
         organizationId: String,
         request: SalesHistorySearchRequest
     ) async throws -> BusinessSalesHistoryResponse {

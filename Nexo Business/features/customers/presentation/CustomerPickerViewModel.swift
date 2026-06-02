@@ -10,18 +10,18 @@ import Observation
 
 @MainActor
 @Observable
-public final class CustomerPickerViewModel {
-    public private(set) var customers: [BusinessCustomer] = []
-    public private(set) var isSearching = false
-    public var query = ""
-    public var errorMessage: String?
-    public var infoMessage: String?
+final class CustomerPickerViewModel {
+    private(set) var customers: [BusinessCustomer] = []
+    private(set) var isSearching = false
+    var query = ""
+    var errorMessage: String?
+    var infoMessage: String?
 
-    public let organizationId: String
-    public let effectivePermissions: Set<String>
-    public let customersRepository: CustomersRepository
+    let organizationId: String
+    let effectivePermissions: Set<String>
+    let customersRepository: CustomersRepository
 
-    public init(
+    init(
         organizationId: String,
         effectivePermissions: Set<String>,
         customersRepository: CustomersRepository
@@ -31,7 +31,7 @@ public final class CustomerPickerViewModel {
         self.customersRepository = customersRepository
     }
 
-    public var canSearch: Bool {
+    var canSearch: Bool {
         hasPermission([
             "business.customers.view",
             "customers.view",
@@ -42,20 +42,20 @@ public final class CustomerPickerViewModel {
         ])
     }
 
-    public var canCreate: Bool {
+    var canCreate: Bool {
         hasPermission([
             "business.customers.create",
             "customers.create"
         ])
     }
 
-    public func loadInitial() async {
+    func loadInitial() async {
         if customers.isEmpty {
             await search()
         }
     }
 
-    public func search() async {
+    func search() async {
         guard canSearch else {
             errorMessage = "No tienes permiso para consultar clientes."
             return
@@ -89,7 +89,7 @@ public final class CustomerPickerViewModel {
         }
     }
 
-    public func addOrReplace(_ customer: BusinessCustomer) {
+    func addOrReplace(_ customer: BusinessCustomer) {
         if let index = customers.firstIndex(where: { $0.id == customer.id }) {
             customers[index] = customer
         } else {

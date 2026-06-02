@@ -7,12 +7,12 @@
 
 import Foundation
 
-public enum OperationalHardeningCheckStatus: String, Codable, Equatable, Sendable {
+enum OperationalHardeningCheckStatus: String, Codable, Equatable, Sendable {
     case passed
     case warning
     case failed
 
-    public var displayName: String {
+    var displayName: String {
         switch self {
         case .passed:
             return "OK"
@@ -23,7 +23,7 @@ public enum OperationalHardeningCheckStatus: String, Codable, Equatable, Sendabl
         }
     }
 
-    public var sortOrder: Int {
+    var sortOrder: Int {
         switch self {
         case .failed:
             return 0
@@ -35,14 +35,14 @@ public enum OperationalHardeningCheckStatus: String, Codable, Equatable, Sendabl
     }
 }
 
-public struct OperationalHardeningCheck: Identifiable, Equatable, Sendable {
-    public let id: String
-    public let title: String
-    public let detail: String
-    public let status: OperationalHardeningCheckStatus
-    public let isBlocking: Bool
+struct OperationalHardeningCheck: Identifiable, Equatable, Sendable {
+    let id: String
+    let title: String
+    let detail: String
+    let status: OperationalHardeningCheckStatus
+    let isBlocking: Bool
 
-    public init(
+    init(
         id: String,
         title: String,
         detail: String,
@@ -57,11 +57,11 @@ public struct OperationalHardeningCheck: Identifiable, Equatable, Sendable {
     }
 }
 
-public struct OperationalHardeningReport: Equatable, Sendable {
-    public let checkedAt: Date
-    public let checks: [OperationalHardeningCheck]
+struct OperationalHardeningReport: Equatable, Sendable {
+    let checkedAt: Date
+    let checks: [OperationalHardeningCheck]
 
-    public init(
+    init(
         checkedAt: Date = Date(),
         checks: [OperationalHardeningCheck]
     ) {
@@ -74,19 +74,19 @@ public struct OperationalHardeningReport: Equatable, Sendable {
         }
     }
 
-    public var blockers: [OperationalHardeningCheck] {
+    var blockers: [OperationalHardeningCheck] {
         checks.filter { $0.isBlocking && $0.status == .failed }
     }
 
-    public var warnings: [OperationalHardeningCheck] {
+    var warnings: [OperationalHardeningCheck] {
         checks.filter { $0.status == .warning }
     }
 
-    public var passed: [OperationalHardeningCheck] {
+    var passed: [OperationalHardeningCheck] {
         checks.filter { $0.status == .passed }
     }
 
-    public var isReadyForPilot: Bool {
+    var isReadyForPilot: Bool {
         blockers.isEmpty
     }
 }

@@ -10,18 +10,18 @@ import Observation
 
 @MainActor
 @Observable
-public final class CustomerDirectoryViewModel {
-    public private(set) var customers: [BusinessCustomer] = []
-    public private(set) var isLoading = false
-    public var query = ""
-    public var errorMessage: String?
-    public var infoMessage: String?
+final class CustomerDirectoryViewModel {
+    private(set) var customers: [BusinessCustomer] = []
+    private(set) var isLoading = false
+    var query = ""
+    var errorMessage: String?
+    var infoMessage: String?
 
-    public let organizationId: String
-    public let effectivePermissions: Set<String>
-    public let customersRepository: CustomersRepository
+    let organizationId: String
+    let effectivePermissions: Set<String>
+    let customersRepository: CustomersRepository
 
-    public init(
+    init(
         organizationId: String,
         effectivePermissions: Set<String>,
         customersRepository: CustomersRepository
@@ -31,7 +31,7 @@ public final class CustomerDirectoryViewModel {
         self.customersRepository = customersRepository
     }
 
-    public var canView: Bool {
+    var canView: Bool {
         hasPermission([
             "business.customers.view",
             "customers.view",
@@ -40,18 +40,18 @@ public final class CustomerDirectoryViewModel {
         ])
     }
 
-    public var canCreate: Bool {
+    var canCreate: Bool {
         hasPermission([
             "business.customers.create",
             "customers.create"
         ])
     }
 
-    public func load() async {
+    func load() async {
         await search()
     }
 
-    public func search() async {
+    func search() async {
         guard canView else {
             errorMessage = "No tienes permiso para consultar clientes."
             return
@@ -83,7 +83,7 @@ public final class CustomerDirectoryViewModel {
         }
     }
 
-    public func addOrReplace(_ customer: BusinessCustomer) {
+    func addOrReplace(_ customer: BusinessCustomer) {
         if let index = customers.firstIndex(where: { $0.id == customer.id }) {
             customers[index] = customer
         } else {

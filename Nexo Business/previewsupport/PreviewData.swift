@@ -7,13 +7,13 @@
 
 import Foundation
 
-public enum PreviewData {
-    public static let revisions = BusinessRevisions(
+enum PreviewData {
+    static let revisions = BusinessRevisions(
         catalogRevision: "cat_rev_preview",
         taxConfigurationRevision: "tax_rev_preview"
     )
 
-    public static let businessContext = BusinessContextResponse(
+    static let businessContext = BusinessContextResponse(
         user: BusinessUser(
             id: "usr_preview",
             displayName: "Operador Preview",
@@ -106,13 +106,13 @@ public enum PreviewData {
         )
     )
 
-    public static let operationalSelection = BusinessOperationalSelection(
+    static let operationalSelection = BusinessOperationalSelection(
         organizationId: businessContext.organization.id,
         branchId: businessContext.branches[0].id,
         activityId: businessContext.activities[0].id
     )
 
-    public static let catalogItems = [
+    static let catalogItems = [
         BusinessCatalogItem(
             id: "item_cuy_entero",
             name: "Cuy entero",
@@ -145,14 +145,14 @@ public enum PreviewData {
         )
     ]
 
-    public static let totals = BusinessSaleTotals(
+    static let totals = BusinessSaleTotals(
         subtotal: MoneyAmount(amount: "10.00"),
         discount: MoneyAmount(amount: "0.00"),
         tax: MoneyAmount(amount: "1.50"),
         total: MoneyAmount(amount: "11.50")
     )
 
-    public static let previewItems = [
+    static let previewItems = [
         BusinessSaleItem(
             id: "line_001",
             catalogItemId: "item_cuy_entero",
@@ -165,13 +165,13 @@ public enum PreviewData {
         )
     ]
 
-    public static let previewResponse = SalesPreviewResponse(
+    static let previewResponse = SalesPreviewResponse(
         items: previewItems,
         totals: totals,
         warnings: []
     )
 
-    public static let quickSaleResponse = QuickSaleResponse(
+    static let quickSaleResponse = QuickSaleResponse(
         sale: BusinessSale(
             id: "sale_preview_001",
             number: "V-000000001",
@@ -195,7 +195,7 @@ public enum PreviewData {
         idempotencyReplayed: false
     )
 
-    public static let confirmedSaleResponse = ConfirmSaleResponse(
+    static let confirmedSaleResponse = ConfirmSaleResponse(
         sale: BusinessSale(
             id: quickSaleResponse.sale.id,
             number: quickSaleResponse.sale.number,
@@ -216,7 +216,7 @@ public enum PreviewData {
         idempotencyReplayed: false
     )
 
-    public static let canceledSaleResponse = CancelSaleResponse(
+    static let canceledSaleResponse = CancelSaleResponse(
         sale: BusinessSale(
             id: quickSaleResponse.sale.id,
             number: quickSaleResponse.sale.number,
@@ -237,7 +237,7 @@ public enum PreviewData {
         idempotencyReplayed: false
     )
 
-    public static let paymentResponse = PaymentResponse(
+    static let paymentResponse = PaymentResponse(
         payment: PaymentRecord(
             id: "pay_preview",
             saleId: confirmedSaleResponse.sale.id,
@@ -266,7 +266,7 @@ public enum PreviewData {
         idempotencyReplayed: false
     )
 
-    public static let receivableResponse = ReceivableResponse(
+    static let receivableResponse = ReceivableResponse(
         receivable: ReceivableRecord(
             id: "recv_preview",
             saleId: confirmedSaleResponse.sale.id,
@@ -285,7 +285,7 @@ public enum PreviewData {
         idempotencyReplayed: false
     )
 
-    public static let internalTicketDocument = BusinessDocument(
+    static let internalTicketDocument = BusinessDocument(
         id: "doc_preview_ticket",
         saleId: confirmedSaleResponse.sale.id,
         type: "internal_ticket",
@@ -294,7 +294,7 @@ public enum PreviewData {
         createdAt: Date()
     )
 
-    public static let physicalSaleNoteDocument = BusinessDocument(
+    static let physicalSaleNoteDocument = BusinessDocument(
         id: "doc_preview_note",
         saleId: confirmedSaleResponse.sale.id,
         type: "physical_sale_note",
@@ -303,14 +303,14 @@ public enum PreviewData {
         createdAt: Date()
     )
 
-    public static let businessDocumentsResponse = BusinessDocumentsResponse(
+    static let businessDocumentsResponse = BusinessDocumentsResponse(
         documents: [
             internalTicketDocument,
             physicalSaleNoteDocument
         ]
     )
 
-    public static let internalTicketDocumentResponse = BusinessDocumentResponse(
+    static let internalTicketDocumentResponse = BusinessDocumentResponse(
         document: internalTicketDocument,
         sale: BusinessSale(
             id: confirmedSaleResponse.sale.id,
@@ -332,7 +332,7 @@ public enum PreviewData {
         idempotencyReplayed: false
     )
 
-    public static let physicalSaleNoteDocumentResponse = BusinessDocumentResponse(
+    static let physicalSaleNoteDocumentResponse = BusinessDocumentResponse(
         document: physicalSaleNoteDocument,
         sale: BusinessSale(
             id: confirmedSaleResponse.sale.id,

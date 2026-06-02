@@ -7,22 +7,22 @@
 
 import Foundation
 
-public protocol APIClient: Sendable {
+protocol APIClient: Sendable {
     func send<Response: Decodable>(_ request: APIRequest<Response>) async throws -> Response
 }
 
-public struct EmptyResponse: Decodable, Sendable {
-    public init() {}
+struct EmptyResponse: Decodable, Sendable {
+    init() {}
 }
 
-public final class URLSessionAPIClient: APIClient, @unchecked Sendable {
+final class URLSessionAPIClient: APIClient, @unchecked Sendable {
     private let environment: AppEnvironment
     private let session: URLSession
     private let tokenStore: AuthTokenStoring
     private let deviceMetadataProvider: DeviceMetadataProviding
     private let decoder: JSONDecoder
     
-    public init(
+    init(
         environment: AppEnvironment,
         session: URLSession = .shared,
         tokenStore: AuthTokenStoring,
@@ -36,7 +36,7 @@ public final class URLSessionAPIClient: APIClient, @unchecked Sendable {
         self.decoder = decoder
     }
     
-    public func send<Response: Decodable>(_ request: APIRequest<Response>) async throws -> Response {
+    func send<Response: Decodable>(_ request: APIRequest<Response>) async throws -> Response {
         var components = URLComponents(
             url: environment.baseURL,
             resolvingAgainstBaseURL: false

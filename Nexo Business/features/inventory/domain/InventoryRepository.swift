@@ -7,7 +7,7 @@
 
 import Foundation
 
-public protocol InventoryRepository: Sendable {
+protocol InventoryRepository: Sendable {
     func listItems(
         organizationId: String,
         branchId: String,

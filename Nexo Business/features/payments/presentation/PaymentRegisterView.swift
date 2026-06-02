@@ -1,17 +1,10 @@
-//
-//  PaymentRegisterView.swift
-//  Nexo Business
-//
-//  Created by José Ruiz on 29/5/26.
-//
-
 import SwiftUI
 
-public struct PaymentRegisterView: View {
+struct PaymentRegisterView: View {
     @Bindable private var viewModel: PaymentRegisterViewModel
     private let customersRepository: CustomersRepository
 
-    public init(
+    init(
         viewModel: PaymentRegisterViewModel,
         customersRepository: CustomersRepository = UnavailableCustomersRepository()
     ) {
@@ -19,7 +12,7 @@ public struct PaymentRegisterView: View {
         self.customersRepository = customersRepository
     }
 
-    public var body: some View {
+    var body: some View {
         Form {
             saleSection
             methodSection
@@ -41,10 +34,10 @@ public struct PaymentRegisterView: View {
 
     private var saleSection: some View {
         Section("Venta") {
-            LabeledContent("ID", value: viewModel.sale.id)
-            LabeledContent("Estado venta", value: viewModel.sale.status)
+            LabeledContent("Venta", value: viewModel.sale.displayNumber)
+            SaleStatusLabel(status: viewModel.sale.status)
             LabeledContent("Estado pago", value: PaymentStatusPresentation.displayName(viewModel.sale.paymentStatus))
-            LabeledContent("Total", value: money(viewModel.sale.totals.grandTotal))
+            LabeledContent("Total", value: viewModel.sale.totals.grandTotal.displayText)
         }
     }
 
@@ -82,10 +75,10 @@ public struct PaymentRegisterView: View {
             Section("Caja") {
                 if viewModel.isLoadingCash {
                     ProgressView("Consultando caja…")
-                } else if let session = viewModel.currentCashSession, session.status == "open" {
+                } else if let session = viewModel.currentCashSession, session.isOpen {
                     Label("Caja abierta", systemImage: "checkmark.circle.fill")
                         .foregroundStyle(.green)
-                    LabeledContent("Sesión", value: session.id)
+                    LabeledContent("Estado", value: session.displayStatus)
                     if let openedAt = session.openedAt {
                         LabeledContent("Abierta", value: openedAt.formatted(date: .abbreviated, time: .shortened))
                     }
@@ -220,7 +213,7 @@ public struct PaymentRegisterView: View {
     }
 
     private func money(_ value: MoneyAmount) -> String {
-        "\(value.currency) \(value.amount)"
+        value.displayText
     }
 }
 

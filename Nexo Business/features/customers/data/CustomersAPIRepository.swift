@@ -7,18 +7,18 @@
 
 import Foundation
 
-public enum BusinessCustomersRoutes {
-    public static let customers = "/api/v1/business/customers"
+enum BusinessCustomersRoutes {
+    static let customers = "/api/v1/business/customers"
 }
 
-public final class CustomersAPIRepository: CustomersRepository, @unchecked Sendable {
+final class CustomersAPIRepository: CustomersRepository, @unchecked Sendable {
     private let apiClient: APIClient
 
-    public init(apiClient: APIClient) {
+    init(apiClient: APIClient) {
         self.apiClient = apiClient
     }
 
-    public func search(
+    func search(
         organizationId: String,
         query: String,
         limit: Int = 20
@@ -39,7 +39,7 @@ public final class CustomersAPIRepository: CustomersRepository, @unchecked Senda
         )
     }
 
-    public func create(
+    func create(
         organizationId: String,
         idempotencyKey: IdempotencyKey,
         request body: CreateCustomerRequest

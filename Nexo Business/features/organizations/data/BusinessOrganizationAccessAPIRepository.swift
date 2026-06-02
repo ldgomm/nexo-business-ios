@@ -7,18 +7,18 @@
 
 import Foundation
 
-public enum BusinessOrganizationAccessRoutes {
-    public static let organizations = "/api/v1/business/organizations"
+enum BusinessOrganizationAccessRoutes {
+    static let organizations = "/api/v1/business/organizations"
 }
 
-public final class BusinessOrganizationAccessAPIRepository: BusinessOrganizationAccessRepository, @unchecked Sendable {
+final class BusinessOrganizationAccessAPIRepository: BusinessOrganizationAccessRepository, @unchecked Sendable {
     private let apiClient: APIClient
 
-    public init(apiClient: APIClient) {
+    init(apiClient: APIClient) {
         self.apiClient = apiClient
     }
 
-    public func listOrganizations() async throws -> BusinessOrganizationAccessResponse {
+    func listOrganizations() async throws -> BusinessOrganizationAccessResponse {
         try await apiClient.send(
             APIRequest(
                 method: .get,

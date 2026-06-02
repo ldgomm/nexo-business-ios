@@ -1,39 +1,32 @@
-//
-//  CashDashboardViewModel.swift
-//  Nexo Business
-//
-//  Created by José Ruiz on 29/5/26.
-//
-
 import Foundation
 import Observation
 
 @MainActor
 @Observable
-public final class CashDashboardViewModel {
-    public private(set) var state: AsyncViewState<CashSession?> = .idle
-    public private(set) var currentSession: CashSession?
-    public private(set) var lastMovement: CashMovement?
+final class CashDashboardViewModel {
+    private(set) var state: AsyncViewState<CashSession?> = .idle
+    private(set) var currentSession: CashSession?
+    private(set) var lastMovement: CashMovement?
 
-    public var openingAmount = "0.00"
-    public var openingNote = ""
-    public var countedAmount = ""
-    public var closingNote = ""
-    public var movementType: CashMovementType = .inflow
-    public var movementAmount = ""
-    public var movementNote = ""
+    var openingAmount = "0.00"
+    var openingNote = ""
+    var countedAmount = ""
+    var closingNote = ""
+    var movementType: CashMovementType = .inflow
+    var movementAmount = ""
+    var movementNote = ""
 
-    public var isLoading = false
-    public var isMutating = false
-    public var errorMessage: String?
-    public var successMessage: String?
+    var isLoading = false
+    var isMutating = false
+    var errorMessage: String?
+    var successMessage: String?
 
     private let organizationId: String
     private let branchId: String
     private let permissions: Set<String>
     private let repository: CashRepository
 
-    public init(
+    init(
         organizationId: String,
         branchId: String,
         permissions: Set<String>,
@@ -45,11 +38,11 @@ public final class CashDashboardViewModel {
         self.repository = cashRepository
     }
 
-    public var isOpen: Bool {
-        currentSession?.status == "open"
+    var isOpen: Bool {
+        currentSession?.isOpen == true
     }
 
-    public var canView: Bool {
+    var canView: Bool {
         hasAnyPermission([
             "cash.view_current",
             "business.cash.view_current",
@@ -60,15 +53,15 @@ public final class CashDashboardViewModel {
         ])
     }
 
-    public var canOpen: Bool {
+    var canOpen: Bool {
         !isOpen && hasAnyPermission(["cash.open", "business.cash.open"])
     }
 
-    public var canClose: Bool {
+    var canClose: Bool {
         isOpen && hasAnyPermission(["cash.close", "business.cash.close"])
     }
 
-    public var canRegisterMovement: Bool {
+    var canRegisterMovement: Bool {
         guard isOpen else { return false }
 
         switch movementType {
@@ -81,7 +74,7 @@ public final class CashDashboardViewModel {
         }
     }
 
-    public func load() async {
+    func load() async {
         guard !branchId.isEmpty else {
             currentSession = nil
             state = .failed("Falta una sucursal operativa.")
@@ -119,7 +112,7 @@ public final class CashDashboardViewModel {
         }
     }
 
-    public func openCash() async {
+    func openCash() async {
         guard !isMutating else { return }
         guard canOpen else {
             errorMessage = isOpen
@@ -162,9 +155,9 @@ public final class CashDashboardViewModel {
         }
     }
 
-    public func registerMovement() async {
+    func registerMovement() async {
         guard !isMutating else { return }
-        guard let session = currentSession, session.status == "open" else {
+        guard let session = currentSession, session.isOpen else {
             errorMessage = "Debes tener una caja abierta para registrar movimientos."
             return
         }
@@ -216,9 +209,9 @@ public final class CashDashboardViewModel {
         }
     }
 
-    public func closeCash() async {
+    func closeCash() async {
         guard !isMutating else { return }
-        guard let session = currentSession, session.status == "open" else {
+        guard let session = currentSession, session.isOpen else {
             errorMessage = "No hay una caja abierta para cerrar."
             return
         }

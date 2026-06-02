@@ -11,11 +11,11 @@ import Foundation
 import Security
 #endif
 
-public final class KeychainAuthTokenStore: AuthTokenStoring, @unchecked Sendable {
+final class KeychainAuthTokenStore: AuthTokenStoring, @unchecked Sendable {
     private let service: String
     private let account: String
 
-    public init(
+    init(
         service: String = "com.nexo.business.auth",
         account: String = "business-session"
     ) {
@@ -23,7 +23,7 @@ public final class KeychainAuthTokenStore: AuthTokenStoring, @unchecked Sendable
         self.account = account
     }
 
-    public func tokens() async -> AuthTokens? {
+    func tokens() async -> AuthTokens? {
         #if canImport(Security)
         var query = baseQuery()
         query[kSecReturnData as String] = true
@@ -42,11 +42,11 @@ public final class KeychainAuthTokenStore: AuthTokenStoring, @unchecked Sendable
         #endif
     }
 
-    public func accessToken() async -> String? {
+    func accessToken() async -> String? {
         await tokens()?.accessToken
     }
 
-    public func save(tokens: AuthTokens) async throws {
+    func save(tokens: AuthTokens) async throws {
         #if canImport(Security)
         let data = try JSONEncoder.nexoDefault.encode(tokens)
 
@@ -64,7 +64,7 @@ public final class KeychainAuthTokenStore: AuthTokenStoring, @unchecked Sendable
         #endif
     }
 
-    public func clear() async throws {
+    func clear() async throws {
         #if canImport(Security)
         let status = SecItemDelete(baseQuery() as CFDictionary)
 
@@ -75,7 +75,7 @@ public final class KeychainAuthTokenStore: AuthTokenStoring, @unchecked Sendable
     }
 
     #if canImport(Security)
-    private func baseQuery() -> [String: Any] {
+    func baseQuery() -> [String: Any] {
         [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
@@ -85,7 +85,7 @@ public final class KeychainAuthTokenStore: AuthTokenStoring, @unchecked Sendable
     #endif
 }
 
-public enum KeychainTokenStoreError: Error, Equatable, Sendable {
+enum KeychainTokenStoreError: Error, Equatable, Sendable {
     case unableToSave(OSStatus)
     case unableToDelete(OSStatus)
 }

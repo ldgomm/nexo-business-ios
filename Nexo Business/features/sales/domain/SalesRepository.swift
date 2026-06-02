@@ -7,7 +7,7 @@
 
 import Foundation
 
-public protocol SalesRepository: Sendable {
+protocol SalesRepository: Sendable {
     func preview(
         organizationId: String,
         revisions: BusinessRevisions,

@@ -7,7 +7,7 @@
 
 import Foundation
 
-public extension PreviewData {
+extension PreviewData {
     static let pendingSalesResponse = PendingSalesResponse(
         sales: [
             confirmedSaleResponse.sale

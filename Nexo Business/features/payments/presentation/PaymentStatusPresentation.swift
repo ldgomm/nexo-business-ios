@@ -7,8 +7,8 @@
 
 import Foundation
 
-public enum PaymentStatusPresentation {
-    public static func displayName(_ status: String?) -> String {
+enum PaymentStatusPresentation {
+    static func displayName(_ status: String?) -> String {
         switch status {
         case "unpaid":
             return "Pendiente"
@@ -29,7 +29,7 @@ public enum PaymentStatusPresentation {
         }
     }
 
-    public static func canCollect(status: String?) -> Bool {
+    static func canCollect(status: String?) -> Bool {
         switch status {
         case "paid", "overpaid", "refunded", "voided":
             return false
@@ -38,7 +38,7 @@ public enum PaymentStatusPresentation {
         }
     }
 
-    public static func systemImage(_ status: String?) -> String {
+    static func systemImage(_ status: String?) -> String {
         switch status {
         case "paid":
             return "checkmark.circle"

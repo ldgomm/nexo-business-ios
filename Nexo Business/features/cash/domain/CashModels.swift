@@ -7,14 +7,14 @@
 
 import Foundation
 
-public enum CashMovementType: String, Codable, CaseIterable, Identifiable, Sendable {
+enum CashMovementType: String, Codable, CaseIterable, Identifiable, Sendable {
     case inflow
     case outflow
     case adjustment
 
-    public var id: String { rawValue }
+    var id: String { rawValue }
 
-    public var displayName: String {
+    var displayName: String {
         switch self {
         case .inflow:
             return "Ingreso"
@@ -39,14 +39,14 @@ public enum CashMovementType: String, Codable, CaseIterable, Identifiable, Senda
     }
 }
 
-public struct OpenCashSessionRequest: Encodable, Equatable, Sendable {
-    public let branchId: String
-    public let openingAmount: String
-    public let note: String?
-    public let openedAt: Date?
-    public let requestId: String?
+struct OpenCashSessionRequest: Encodable, Equatable, Sendable {
+    let branchId: String
+    let openingAmount: String
+    let note: String?
+    let openedAt: Date?
+    let requestId: String?
 
-    public init(
+    init(
         branchId: String,
         openingAmount: String,
         note: String? = nil,
@@ -68,7 +68,7 @@ public struct OpenCashSessionRequest: Encodable, Equatable, Sendable {
         case notes
     }
 
-    public func encode(to encoder: Encoder) throws {
+    func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encodeIfPresent(requestId, forKey: .requestId)
         try container.encode(branchId, forKey: .branchId)
@@ -78,14 +78,14 @@ public struct OpenCashSessionRequest: Encodable, Equatable, Sendable {
     }
 }
 
-public struct CloseCashSessionRequest: Encodable, Equatable, Sendable {
-    public let countedAmount: String
-    public let note: String?
-    public let reason: String
-    public let closedAt: Date?
-    public let requestId: String?
+struct CloseCashSessionRequest: Encodable, Equatable, Sendable {
+    let countedAmount: String
+    let note: String?
+    let reason: String
+    let closedAt: Date?
+    let requestId: String?
 
-    public init(
+    init(
         countedAmount: String,
         note: String? = nil,
         reason: String? = nil,
@@ -109,7 +109,7 @@ public struct CloseCashSessionRequest: Encodable, Equatable, Sendable {
         case notes
     }
 
-    public func encode(to encoder: Encoder) throws {
+    func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encodeIfPresent(requestId, forKey: .requestId)
         try container.encode(MoneyAmount(amount: countedAmount), forKey: .countedCashAmount)
@@ -119,15 +119,15 @@ public struct CloseCashSessionRequest: Encodable, Equatable, Sendable {
     }
 }
 
-public struct RegisterCashMovementRequest: Encodable, Equatable, Sendable {
-    public let type: CashMovementType
-    public let amount: String
-    public let note: String?
-    public let occurredAt: Date?
-    public let referenceId: String?
-    public let requestId: String?
+struct RegisterCashMovementRequest: Encodable, Equatable, Sendable {
+    let type: CashMovementType
+    let amount: String
+    let note: String?
+    let occurredAt: Date?
+    let referenceId: String?
+    let requestId: String?
 
-    public init(
+    init(
         type: CashMovementType,
         amount: String,
         note: String? = nil,
@@ -153,7 +153,7 @@ public struct RegisterCashMovementRequest: Encodable, Equatable, Sendable {
         case notes
     }
 
-    public func encode(to encoder: Encoder) throws {
+    func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encodeIfPresent(requestId, forKey: .requestId)
         try container.encode(type.backendType, forKey: .type)
@@ -165,18 +165,18 @@ public struct RegisterCashMovementRequest: Encodable, Equatable, Sendable {
     }
 }
 
-public struct CashSession: Decodable, Equatable, Identifiable, Sendable {
-    public let id: String
-    public let branchId: String
-    public let status: String
-    public let openedAt: Date?
-    public let closedAt: Date?
-    public let openingAmount: MoneyAmount?
-    public let countedAmount: MoneyAmount?
-    public let expectedAmount: MoneyAmount?
-    public let differenceAmount: MoneyAmount?
+struct CashSession: Decodable, Equatable, Identifiable, Sendable {
+    let id: String
+    let branchId: String
+    let status: String
+    let openedAt: Date?
+    let closedAt: Date?
+    let openingAmount: MoneyAmount?
+    let countedAmount: MoneyAmount?
+    let expectedAmount: MoneyAmount?
+    let differenceAmount: MoneyAmount?
 
-    public init(
+    init(
         id: String,
         branchId: String,
         status: String,
@@ -214,7 +214,7 @@ public struct CashSession: Decodable, Equatable, Identifiable, Sendable {
         case cashDifferenceAmount
     }
 
-    public init(from decoder: Decoder) throws {
+    init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decode(String.self, forKey: .id)
         branchId = try container.decodeIfPresent(String.self, forKey: .branchId) ?? ""
@@ -232,16 +232,16 @@ public struct CashSession: Decodable, Equatable, Identifiable, Sendable {
     }
 }
 
-public struct CashMovement: Decodable, Equatable, Identifiable, Sendable {
-    public let id: String
-    public let cashSessionId: String
-    public let type: CashMovementType
-    public let amount: MoneyAmount
-    public let note: String?
-    public let status: String?
-    public let createdAt: Date?
+struct CashMovement: Decodable, Equatable, Identifiable, Sendable {
+    let id: String
+    let cashSessionId: String
+    let type: CashMovementType
+    let amount: MoneyAmount
+    let note: String?
+    let status: String?
+    let createdAt: Date?
 
-    public init(
+    init(
         id: String,
         cashSessionId: String,
         type: CashMovementType,
@@ -272,7 +272,7 @@ public struct CashMovement: Decodable, Equatable, Identifiable, Sendable {
         case occurredAt
     }
 
-    public init(from decoder: Decoder) throws {
+    init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decode(String.self, forKey: .id)
         cashSessionId = try container.decodeIfPresent(String.self, forKey: .cashSessionId) ?? ""
@@ -288,10 +288,10 @@ public struct CashMovement: Decodable, Equatable, Identifiable, Sendable {
     }
 }
 
-public struct CashCurrentSessionResponse: Decodable, Equatable, Sendable {
-    public let session: CashSession?
+struct CashCurrentSessionResponse: Decodable, Equatable, Sendable {
+    let session: CashSession?
 
-    public init(session: CashSession?) {
+    init(session: CashSession?) {
         self.session = session
     }
 
@@ -301,7 +301,7 @@ public struct CashCurrentSessionResponse: Decodable, Equatable, Sendable {
         case id
     }
 
-    public init(from decoder: Decoder) throws {
+    init(from decoder: Decoder) throws {
         if let container = try? decoder.container(keyedBy: CodingKeys.self) {
             if let session = try? container.decodeIfPresent(CashSession.self, forKey: .session) {
                 self.session = session
@@ -323,11 +323,11 @@ public struct CashCurrentSessionResponse: Decodable, Equatable, Sendable {
     }
 }
 
-public struct CashSessionResponse: Decodable, Equatable, Sendable {
-    public let session: CashSession
-    public let idempotencyReplayed: Bool?
+struct CashSessionResponse: Decodable, Equatable, Sendable {
+    let session: CashSession
+    let idempotencyReplayed: Bool?
 
-    public init(
+    init(
         session: CashSession,
         idempotencyReplayed: Bool? = nil
     ) {
@@ -341,7 +341,7 @@ public struct CashSessionResponse: Decodable, Equatable, Sendable {
         case idempotencyReplayed
     }
 
-    public init(from decoder: Decoder) throws {
+    init(from decoder: Decoder) throws {
         if let container = try? decoder.container(keyedBy: CodingKeys.self) {
             idempotencyReplayed = try container.decodeIfPresent(Bool.self, forKey: .idempotencyReplayed)
 
@@ -362,12 +362,12 @@ public struct CashSessionResponse: Decodable, Equatable, Sendable {
     }
 }
 
-public struct CashMovementResponse: Decodable, Equatable, Sendable {
-    public let movement: CashMovement
-    public let session: CashSession?
-    public let idempotencyReplayed: Bool?
+struct CashMovementResponse: Decodable, Equatable, Sendable {
+    let movement: CashMovement
+    let session: CashSession?
+    let idempotencyReplayed: Bool?
 
-    public init(
+    init(
         movement: CashMovement,
         session: CashSession? = nil,
         idempotencyReplayed: Bool? = nil
@@ -385,7 +385,7 @@ public struct CashMovementResponse: Decodable, Equatable, Sendable {
         case idempotencyReplayed
     }
 
-    public init(from decoder: Decoder) throws {
+    init(from decoder: Decoder) throws {
         if let container = try? decoder.container(keyedBy: CodingKeys.self) {
             idempotencyReplayed = try container.decodeIfPresent(Bool.self, forKey: .idempotencyReplayed)
             session = try container.decodeIfPresent(CashSession.self, forKey: .session)

@@ -7,14 +7,14 @@
 
 import SwiftUI
 
-public struct CustomerDirectoryView: View {
+struct CustomerDirectoryView: View {
     @Bindable private var viewModel: CustomerDirectoryViewModel
 
-    public init(viewModel: CustomerDirectoryViewModel) {
+    init(viewModel: CustomerDirectoryViewModel) {
         self.viewModel = viewModel
     }
 
-    public var body: some View {
+    var body: some View {
         List {
             Section("Buscar") {
                 TextField("Nombre, cédula, RUC o correo", text: $viewModel.query)

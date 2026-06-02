@@ -7,12 +7,12 @@
 
 import SwiftUI
 
-public struct BusinessOrganizationSelectionView: View {
+struct BusinessOrganizationSelectionView: View {
     private let organizations: [BusinessOrganizationAccess]
     private let selectAction: (BusinessOrganizationAccess) -> Void
     private let logoutAction: () -> Void
 
-    public init(
+    init(
         organizations: [BusinessOrganizationAccess],
         selectAction: @escaping (BusinessOrganizationAccess) -> Void,
         logoutAction: @escaping () -> Void
@@ -22,7 +22,7 @@ public struct BusinessOrganizationSelectionView: View {
         self.logoutAction = logoutAction
     }
 
-    public var body: some View {
+    var body: some View {
         NavigationStack {
             List {
                 Section {

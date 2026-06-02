@@ -7,8 +7,8 @@
 
 import Foundation
 
-public enum BusinessCustomerPresentation {
-    public static let finalConsumer = BusinessCustomer(
+enum BusinessCustomerPresentation {
+    static let finalConsumer = BusinessCustomer(
         id: "cus_final_consumer",
         displayName: "Consumidor final",
         identificationType: .finalConsumer,
@@ -21,7 +21,7 @@ public enum BusinessCustomerPresentation {
         updatedAt: nil
     )
 
-    public static func subtitle(for customer: BusinessCustomer) -> String {
+    static func subtitle(for customer: BusinessCustomer) -> String {
         if customer.identificationType == .finalConsumer {
             return "Venta sin datos del cliente"
         }
@@ -36,12 +36,12 @@ public enum BusinessCustomerPresentation {
         return "\(type) • \(identification)"
     }
 
-    public static func displayName(for customer: BusinessCustomer?) -> String {
+    static func displayName(for customer: BusinessCustomer?) -> String {
         customer?.displayName.trimmingCharacters(in: .whitespacesAndNewlines).nilIfBlank
             ?? finalConsumer.displayName
     }
 
-    public static func identificationText(for customer: BusinessCustomer?) -> String {
+    static func identificationText(for customer: BusinessCustomer?) -> String {
         guard let customer else {
             return subtitle(for: finalConsumer)
         }

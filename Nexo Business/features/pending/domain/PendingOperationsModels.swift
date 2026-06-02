@@ -7,11 +7,11 @@
 
 import Foundation
 
-public struct PendingSalesResponse: Decodable, Equatable, Sendable {
-    public let sales: [BusinessSale]
-    public let total: Int?
+struct PendingSalesResponse: Decodable, Equatable, Sendable {
+    let sales: [BusinessSale]
+    let total: Int?
 
-    public init(
+    init(
         sales: [BusinessSale],
         total: Int? = nil
     ) {
@@ -27,7 +27,7 @@ public struct PendingSalesResponse: Decodable, Equatable, Sendable {
         case total
     }
 
-    public init(from decoder: Decoder) throws {
+    init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
 
         sales = try container.decodeIfPresent([BusinessSale].self, forKey: .sales)
@@ -39,11 +39,11 @@ public struct PendingSalesResponse: Decodable, Equatable, Sendable {
     }
 }
 
-public struct PendingReceivablesResponse: Decodable, Equatable, Sendable {
-    public let receivables: [ReceivableRecord]
-    public let total: Int?
+struct PendingReceivablesResponse: Decodable, Equatable, Sendable {
+    let receivables: [ReceivableRecord]
+    let total: Int?
 
-    public init(
+    init(
         receivables: [ReceivableRecord],
         total: Int? = nil
     ) {
@@ -59,7 +59,7 @@ public struct PendingReceivablesResponse: Decodable, Equatable, Sendable {
         case total
     }
 
-    public init(from decoder: Decoder) throws {
+    init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
 
         receivables = try container.decodeIfPresent([ReceivableRecord].self, forKey: .receivables)
@@ -71,11 +71,11 @@ public struct PendingReceivablesResponse: Decodable, Equatable, Sendable {
     }
 }
 
-public struct PendingDocumentsResponse: Decodable, Equatable, Sendable {
-    public let documents: [BusinessDocument]
-    public let total: Int?
+struct PendingDocumentsResponse: Decodable, Equatable, Sendable {
+    let documents: [BusinessDocument]
+    let total: Int?
 
-    public init(
+    init(
         documents: [BusinessDocument],
         total: Int? = nil
     ) {
@@ -91,7 +91,7 @@ public struct PendingDocumentsResponse: Decodable, Equatable, Sendable {
         case total
     }
 
-    public init(from decoder: Decoder) throws {
+    init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
 
         documents = try container.decodeIfPresent([BusinessDocument].self, forKey: .documents)

@@ -7,10 +7,10 @@
 
 import Foundation
 
-public final class PreviewInventoryRepository: InventoryRepository, @unchecked Sendable {
-    public init() {}
+final class PreviewInventoryRepository: InventoryRepository, @unchecked Sendable {
+    init() {}
 
-    public func listItems(
+    func listItems(
         organizationId: String,
         branchId: String,
         activityId: String,
@@ -48,7 +48,7 @@ public final class PreviewInventoryRepository: InventoryRepository, @unchecked S
         )
     }
 
-    public func listMovements(
+    func listMovements(
         organizationId: String,
         inventoryItemId: String,
         limit: Int
@@ -62,7 +62,7 @@ public final class PreviewInventoryRepository: InventoryRepository, @unchecked S
         )
     }
 
-    public func adjust(
+    func adjust(
         organizationId: String,
         inventoryItemId: String,
         catalogRevision: String,

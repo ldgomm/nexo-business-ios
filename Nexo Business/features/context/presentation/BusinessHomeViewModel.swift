@@ -10,13 +10,13 @@ import Observation
 
 @MainActor
 @Observable
-public final class BusinessHomeViewModel {
-    public private(set) var state: AsyncViewState<BusinessContextResponse> = .idle
+final class BusinessHomeViewModel {
+    private(set) var state: AsyncViewState<BusinessContextResponse> = .idle
 
     private let organizationId: String
     private let repository: BusinessContextRepository
 
-    public init(
+    init(
         organizationId: String,
         contextRepository: BusinessContextRepository
     ) {
@@ -24,7 +24,7 @@ public final class BusinessHomeViewModel {
         self.repository = contextRepository
     }
 
-    public func load() async {
+    func load() async {
         state = .loading
 
         do {

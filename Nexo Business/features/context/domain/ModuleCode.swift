@@ -7,33 +7,33 @@
 
 import Foundation
 
-public struct ModuleCode: RawRepresentable, Codable, Equatable, Hashable, Sendable, ExpressibleByStringLiteral {
-    public let rawValue: String
+struct ModuleCode: RawRepresentable, Codable, Equatable, Hashable, Sendable, ExpressibleByStringLiteral {
+    let rawValue: String
 
-    public init(rawValue: String) {
+    init(rawValue: String) {
         self.rawValue = rawValue
     }
 
-    public init(stringLiteral value: String) {
+    init(stringLiteral value: String) {
         self.rawValue = value
     }
 
-    public init(from decoder: Decoder) throws {
+    init(from decoder: Decoder) throws {
         rawValue = try decoder.singleValueContainer().decode(String.self)
     }
 
-    public func encode(to encoder: Encoder) throws {
+    func encode(to encoder: Encoder) throws {
         var container = encoder.singleValueContainer()
         try container.encode(rawValue)
     }
 
-    public static let coreSales: ModuleCode = "core.sales"
-    public static let coreCash: ModuleCode = "core.cash"
-    public static let coreDocuments: ModuleCode = "core.documents"
-    public static let coreReceivables: ModuleCode = "core.receivables"
-    public static let foundationIdempotency: ModuleCode = "foundation.idempotency"
-    public static let foundationCatalogRevision: ModuleCode = "foundation.catalog_revision"
-    public static let foundationTaxRevision: ModuleCode = "foundation.tax_revision"
-    public static let foundationOutbox: ModuleCode = "foundation.outbox"
-    public static let foundationDeviceRegistry: ModuleCode = "foundation.device_registry"
+    static let coreSales: ModuleCode = "core.sales"
+    static let coreCash: ModuleCode = "core.cash"
+    static let coreDocuments: ModuleCode = "core.documents"
+    static let coreReceivables: ModuleCode = "core.receivables"
+    static let foundationIdempotency: ModuleCode = "foundation.idempotency"
+    static let foundationCatalogRevision: ModuleCode = "foundation.catalog_revision"
+    static let foundationTaxRevision: ModuleCode = "foundation.tax_revision"
+    static let foundationOutbox: ModuleCode = "foundation.outbox"
+    static let foundationDeviceRegistry: ModuleCode = "foundation.device_registry"
 }

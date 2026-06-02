@@ -7,10 +7,10 @@
 
 import Foundation
 
-public final class PreviewAuthRepository: AuthRepository, @unchecked Sendable {
-    public init() {}
+final class PreviewAuthRepository: AuthRepository, @unchecked Sendable {
+    init() {}
 
-    public func login(email: String, password: String) async throws -> LoginResponse {
+    func login(email: String, password: String) async throws -> LoginResponse {
         LoginResponse(
             accessToken: "preview-access-token",
             refreshToken: "preview-refresh-token",
@@ -23,21 +23,21 @@ public final class PreviewAuthRepository: AuthRepository, @unchecked Sendable {
         )
     }
 
-    public func logout() async throws {}
+    func logout() async throws {}
 }
 
-public final class PreviewBusinessContextRepository: BusinessContextRepository, @unchecked Sendable {
-    public init() {}
+final class PreviewBusinessContextRepository: BusinessContextRepository, @unchecked Sendable {
+    init() {}
 
-    public func getContext(organizationId: String) async throws -> BusinessContextResponse {
+    func getContext(organizationId: String) async throws -> BusinessContextResponse {
         PreviewData.businessContext
     }
 }
 
-public final class PreviewCatalogRepository: CatalogRepository, @unchecked Sendable {
-    public init() {}
+final class PreviewCatalogRepository: CatalogRepository, @unchecked Sendable {
+    init() {}
 
-    public func search(
+    func search(
         organizationId: String,
         branchId: String,
         activityId: String,
@@ -60,10 +60,10 @@ public final class PreviewCatalogRepository: CatalogRepository, @unchecked Senda
     }
 }
 
-public final class PreviewSalesRepository: SalesRepository, @unchecked Sendable {
-    public init() {}
+final class PreviewSalesRepository: SalesRepository, @unchecked Sendable {
+    init() {}
 
-    public func preview(
+    func preview(
         organizationId: String,
         revisions: BusinessRevisions,
         request: SalesPreviewRequest
@@ -71,7 +71,7 @@ public final class PreviewSalesRepository: SalesRepository, @unchecked Sendable 
         PreviewData.previewResponse
     }
 
-    public func quickSale(
+    func quickSale(
         organizationId: String,
         revisions: BusinessRevisions,
         idempotencyKey: IdempotencyKey,
@@ -80,14 +80,14 @@ public final class PreviewSalesRepository: SalesRepository, @unchecked Sendable 
         PreviewData.quickSaleResponse
     }
 
-    public func getSale(
+    func getSale(
         organizationId: String,
         saleId: String
     ) async throws -> BusinessSaleDetailResponse {
         BusinessSaleDetailResponse(sale: PreviewData.quickSaleResponse.sale)
     }
 
-    public func confirm(
+    func confirm(
         organizationId: String,
         saleId: String,
         revisions: BusinessRevisions,
@@ -97,7 +97,7 @@ public final class PreviewSalesRepository: SalesRepository, @unchecked Sendable 
         PreviewData.confirmedSaleResponse
     }
 
-    public func cancel(
+    func cancel(
         organizationId: String,
         saleId: String,
         revisions: BusinessRevisions,
@@ -108,10 +108,10 @@ public final class PreviewSalesRepository: SalesRepository, @unchecked Sendable 
     }
 }
 
-public final class PreviewCashRepository: CashRepository, @unchecked Sendable {
-    public init() {}
+final class PreviewCashRepository: CashRepository, @unchecked Sendable {
+    init() {}
 
-    public func current(
+    func current(
         organizationId: String,
         branchId: String
     ) async throws -> CashCurrentSessionResponse {
@@ -130,7 +130,7 @@ public final class PreviewCashRepository: CashRepository, @unchecked Sendable {
         )
     }
 
-    public func open(
+    func open(
         organizationId: String,
         idempotencyKey: IdempotencyKey,
         request: OpenCashSessionRequest
@@ -149,7 +149,7 @@ public final class PreviewCashRepository: CashRepository, @unchecked Sendable {
         )
     }
 
-    public func registerMovement(
+    func registerMovement(
         organizationId: String,
         cashSessionId: String,
         idempotencyKey: IdempotencyKey,
@@ -168,7 +168,7 @@ public final class PreviewCashRepository: CashRepository, @unchecked Sendable {
         )
     }
 
-    public func close(
+    func close(
         organizationId: String,
         cashSessionId: String,
         idempotencyKey: IdempotencyKey,
@@ -189,10 +189,10 @@ public final class PreviewCashRepository: CashRepository, @unchecked Sendable {
     }
 }
 
-public final class PreviewPaymentsRepository: PaymentsRepository, @unchecked Sendable {
-    public init() {}
+final class PreviewPaymentsRepository: PaymentsRepository, @unchecked Sendable {
+    init() {}
 
-    public func register(
+    func register(
         organizationId: String,
         idempotencyKey: IdempotencyKey,
         request: RegisterPaymentRequest
@@ -211,17 +211,17 @@ public final class PreviewPaymentsRepository: PaymentsRepository, @unchecked Sen
     }
 }
 
-public final class PreviewBusinessDocumentsRepository: BusinessDocumentsRepository, @unchecked Sendable {
-    public init() {}
+final class PreviewBusinessDocumentsRepository: BusinessDocumentsRepository, @unchecked Sendable {
+    init() {}
 
-    public func list(
+    func list(
         organizationId: String,
         saleId: String
     ) async throws -> BusinessDocumentsResponse {
         PreviewData.businessDocumentsResponse
     }
 
-    public func generateInternalTicket(
+    func generateInternalTicket(
         organizationId: String,
         saleId: String,
         idempotencyKey: IdempotencyKey,
@@ -230,7 +230,7 @@ public final class PreviewBusinessDocumentsRepository: BusinessDocumentsReposito
         PreviewData.internalTicketDocumentResponse
     }
 
-    public func registerPhysicalSaleNote(
+    func registerPhysicalSaleNote(
         organizationId: String,
         saleId: String,
         idempotencyKey: IdempotencyKey,
@@ -240,10 +240,10 @@ public final class PreviewBusinessDocumentsRepository: BusinessDocumentsReposito
     }
 }
 
-public final class PreviewReceivablesRepository: ReceivablesRepository, @unchecked Sendable {
-    public init() {}
+final class PreviewReceivablesRepository: ReceivablesRepository, @unchecked Sendable {
+    init() {}
 
-    public func create(
+    func create(
         organizationId: String,
         idempotencyKey: IdempotencyKey,
         request: CreateReceivableRequest
@@ -265,7 +265,7 @@ public final class PreviewReceivablesRepository: ReceivablesRepository, @uncheck
         )
     }
 
-    public func collect(
+    func collect(
         organizationId: String,
         idempotencyKey: IdempotencyKey,
         request: CollectReceivableRequest
@@ -348,10 +348,10 @@ public final class PreviewReceivablesRepository: ReceivablesRepository, @uncheck
     }
 }
 
-public final class PreviewPendingOperationsRepository: PendingOperationsRepository, @unchecked Sendable {
-    public init() {}
+final class PreviewPendingOperationsRepository: PendingOperationsRepository, @unchecked Sendable {
+    init() {}
 
-    public func pendingSales(
+    func pendingSales(
         organizationId: String,
         branchId: String,
         limit: Int
@@ -362,7 +362,7 @@ public final class PreviewPendingOperationsRepository: PendingOperationsReposito
         )
     }
 
-    public func pendingReceivables(
+    func pendingReceivables(
         organizationId: String,
         branchId: String,
         limit: Int
@@ -373,7 +373,7 @@ public final class PreviewPendingOperationsRepository: PendingOperationsReposito
         )
     }
 
-    public func pendingDocuments(
+    func pendingDocuments(
         organizationId: String,
         branchId: String,
         limit: Int
@@ -385,10 +385,10 @@ public final class PreviewPendingOperationsRepository: PendingOperationsReposito
     }
 }
 
-public final class PreviewBusinessDailyReportRepository: BusinessDailyReportRepository, @unchecked Sendable {
-    public init() {}
+final class PreviewBusinessDailyReportRepository: BusinessDailyReportRepository, @unchecked Sendable {
+    init() {}
 
-    public func dailyReport(
+    func dailyReport(
         organizationId: String,
         branchId: String,
         businessDate: String

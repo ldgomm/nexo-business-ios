@@ -7,27 +7,27 @@
 
 import Foundation
 
-public final class BusinessAppContainer: @unchecked Sendable {
-    public let tokenStore: AuthTokenStoring
-    public let selectionStore: BusinessSelectionStoring
-    public let networkStatusProvider: NetworkStatusProviding
-    public let operationGate: AsyncOperationGate
-    public let authRepository: AuthRepository
-    public let organizationAccessRepository: BusinessOrganizationAccessRepository
-    public let contextRepository: BusinessContextRepository
-    public let catalogRepository: CatalogRepository
-    public let salesRepository: SalesRepository
-    public let cashRepository: CashRepository
-    public let paymentsRepository: PaymentsRepository
-    public let receivablesRepository: ReceivablesRepository
-    public let documentsRepository: BusinessDocumentsRepository
-    public let pendingOperationsRepository: PendingOperationsRepository
-    public let dailyReportRepository: BusinessDailyReportRepository
-    public let salesHistoryRepository: SalesHistoryRepository
-    public let customersRepository: CustomersRepository
-    public let inventoryRepository: InventoryRepository
+final class BusinessAppContainer: @unchecked Sendable {
+    let tokenStore: AuthTokenStoring
+    let selectionStore: BusinessSelectionStoring
+    let networkStatusProvider: NetworkStatusProviding
+    let operationGate: AsyncOperationGate
+    let authRepository: AuthRepository
+    let organizationAccessRepository: BusinessOrganizationAccessRepository
+    let contextRepository: BusinessContextRepository
+    let catalogRepository: CatalogRepository
+    let salesRepository: SalesRepository
+    let cashRepository: CashRepository
+    let paymentsRepository: PaymentsRepository
+    let receivablesRepository: ReceivablesRepository
+    let documentsRepository: BusinessDocumentsRepository
+    let pendingOperationsRepository: PendingOperationsRepository
+    let dailyReportRepository: BusinessDailyReportRepository
+    let salesHistoryRepository: SalesHistoryRepository
+    let customersRepository: CustomersRepository
+    let inventoryRepository: InventoryRepository
 
-    public init(
+    init(
         tokenStore: AuthTokenStoring,
         selectionStore: BusinessSelectionStoring,
         networkStatusProvider: NetworkStatusProviding = SystemNetworkStatusProvider(),

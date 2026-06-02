@@ -10,16 +10,16 @@ import Observation
 
 @MainActor
 @Observable
-public final class OperationalHardeningViewModel {
-    public private(set) var state: AsyncViewState<OperationalHardeningReport> = .idle
-    public private(set) var isRunning = false
+final class OperationalHardeningViewModel {
+    private(set) var state: AsyncViewState<OperationalHardeningReport> = .idle
+    private(set) var isRunning = false
 
     private let context: BusinessContextResponse
     private let operationalSelection: BusinessOperationalSelection
     private let tokenStore: AuthTokenStoring
     private let networkStatusProvider: NetworkStatusProviding
 
-    public init(
+    init(
         context: BusinessContextResponse,
         operationalSelection: BusinessOperationalSelection,
         tokenStore: AuthTokenStoring,
@@ -31,7 +31,7 @@ public final class OperationalHardeningViewModel {
         self.networkStatusProvider = networkStatusProvider
     }
 
-    public func run() async {
+    func run() async {
         guard !isRunning else { return }
 
         isRunning = true

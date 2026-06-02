@@ -7,8 +7,8 @@
 
 import Foundation
 
-public enum PreviewInventoryData {
-    public static let items: [InventoryItem] = [
+enum PreviewInventoryData {
+    static let items: [InventoryItem] = [
         InventoryItem(
             id: "inv_cuy_entero",
             catalogItemId: "item_cuy_entero",
@@ -53,7 +53,7 @@ public enum PreviewInventoryData {
         )
     ]
 
-    public static let movements: [InventoryMovement] = [
+    static let movements: [InventoryMovement] = [
         InventoryMovement(
             id: "mov_inv_001",
             inventoryItemId: "inv_cuy_entero",
@@ -76,7 +76,7 @@ public enum PreviewInventoryData {
         )
     ]
 
-    public static let itemsResponse = InventoryItemsResponse(
+    static let itemsResponse = InventoryItemsResponse(
         items: items,
         catalogRevision: PreviewData.businessContext.revisions.catalogRevision,
         totalCount: items.count,

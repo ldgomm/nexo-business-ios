@@ -7,10 +7,10 @@
 
 import SwiftUI
 
-public struct BusinessSessionLoadingView: View {
-    public init() {}
+struct BusinessSessionLoadingView: View {
+    init() {}
 
-    public var body: some View {
+    var body: some View {
         VStack(spacing: 16) {
             ProgressView()
                 .controlSize(.large)

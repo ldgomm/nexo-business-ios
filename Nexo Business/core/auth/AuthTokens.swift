@@ -7,12 +7,12 @@
 
 import Foundation
 
-public struct AuthTokens: Equatable, Codable, Sendable {
-    public let accessToken: String
-    public let refreshToken: String?
-    public let expiresAt: Date?
+struct AuthTokens: Equatable, Codable, Sendable {
+    let accessToken: String
+    let refreshToken: String?
+    let expiresAt: Date?
 
-    public init(
+    init(
         accessToken: String,
         refreshToken: String? = nil,
         expiresAt: Date? = nil

@@ -7,7 +7,7 @@
 
 import Foundation
 
-public protocol PaymentsRepository: Sendable {
+protocol PaymentsRepository: Sendable {
     func register(
         organizationId: String,
         idempotencyKey: IdempotencyKey,

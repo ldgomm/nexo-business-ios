@@ -7,12 +7,12 @@
 
 import SwiftUI
 
-public struct BusinessSessionFailureView: View {
+struct BusinessSessionFailureView: View {
     private let message: String
     private let retryAction: () -> Void
     private let logoutAction: () -> Void
 
-    public init(
+    init(
         message: String,
         retryAction: @escaping () -> Void,
         logoutAction: @escaping () -> Void
@@ -22,7 +22,7 @@ public struct BusinessSessionFailureView: View {
         self.logoutAction = logoutAction
     }
 
-    public var body: some View {
+    var body: some View {
         ContentUnavailableView {
             Label("No se pudo cargar el negocio", systemImage: "wifi.exclamationmark")
         } description: {

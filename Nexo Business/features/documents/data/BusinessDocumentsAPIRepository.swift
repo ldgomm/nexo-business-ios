@@ -7,28 +7,28 @@
 
 import Foundation
 
-public enum BusinessDocumentsRoutes {
-    public static func list(saleId: String) -> String {
+enum BusinessDocumentsRoutes {
+    static func list(saleId: String) -> String {
         "/api/v1/business/sales/\(saleId)/documents"
     }
 
-    public static func internalTicket(saleId: String) -> String {
+    static func internalTicket(saleId: String) -> String {
         "/api/v1/business/sales/\(saleId)/documents/internal-ticket"
     }
 
-    public static func physicalSaleNote(saleId: String) -> String {
+    static func physicalSaleNote(saleId: String) -> String {
         "/api/v1/business/sales/\(saleId)/documents/physical-sale-note"
     }
 }
 
-public final class BusinessDocumentsAPIRepository: BusinessDocumentsRepository, @unchecked Sendable {
+final class BusinessDocumentsAPIRepository: BusinessDocumentsRepository, @unchecked Sendable {
     private let apiClient: APIClient
 
-    public init(apiClient: APIClient) {
+    init(apiClient: APIClient) {
         self.apiClient = apiClient
     }
 
-    public func list(
+    func list(
         organizationId: String,
         saleId: String
     ) async throws -> BusinessDocumentsResponse {
@@ -43,7 +43,7 @@ public final class BusinessDocumentsAPIRepository: BusinessDocumentsRepository, 
         )
     }
 
-    public func generateInternalTicket(
+    func generateInternalTicket(
         organizationId: String,
         saleId: String,
         idempotencyKey: IdempotencyKey,
@@ -62,7 +62,7 @@ public final class BusinessDocumentsAPIRepository: BusinessDocumentsRepository, 
         )
     }
 
-    public func registerPhysicalSaleNote(
+    func registerPhysicalSaleNote(
         organizationId: String,
         saleId: String,
         idempotencyKey: IdempotencyKey,

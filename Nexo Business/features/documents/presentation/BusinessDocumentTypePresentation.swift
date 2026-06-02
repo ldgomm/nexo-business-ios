@@ -7,8 +7,8 @@
 
 import Foundation
 
-public enum BusinessDocumentTypePresentation {
-    public static func displayName(_ type: String) -> String {
+enum BusinessDocumentTypePresentation {
+    static func displayName(_ type: String) -> String {
         switch type {
         case "internal_ticket":
             return "Ticket interno"
@@ -29,7 +29,7 @@ public enum BusinessDocumentTypePresentation {
         }
     }
 
-    public static func systemImage(_ type: String) -> String {
+    static func systemImage(_ type: String) -> String {
         switch type {
         case "internal_ticket":
             return "printer"

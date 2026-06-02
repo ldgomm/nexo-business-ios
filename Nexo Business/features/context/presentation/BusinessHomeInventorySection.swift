@@ -7,7 +7,7 @@
 
 import SwiftUI
 
-public struct BusinessHomeInventorySection: View {
+struct BusinessHomeInventorySection: View {
     private let organizationId: String
     private let branchId: String
     private let activityId: String
@@ -15,7 +15,7 @@ public struct BusinessHomeInventorySection: View {
     private let effectivePermissions: Set<String>
     private let inventoryRepository: InventoryRepository
 
-    public init(
+    init(
         organizationId: String,
         branchId: String,
         activityId: String,
@@ -31,7 +31,7 @@ public struct BusinessHomeInventorySection: View {
         self.inventoryRepository = inventoryRepository
     }
 
-    public var body: some View {
+    var body: some View {
         if allowsInventory {
             NavigationLink("Inventario") {
                 InventoryDashboardView(

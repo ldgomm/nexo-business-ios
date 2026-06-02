@@ -7,15 +7,15 @@
 
 import Foundation
 
-public actor BusinessRevisionRegistry {
-    public static let shared = BusinessRevisionRegistry()
+actor BusinessRevisionRegistry {
+    static let shared = BusinessRevisionRegistry()
 
     private var catalogRevisionsByContext: [String: String] = [:]
     private var taxRevisionsByContext: [String: String] = [:]
 
     private init() {}
 
-    public func observeCatalogRevision(
+    func observeCatalogRevision(
         organizationId: String,
         branchId: String,
         activityId: String,
@@ -25,7 +25,7 @@ public actor BusinessRevisionRegistry {
         catalogRevisionsByContext[key(organizationId: organizationId, branchId: branchId, activityId: activityId)] = catalogRevision
     }
 
-    public func observeTaxConfigurationRevision(
+    func observeTaxConfigurationRevision(
         organizationId: String,
         branchId: String,
         activityId: String,
@@ -35,7 +35,7 @@ public actor BusinessRevisionRegistry {
         taxRevisionsByContext[key(organizationId: organizationId, branchId: branchId, activityId: activityId)] = taxConfigurationRevision
     }
 
-    public func observeRevisions(
+    func observeRevisions(
         organizationId: String,
         branchId: String,
         activityId: String,
@@ -55,7 +55,7 @@ public actor BusinessRevisionRegistry {
         )
     }
 
-    public func latestRevisions(
+    func latestRevisions(
         organizationId: String,
         branchId: String,
         activityId: String,
@@ -81,7 +81,7 @@ public actor BusinessRevisionRegistry {
         )
     }
 
-    public func clear() {
+    func clear() {
         catalogRevisionsByContext.removeAll()
         taxRevisionsByContext.removeAll()
     }

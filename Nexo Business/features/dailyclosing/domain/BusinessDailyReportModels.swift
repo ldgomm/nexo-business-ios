@@ -7,27 +7,27 @@
 
 import Foundation
 
-public struct BusinessDailyReport: Decodable, Equatable, Sendable {
-    public let businessDate: String
-    public let branchId: String?
-    public let salesCount: Int?
-    public let cancelledSalesCount: Int?
-    public let salesTotal: MoneyAmount?
-    public let paymentsCount: Int?
-    public let paymentsTotal: MoneyAmount?
-    public let cashExpectedAmount: MoneyAmount?
-    public let receivablesPendingCount: Int?
-    public let receivablesPendingTotal: MoneyAmount?
-    public let receivablesOpenAmount: MoneyAmount?
-    public let pendingSalesCount: Int?
-    public let pendingDocumentsCount: Int?
-    public let openReceivablesCount: Int?
-    public let cashSessionId: String?
-    public let cashSessionStatus: String?
-    public let cashStatus: String?
-    public let generatedAt: Date?
+struct BusinessDailyReport: Decodable, Equatable, Sendable {
+    let businessDate: String
+    let branchId: String?
+    let salesCount: Int?
+    let cancelledSalesCount: Int?
+    let salesTotal: MoneyAmount?
+    let paymentsCount: Int?
+    let paymentsTotal: MoneyAmount?
+    let cashExpectedAmount: MoneyAmount?
+    let receivablesPendingCount: Int?
+    let receivablesPendingTotal: MoneyAmount?
+    let receivablesOpenAmount: MoneyAmount?
+    let pendingSalesCount: Int?
+    let pendingDocumentsCount: Int?
+    let openReceivablesCount: Int?
+    let cashSessionId: String?
+    let cashSessionStatus: String?
+    let cashStatus: String?
+    let generatedAt: Date?
     
-    public init(
+    init(
         businessDate: String,
         branchId: String? = nil,
         salesCount: Int? = nil,
@@ -94,7 +94,7 @@ public struct BusinessDailyReport: Decodable, Equatable, Sendable {
         case generatedAt
     }
     
-    public init(from decoder: Decoder) throws {
+    init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         businessDate = try container.decodeIfPresent(String.self, forKey: .businessDate)
         ?? container.decodeIfPresent(String.self, forKey: .date)
@@ -124,10 +124,10 @@ public struct BusinessDailyReport: Decodable, Equatable, Sendable {
     }
 }
 
-public struct BusinessDailyReportResponse: Decodable, Equatable, Sendable {
-    public let report: BusinessDailyReport
+struct BusinessDailyReportResponse: Decodable, Equatable, Sendable {
+    let report: BusinessDailyReport
     
-    public init(report: BusinessDailyReport) {
+    init(report: BusinessDailyReport) {
         self.report = report
     }
     
@@ -135,7 +135,7 @@ public struct BusinessDailyReportResponse: Decodable, Equatable, Sendable {
         case report
     }
     
-    public init(from decoder: Decoder) throws {
+    init(from decoder: Decoder) throws {
         if let container = try? decoder.container(keyedBy: CodingKeys.self),
            let report = try? container.decode(BusinessDailyReport.self, forKey: .report) {
             self.report = report

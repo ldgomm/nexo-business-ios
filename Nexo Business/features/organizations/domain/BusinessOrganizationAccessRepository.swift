@@ -7,6 +7,6 @@
 
 import Foundation
 
-public protocol BusinessOrganizationAccessRepository: Sendable {
+protocol BusinessOrganizationAccessRepository: Sendable {
     func listOrganizations() async throws -> BusinessOrganizationAccessResponse
 }

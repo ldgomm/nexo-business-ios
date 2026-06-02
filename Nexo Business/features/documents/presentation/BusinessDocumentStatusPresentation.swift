@@ -7,8 +7,8 @@
 
 import Foundation
 
-public enum BusinessDocumentStatusPresentation {
-    public static func displayName(_ status: String) -> String {
+enum BusinessDocumentStatusPresentation {
+    static func displayName(_ status: String) -> String {
         switch status {
         case "not_required":
             return "No requerido"
@@ -45,7 +45,7 @@ public enum BusinessDocumentStatusPresentation {
         }
     }
 
-    public static func systemImage(_ status: String) -> String {
+    static func systemImage(_ status: String) -> String {
         switch status {
         case "authorized", "generated", "registered":
             return "checkmark.seal"

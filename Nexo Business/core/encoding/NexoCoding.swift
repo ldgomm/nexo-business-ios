@@ -7,7 +7,7 @@
 
 import Foundation
 
-public extension JSONEncoder {
+extension JSONEncoder {
     static var nexoDefault: JSONEncoder {
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
@@ -15,7 +15,7 @@ public extension JSONEncoder {
     }
 }
 
-public extension JSONDecoder {
+extension JSONDecoder {
     static var nexoDefault: JSONDecoder {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .custom { decoder in

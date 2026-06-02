@@ -1,13 +1,6 @@
-//
-//  SalesHistoryView.swift
-//  Nexo Business
-//
-//  Created by José Ruiz on 29/5/26.
-//
-
 import SwiftUI
 
-public struct SalesHistoryView: View {
+struct SalesHistoryView: View {
     @Bindable private var viewModel: SalesHistoryViewModel
     private let salesRepository: SalesRepository
     private let cashRepository: CashRepository
@@ -15,7 +8,7 @@ public struct SalesHistoryView: View {
     private let receivablesRepository: ReceivablesRepository
     private let documentsRepository: BusinessDocumentsRepository
 
-    public init(
+    init(
         viewModel: SalesHistoryViewModel,
         salesRepository: SalesRepository,
         cashRepository: CashRepository,
@@ -31,14 +24,14 @@ public struct SalesHistoryView: View {
         self.documentsRepository = documentsRepository
     }
 
-    public var body: some View {
+    var body: some View {
         Form {
             filtersSection
             summarySection
             resultsSection
             messagesSection
         }
-        .navigationTitle("Historial de ventas")
+        .navigationTitle("Historial")
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
@@ -57,8 +50,8 @@ public struct SalesHistoryView: View {
     }
 
     private var filtersSection: some View {
-        Section("Filtros") {
-            TextField("Buscar por venta, cliente o referencia", text: $viewModel.query)
+        Section("Buscar") {
+            TextField("Venta, cliente o referencia", text: $viewModel.query)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
                 .submitLabel(.search)
@@ -108,15 +101,16 @@ public struct SalesHistoryView: View {
             LabeledContent("Filtros", value: viewModel.activeFiltersDescription)
 
             if let total = viewModel.total {
-                LabeledContent("Total encontrado", value: String(total))
+                LabeledContent("Ventas encontradas", value: String(total))
             } else {
-                LabeledContent("Resultados", value: String(viewModel.sales.count))
+                LabeledContent("Ventas", value: String(viewModel.sales.count))
             }
 
             if viewModel.hasMore == true {
-                Label("Hay más ventas disponibles. Refina la búsqueda para ver menos resultados.", systemImage: "ellipsis.circle")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
+                NexoMessageBanner(
+                    "Hay más ventas disponibles. Refina la búsqueda para ver menos resultados.",
+                    style: .info
+                )
             }
         }
     }
@@ -157,17 +151,13 @@ public struct SalesHistoryView: View {
     private var messagesSection: some View {
         if let message = viewModel.errorMessage {
             Section {
-                Label(message, systemImage: "exclamationmark.triangle")
-                    .font(.footnote)
-                    .foregroundStyle(.red)
+                NexoMessageBanner(message, style: .error)
             }
         }
 
         if let message = viewModel.infoMessage {
             Section {
-                Label(message, systemImage: "info.circle")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
+                NexoMessageBanner(message, style: .info)
             }
         }
     }
@@ -177,24 +167,35 @@ private struct SalesHistoryRow: View {
     let sale: BusinessSale
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(sale.id)
+                VStack(alignment: .leading, spacing: 5) {
+                    Text(sale.displayNumber)
                         .font(.subheadline.weight(.semibold))
                         .lineLimit(1)
 
-                    SaleStatusLabel(status: sale.status)
+                    Text(sale.displayCustomerName)
                         .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
 
                 Spacer()
 
-                Text(money(sale.totals.grandTotal))
+                Text(sale.totals.grandTotal.displayText)
                     .font(.subheadline.weight(.bold))
+                    .monospacedDigit()
+            }
+
+            if !sale.displayItemsSummary.isEmpty {
+                Text(sale.displayItemsSummary)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
             }
 
             HStack(spacing: 10) {
+                SaleStatusLabel(status: sale.status)
+
                 Label(PaymentStatusPresentation.displayName(sale.paymentStatus), systemImage: "dollarsign.circle")
 
                 if let documentStatus = sale.documentStatus {
@@ -211,10 +212,6 @@ private struct SalesHistoryRow: View {
             }
         }
         .padding(.vertical, 4)
-    }
-
-    private func money(_ value: MoneyAmount) -> String {
-        "\(value.currency) \(value.amount)"
     }
 }
 

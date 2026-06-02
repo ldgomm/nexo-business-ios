@@ -7,12 +7,12 @@
 
 import Foundation
 
-public struct BusinessCatalogUnit: Decodable, Equatable, Sendable {
-    public let code: String?
-    public let name: String?
-    public let allowsDecimal: Bool?
+struct BusinessCatalogUnit: Decodable, Equatable, Sendable {
+    let code: String?
+    let name: String?
+    let allowsDecimal: Bool?
 
-    public init(
+    init(
         code: String? = nil,
         name: String? = nil,
         allowsDecimal: Bool? = nil
@@ -28,7 +28,7 @@ public struct BusinessCatalogUnit: Decodable, Equatable, Sendable {
         case allowsDecimal
     }
 
-    public init(from decoder: Decoder) throws {
+    init(from decoder: Decoder) throws {
         if let single = try? decoder.singleValueContainer(),
            let value = try? single.decode(String.self) {
             let normalized = value.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -58,23 +58,23 @@ public struct BusinessCatalogUnit: Decodable, Equatable, Sendable {
     }
 }
 
-public struct BusinessCatalogItem: Decodable, Equatable, Identifiable, Sendable {
-    public let id: String
-    public let name: String
-    public let itemDescription: String?
-    public let sku: String?
-    public let barcode: String?
-    public let type: String?
-    public let status: String?
-    public let unit: BusinessCatalogUnit?
-    public let price: MoneyAmount?
-    public let taxProfileCode: String?
-    public let taxProfileName: String?
-    public let taxProfileId: String?
-    public let availableStock: String?
-    public let allowsDecimalQuantity: Bool?
+struct BusinessCatalogItem: Decodable, Equatable, Identifiable, Sendable {
+    let id: String
+    let name: String
+    let itemDescription: String?
+    let sku: String?
+    let barcode: String?
+    let type: String?
+    let status: String?
+    let unit: BusinessCatalogUnit?
+    let price: MoneyAmount?
+    let taxProfileCode: String?
+    let taxProfileName: String?
+    let taxProfileId: String?
+    let availableStock: String?
+    let allowsDecimalQuantity: Bool?
 
-    public init(
+    init(
         id: String,
         name: String,
         itemDescription: String? = nil,
@@ -130,7 +130,7 @@ public struct BusinessCatalogItem: Decodable, Equatable, Identifiable, Sendable 
         case allowsDecimalQuantity
     }
 
-    public init(from decoder: Decoder) throws {
+    init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
 
         id = try container.decodeFirstString(for: [.id, .mongoId])
@@ -150,11 +150,11 @@ public struct BusinessCatalogItem: Decodable, Equatable, Identifiable, Sendable 
     }
 }
 
-public struct CatalogSearchResponse: Decodable, Equatable, Sendable {
-    public let items: [BusinessCatalogItem]
-    public let catalogRevision: String?
+struct CatalogSearchResponse: Decodable, Equatable, Sendable {
+    let items: [BusinessCatalogItem]
+    let catalogRevision: String?
 
-    public init(
+    init(
         items: [BusinessCatalogItem],
         catalogRevision: String? = nil
     ) {
@@ -170,7 +170,7 @@ public struct CatalogSearchResponse: Decodable, Equatable, Sendable {
         case catalogRevision
     }
 
-    public init(from decoder: Decoder) throws {
+    init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
 
         items = try container.decodeIfPresent([BusinessCatalogItem].self, forKey: .items)

@@ -7,12 +7,12 @@
 
 import Foundation
 
-public struct BusinessSelectionSnapshot: Codable, Equatable, Sendable {
-    public let organizationId: String?
-    public let branchId: String?
-    public let activityId: String?
+struct BusinessSelectionSnapshot: Codable, Equatable, Sendable {
+    let organizationId: String?
+    let branchId: String?
+    let activityId: String?
 
-    public init(
+    init(
         organizationId: String? = nil,
         branchId: String? = nil,
         activityId: String? = nil
@@ -22,21 +22,21 @@ public struct BusinessSelectionSnapshot: Codable, Equatable, Sendable {
         self.activityId = activityId
     }
 
-    public var hasOrganization: Bool {
+    var hasOrganization: Bool {
         organizationId?.isEmpty == false
     }
 
-    public var hasOperationalContext: Bool {
+    var hasOperationalContext: Bool {
         branchId?.isEmpty == false && activityId?.isEmpty == false
     }
 }
 
-public struct BusinessOperationalSelection: Codable, Equatable, Sendable {
-    public let organizationId: String
-    public let branchId: String
-    public let activityId: String
+struct BusinessOperationalSelection: Codable, Equatable, Sendable {
+    let organizationId: String
+    let branchId: String
+    let activityId: String
 
-    public init(
+    init(
         organizationId: String,
         branchId: String,
         activityId: String
@@ -47,7 +47,7 @@ public struct BusinessOperationalSelection: Codable, Equatable, Sendable {
     }
 }
 
-public protocol BusinessSelectionStoring: Sendable {
+protocol BusinessSelectionStoring: Sendable {
     func snapshot() async -> BusinessSelectionSnapshot
     func saveOrganizationId(_ organizationId: String) async throws
     func saveOperationalContext(branchId: String, activityId: String) async throws
@@ -55,18 +55,18 @@ public protocol BusinessSelectionStoring: Sendable {
     func clearAll() async throws
 }
 
-public actor InMemoryBusinessSelectionStore: BusinessSelectionStoring {
+actor InMemoryBusinessSelectionStore: BusinessSelectionStoring {
     private var storedSnapshot: BusinessSelectionSnapshot
 
-    public init(snapshot: BusinessSelectionSnapshot = BusinessSelectionSnapshot()) {
+    init(snapshot: BusinessSelectionSnapshot = BusinessSelectionSnapshot()) {
         self.storedSnapshot = snapshot
     }
 
-    public func snapshot() async -> BusinessSelectionSnapshot {
+    func snapshot() async -> BusinessSelectionSnapshot {
         storedSnapshot
     }
 
-    public func saveOrganizationId(_ organizationId: String) async throws {
+    func saveOrganizationId(_ organizationId: String) async throws {
         storedSnapshot = BusinessSelectionSnapshot(
             organizationId: organizationId,
             branchId: nil,
@@ -74,7 +74,7 @@ public actor InMemoryBusinessSelectionStore: BusinessSelectionStoring {
         )
     }
 
-    public func saveOperationalContext(branchId: String, activityId: String) async throws {
+    func saveOperationalContext(branchId: String, activityId: String) async throws {
         storedSnapshot = BusinessSelectionSnapshot(
             organizationId: storedSnapshot.organizationId,
             branchId: branchId,
@@ -82,7 +82,7 @@ public actor InMemoryBusinessSelectionStore: BusinessSelectionStoring {
         )
     }
 
-    public func clearOperationalContext() async throws {
+    func clearOperationalContext() async throws {
         storedSnapshot = BusinessSelectionSnapshot(
             organizationId: storedSnapshot.organizationId,
             branchId: nil,
@@ -90,12 +90,12 @@ public actor InMemoryBusinessSelectionStore: BusinessSelectionStoring {
         )
     }
 
-    public func clearAll() async throws {
+    func clearAll() async throws {
         storedSnapshot = BusinessSelectionSnapshot()
     }
 }
 
-public actor UserDefaultsBusinessSelectionStore: BusinessSelectionStoring {
+actor UserDefaultsBusinessSelectionStore: BusinessSelectionStoring {
     private enum Keys {
         static let organizationId = "nexo.business.selection.organizationId"
         static let branchId = "nexo.business.selection.branchId"
@@ -105,7 +105,7 @@ public actor UserDefaultsBusinessSelectionStore: BusinessSelectionStoring {
     private let defaults: UserDefaults
     private let preferredOrganizationId: String?
 
-    public init(
+    init(
         defaults: UserDefaults = .standard,
         preferredOrganizationId: String? = nil
     ) {
@@ -113,7 +113,7 @@ public actor UserDefaultsBusinessSelectionStore: BusinessSelectionStoring {
         self.preferredOrganizationId = preferredOrganizationId
     }
 
-    public func snapshot() async -> BusinessSelectionSnapshot {
+    func snapshot() async -> BusinessSelectionSnapshot {
         BusinessSelectionSnapshot(
             organizationId: stored(Keys.organizationId) ?? preferredOrganizationId,
             branchId: stored(Keys.branchId),
@@ -121,23 +121,23 @@ public actor UserDefaultsBusinessSelectionStore: BusinessSelectionStoring {
         )
     }
 
-    public func saveOrganizationId(_ organizationId: String) async throws {
+    func saveOrganizationId(_ organizationId: String) async throws {
         defaults.set(organizationId, forKey: Keys.organizationId)
         defaults.removeObject(forKey: Keys.branchId)
         defaults.removeObject(forKey: Keys.activityId)
     }
 
-    public func saveOperationalContext(branchId: String, activityId: String) async throws {
+    func saveOperationalContext(branchId: String, activityId: String) async throws {
         defaults.set(branchId, forKey: Keys.branchId)
         defaults.set(activityId, forKey: Keys.activityId)
     }
 
-    public func clearOperationalContext() async throws {
+    func clearOperationalContext() async throws {
         defaults.removeObject(forKey: Keys.branchId)
         defaults.removeObject(forKey: Keys.activityId)
     }
 
-    public func clearAll() async throws {
+    func clearAll() async throws {
         defaults.removeObject(forKey: Keys.organizationId)
         defaults.removeObject(forKey: Keys.branchId)
         defaults.removeObject(forKey: Keys.activityId)

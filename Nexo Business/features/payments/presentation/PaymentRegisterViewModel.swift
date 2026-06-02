@@ -1,22 +1,15 @@
-//
-//  PaymentRegisterViewModel.swift
-//  Nexo Business
-//
-//  Created by José Ruiz on 29/5/26.
-//
-
 import Foundation
 import Observation
 
-public enum PaymentRegisterMode: String, CaseIterable, Identifiable, Sendable, Hashable {
+enum PaymentRegisterMode: String, CaseIterable, Identifiable, Sendable, Hashable {
     case cash
     case transfer
     case card
     case credit
 
-    public var id: String { rawValue }
+    var id: String { rawValue }
 
-    public var title: String {
+    var title: String {
         switch self {
         case .cash:
             return "Efectivo"
@@ -29,7 +22,7 @@ public enum PaymentRegisterMode: String, CaseIterable, Identifiable, Sendable, H
         }
     }
 
-    public var systemImage: String {
+    var systemImage: String {
         switch self {
         case .cash:
             return "banknote"
@@ -42,7 +35,7 @@ public enum PaymentRegisterMode: String, CaseIterable, Identifiable, Sendable, H
         }
     }
 
-    public var paymentMethod: BusinessPaymentMethod? {
+    var paymentMethod: BusinessPaymentMethod? {
         switch self {
         case .cash:
             return .cash
@@ -58,33 +51,33 @@ public enum PaymentRegisterMode: String, CaseIterable, Identifiable, Sendable, H
 
 @MainActor
 @Observable
-public final class PaymentRegisterViewModel {
-    public let sale: BusinessSale
-    public private(set) var currentCashSession: CashSession?
-    public private(set) var selectedCustomer: BusinessCustomer?
-    public private(set) var isLoadingCash = false
-    public private(set) var isSubmitting = false
-    public private(set) var paymentResult: PaymentRecord?
-    public private(set) var receivableResult: ReceivableRecord?
-    public var selectedMode: PaymentRegisterMode = .cash
-    public var amount: String
-    public var reference = ""
-    public var note = ""
-    public var customerId: String
-    public var dueDate: Date = Calendar.current.date(byAdding: .day, value: 7, to: Date()) ?? Date()
-    public var useDueDate = false
-    public var errorMessage: String?
-    public var infoMessage: String?
+final class PaymentRegisterViewModel {
+    let sale: BusinessSale
+    private(set) var currentCashSession: CashSession?
+    private(set) var selectedCustomer: BusinessCustomer?
+    private(set) var isLoadingCash = false
+    private(set) var isSubmitting = false
+    private(set) var paymentResult: PaymentRecord?
+    private(set) var receivableResult: ReceivableRecord?
+    var selectedMode: PaymentRegisterMode = .cash
+    var amount: String
+    var reference = ""
+    var note = ""
+    var customerId: String
+    var dueDate: Date = Calendar.current.date(byAdding: .day, value: 7, to: Date()) ?? Date()
+    var useDueDate = false
+    var errorMessage: String?
+    var infoMessage: String?
 
-    public let organizationId: String
-    public let branchId: String
-    public let effectivePermissions: Set<String>
+    let organizationId: String
+    let branchId: String
+    let effectivePermissions: Set<String>
 
     private let cashRepository: CashRepository
     private let paymentsRepository: PaymentsRepository
     private let receivablesRepository: ReceivablesRepository
 
-    public init(
+    init(
         organizationId: String,
         branchId: String,
         sale: BusinessSale,
@@ -105,7 +98,7 @@ public final class PaymentRegisterViewModel {
         self.customerId = sale.customerId ?? ""
     }
 
-    public var canSubmitPayment: Bool {
+    var canSubmitPayment: Bool {
         guard !isSubmitting, selectedMode != .credit else { return false }
         guard hasPaymentPermission else { return false }
         guard SaleStatusPresentation.canCollect(status: sale.status) else { return false }
@@ -113,13 +106,13 @@ public final class PaymentRegisterViewModel {
         guard isValidAmount(amount) else { return false }
 
         if selectedMode == .cash {
-            return currentCashSession?.status == "open"
+            return currentCashSession?.isOpen == true
         }
 
         return true
     }
 
-    public var canCreateReceivable: Bool {
+    var canCreateReceivable: Bool {
         guard !isSubmitting, selectedMode == .credit else { return false }
         guard hasReceivablePermission else { return false }
         guard SaleStatusPresentation.canCollect(status: sale.status) else { return false }
@@ -128,11 +121,11 @@ public final class PaymentRegisterViewModel {
         return !normalized(customerId).isEmpty
     }
 
-    public var shouldShowCashWarning: Bool {
-        selectedMode == .cash && currentCashSession?.status != "open"
+    var shouldShowCashWarning: Bool {
+        selectedMode == .cash && currentCashSession?.isOpen != true
     }
 
-    public var hasPaymentPermission: Bool {
+    var hasPaymentPermission: Bool {
         hasPermission([
             "business.payments.collect",
             "payments.collect",
@@ -141,7 +134,7 @@ public final class PaymentRegisterViewModel {
         ])
     }
 
-    public var hasReceivablePermission: Bool {
+    var hasReceivablePermission: Bool {
         hasPermission([
             "business.receivables.create",
             "receivables.create",
@@ -150,23 +143,23 @@ public final class PaymentRegisterViewModel {
         ])
     }
 
-    public var amountMoney: String {
+    var amountMoney: String {
         "\(sale.totals.grandTotal.currency) \(amount)"
     }
 
-    public func selectCustomer(_ customer: BusinessCustomer) {
+    func selectCustomer(_ customer: BusinessCustomer) {
         selectedCustomer = customer
         customerId = customer.identificationType == .finalConsumer ? "" : customer.id
         resetResultMessages()
     }
 
-    public func clearCustomer() {
+    func clearCustomer() {
         selectedCustomer = nil
         customerId = sale.customerId ?? ""
         resetResultMessages()
     }
 
-    public func load() async {
+    func load() async {
         guard !branchId.isEmpty else {
             errorMessage = "Falta sucursal activa. Actualiza el contexto."
             return
@@ -196,7 +189,7 @@ public final class PaymentRegisterViewModel {
         }
     }
 
-    public func submit() async {
+    func submit() async {
         if selectedMode == .credit {
             await createReceivable()
         } else {
@@ -204,7 +197,7 @@ public final class PaymentRegisterViewModel {
         }
     }
 
-    public func registerPayment() async {
+    func registerPayment() async {
         guard selectedMode != .credit else {
             errorMessage = "Selecciona efectivo, transferencia o tarjeta para registrar un cobro."
             return
@@ -258,7 +251,7 @@ public final class PaymentRegisterViewModel {
         }
     }
 
-    public func createReceivable() async {
+    func createReceivable() async {
         guard canCreateReceivable else {
             errorMessage = receivableValidationMessage()
             return
@@ -296,7 +289,7 @@ public final class PaymentRegisterViewModel {
         }
     }
 
-    public func resetResultMessages() {
+    func resetResultMessages() {
         errorMessage = nil
         infoMessage = nil
     }
@@ -310,7 +303,7 @@ public final class PaymentRegisterViewModel {
             return "Ingresa un monto válido mayor a cero."
         }
 
-        if selectedMode == .cash && currentCashSession?.status != "open" {
+        if selectedMode == .cash && currentCashSession?.isOpen != true {
             return "Necesitas una caja abierta para cobrar en efectivo."
         }
 

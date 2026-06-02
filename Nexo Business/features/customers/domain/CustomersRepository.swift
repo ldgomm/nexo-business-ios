@@ -7,7 +7,7 @@
 
 import Foundation
 
-public protocol CustomersRepository: Sendable {
+protocol CustomersRepository: Sendable {
     func search(
         organizationId: String,
         query: String,
@@ -21,10 +21,10 @@ public protocol CustomersRepository: Sendable {
     ) async throws -> CustomerResponse
 }
 
-public final class UnavailableCustomersRepository: CustomersRepository, @unchecked Sendable {
-    public init() {}
+final class UnavailableCustomersRepository: CustomersRepository, @unchecked Sendable {
+    init() {}
 
-    public func search(
+    func search(
         organizationId: String,
         query: String,
         limit: Int
@@ -37,7 +37,7 @@ public final class UnavailableCustomersRepository: CustomersRepository, @uncheck
         )
     }
 
-    public func create(
+    func create(
         organizationId: String,
         idempotencyKey: IdempotencyKey,
         request: CreateCustomerRequest

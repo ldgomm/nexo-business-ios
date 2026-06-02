@@ -7,8 +7,8 @@
 
 import Foundation
 
-public enum PreviewPilotData {
-    public static var completedPilotChecklist: [PilotChecklistItem] {
+enum PreviewPilotData {
+    static var completedPilotChecklist: [PilotChecklistItem] {
         PilotChecklistFactory.defaultItems().map { item in
             var copy = item
             copy.isDone = item.isRequired

@@ -1,13 +1,6 @@
-//
-//  SaleDetailView.swift
-//  Nexo Business
-//
-//  Created by José Ruiz on 29/5/26.
-//
-
 import SwiftUI
 
-public struct SaleDetailView: View {
+struct SaleDetailView: View {
     @Bindable private var viewModel: SaleDetailViewModel
     private let customersRepository: CustomersRepository
     private let cashRepository: CashRepository
@@ -15,7 +8,7 @@ public struct SaleDetailView: View {
     private let receivablesRepository: ReceivablesRepository
     private let documentsRepository: BusinessDocumentsRepository
 
-    public init(
+    init(
         viewModel: SaleDetailViewModel,
         customersRepository: CustomersRepository = UnavailableCustomersRepository(),
         cashRepository: CashRepository,
@@ -31,7 +24,7 @@ public struct SaleDetailView: View {
         self.documentsRepository = documentsRepository
     }
 
-    public var body: some View {
+    var body: some View {
         Form {
             if viewModel.isLoading, viewModel.sale == nil {
                 Section {
@@ -74,14 +67,10 @@ public struct SaleDetailView: View {
 
     private func summarySection(_ sale: BusinessSale) -> some View {
         Section("Venta") {
-            LabeledContent("ID", value: sale.id)
+            LabeledContent("Venta", value: sale.displayNumber)
             SaleStatusLabel(status: sale.status)
 
-            if let customerId = sale.customerId, !customerId.isEmpty {
-                LabeledContent("Cliente", value: customerId)
-            } else {
-                LabeledContent("Cliente", value: "Consumidor final")
-            }
+            LabeledContent("Cliente", value: sale.displayCustomerName)
 
             if let createdAt = sale.createdAt {
                 LabeledContent(
@@ -108,7 +97,7 @@ public struct SaleDetailView: View {
                         Text(item.name)
                             .font(.subheadline.weight(.semibold))
 
-                        Text("Cantidad: \(item.quantity)")
+                        Text("Cantidad: \(item.quantity.cleanQuantityText)")
                             .font(.caption)
                             .foregroundStyle(.secondary)
 
@@ -232,7 +221,7 @@ public struct SaleDetailView: View {
     }
 
     private func money(_ value: MoneyAmount) -> String {
-        "\(value.currency) \(value.amount)"
+        value.displayText
     }
 }
 

@@ -7,7 +7,7 @@
 
 import Foundation
 
-public enum SecureLogSanitizer {
+enum SecureLogSanitizer {
     private static let sensitiveKeys = [
         "accessToken",
         "refreshToken",
@@ -21,7 +21,7 @@ public enum SecureLogSanitizer {
         "key"
     ]
 
-    public static func sanitize(_ text: String) -> String {
+    static func sanitize(_ text: String) -> String {
         var sanitized = text
 
         // Keep the human-readable auth scheme while removing the credential.

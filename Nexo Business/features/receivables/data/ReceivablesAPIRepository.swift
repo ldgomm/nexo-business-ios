@@ -7,19 +7,19 @@
 
 import Foundation
 
-public enum BusinessReceivablesRoutes {
-    public static let create = "/api/v1/business/receivables"
-    public static let collect = "/api/v1/business/receivables/collect"
+enum BusinessReceivablesRoutes {
+    static let create = "/api/v1/business/receivables"
+    static let collect = "/api/v1/business/receivables/collect"
 }
 
-public final class ReceivablesAPIRepository: ReceivablesRepository, @unchecked Sendable {
+final class ReceivablesAPIRepository: ReceivablesRepository, @unchecked Sendable {
     private let apiClient: APIClient
 
-    public init(apiClient: APIClient) {
+    init(apiClient: APIClient) {
         self.apiClient = apiClient
     }
 
-    public func create(
+    func create(
         organizationId: String,
         idempotencyKey: IdempotencyKey,
         request body: CreateReceivableRequest
@@ -37,7 +37,7 @@ public final class ReceivablesAPIRepository: ReceivablesRepository, @unchecked S
         )
     }
 
-    public func collect(
+    func collect(
         organizationId: String,
         idempotencyKey: IdempotencyKey,
         request body: CollectReceivableRequest

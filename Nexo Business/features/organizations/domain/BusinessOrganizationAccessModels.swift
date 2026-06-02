@@ -7,16 +7,16 @@
 
 import Foundation
 
-public struct BusinessOrganizationAccess: Decodable, Equatable, Identifiable, Sendable {
-    public let id: String
-    public let commercialName: String
-    public let legalName: String?
-    public let taxId: String?
-    public let countryCode: String?
-    public let roleName: String?
-    public let status: String?
+struct BusinessOrganizationAccess: Decodable, Equatable, Identifiable, Sendable {
+    let id: String
+    let commercialName: String
+    let legalName: String?
+    let taxId: String?
+    let countryCode: String?
+    let roleName: String?
+    let status: String?
 
-    public init(
+    init(
         id: String,
         commercialName: String,
         legalName: String? = nil,
@@ -49,7 +49,7 @@ public struct BusinessOrganizationAccess: Decodable, Equatable, Identifiable, Se
         case status
     }
 
-    public init(from decoder: Decoder) throws {
+    init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decodeFirstString(for: [.id, .organizationId, .mongoId])
         commercialName = try container.decodeFirstString(for: [.commercialName, .name, .legalName])
@@ -61,10 +61,10 @@ public struct BusinessOrganizationAccess: Decodable, Equatable, Identifiable, Se
     }
 }
 
-public struct BusinessOrganizationAccessResponse: Decodable, Equatable, Sendable {
-    public let organizations: [BusinessOrganizationAccess]
+struct BusinessOrganizationAccessResponse: Decodable, Equatable, Sendable {
+    let organizations: [BusinessOrganizationAccess]
 
-    public init(organizations: [BusinessOrganizationAccess]) {
+    init(organizations: [BusinessOrganizationAccess]) {
         self.organizations = organizations
     }
 
@@ -75,7 +75,7 @@ public struct BusinessOrganizationAccessResponse: Decodable, Equatable, Sendable
         case results
     }
 
-    public init(from decoder: Decoder) throws {
+    init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         organizations = try container.decodeIfPresent([BusinessOrganizationAccess].self, forKey: .organizations)
             ?? container.decodeIfPresent([BusinessOrganizationAccess].self, forKey: .businesses)

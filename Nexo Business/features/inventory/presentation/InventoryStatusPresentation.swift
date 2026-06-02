@@ -7,8 +7,8 @@
 
 import Foundation
 
-public enum InventoryStatusPresentation {
-    public static func displayName(_ status: String?) -> String {
+enum InventoryStatusPresentation {
+    static func displayName(_ status: String?) -> String {
         switch status {
         case "active":
             return "Activo"
@@ -27,7 +27,7 @@ public enum InventoryStatusPresentation {
         }
     }
 
-    public static func stockSystemImage(_ item: InventoryItem) -> String {
+    static func stockSystemImage(_ item: InventoryItem) -> String {
         switch item.stockStatus {
         case "out_of_stock":
             return "xmark.circle"
@@ -38,7 +38,7 @@ public enum InventoryStatusPresentation {
         }
     }
 
-    public static func movementDisplayName(_ type: String) -> String {
+    static func movementDisplayName(_ type: String) -> String {
         switch type {
         case "increase":
             return "Aumento"

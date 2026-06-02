@@ -7,7 +7,7 @@
 
 import Foundation
 
-public protocol ReceivablesRepository: Sendable {
+protocol ReceivablesRepository: Sendable {
     func create(
         organizationId: String,
         idempotencyKey: IdempotencyKey,

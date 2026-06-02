@@ -10,20 +10,20 @@ import Observation
 
 @MainActor
 @Observable
-public final class PilotReadinessViewModel {
-    public private(set) var items: [PilotChecklistItem] = []
-    public private(set) var isLoading = false
-    public private(set) var isSaving = false
-    public var errorMessage: String?
-    public var infoMessage: String?
+final class PilotReadinessViewModel {
+    private(set) var items: [PilotChecklistItem] = []
+    private(set) var isLoading = false
+    private(set) var isSaving = false
+    var errorMessage: String?
+    var infoMessage: String?
 
-    public let context: BusinessContextResponse
-    public let selectedBranchId: String
-    public let selectedActivityId: String
+    let context: BusinessContextResponse
+    let selectedBranchId: String
+    let selectedActivityId: String
 
     private let store: PilotChecklistStoring
 
-    public init(
+    init(
         context: BusinessContextResponse,
         selectedBranchId: String,
         selectedActivityId: String,
@@ -35,11 +35,11 @@ public final class PilotReadinessViewModel {
         self.store = store
     }
 
-    public var snapshot: PilotReadinessSnapshot {
+    var snapshot: PilotReadinessSnapshot {
         makeSnapshot(items: items)
     }
 
-    public var groupedItems: [(category: PilotChecklistCategory, items: [PilotChecklistItem])] {
+    var groupedItems: [(category: PilotChecklistCategory, items: [PilotChecklistItem])] {
         let groups = Dictionary(grouping: items) { $0.category }
         return PilotChecklistCategory.allCases
             .sorted { $0.sortOrder < $1.sortOrder }
@@ -54,7 +54,7 @@ public final class PilotReadinessViewModel {
             }
     }
 
-    public var readyStatusMessage: String {
+    var readyStatusMessage: String {
         if snapshot.isReadyForPilot {
             return "Puedes iniciar piloto controlado con el negocio seleccionado. Mantén monitoreo y soporte cerca."
         }
@@ -66,7 +66,7 @@ public final class PilotReadinessViewModel {
         return "Estás cerca. Completa las advertencias críticas antes de entregar a operación."
     }
 
-    public func load() async {
+    func load() async {
         guard !isLoading else { return }
 
         isLoading = true
@@ -79,7 +79,7 @@ public final class PilotReadinessViewModel {
         items = merge(savedItems: saved, defaultItems: PilotChecklistFactory.defaultItems())
     }
 
-    public func toggle(itemId: String) async {
+    func toggle(itemId: String) async {
         guard let index = items.firstIndex(where: { $0.id == itemId }) else { return }
 
         items[index].isDone.toggle()
@@ -87,7 +87,7 @@ public final class PilotReadinessViewModel {
         await saveCurrentItems(successMessage: nil)
     }
 
-    public func markAllRequiredDone() async {
+    func markAllRequiredDone() async {
         for index in items.indices where items[index].isRequired {
             items[index].isDone = true
             items[index].updatedAt = Date()
@@ -96,7 +96,7 @@ public final class PilotReadinessViewModel {
         await saveCurrentItems(successMessage: "Checks requeridos marcados como completados para revisión manual.")
     }
 
-    public func reset() async {
+    func reset() async {
         isSaving = true
         errorMessage = nil
         infoMessage = nil
@@ -112,7 +112,7 @@ public final class PilotReadinessViewModel {
         }
     }
 
-    public func makeExportText() -> String {
+    func makeExportText() -> String {
         let snapshot = snapshot
         let requiredSummary = "\(snapshot.completedRequired)/\(snapshot.totalRequired) requeridos"
         let optionalSummary = "\(snapshot.completedOptional)/\(snapshot.totalOptional) opcionales"

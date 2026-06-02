@@ -7,7 +7,7 @@
 
 import Foundation
 
-public protocol AuthTokenStoring: Sendable {
+protocol AuthTokenStoring: Sendable {
     func tokens() async -> AuthTokens?
     func accessToken() async -> String?
     func save(tokens: AuthTokens) async throws

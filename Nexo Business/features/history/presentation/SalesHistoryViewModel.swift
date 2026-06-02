@@ -10,26 +10,26 @@ import Observation
 
 @MainActor
 @Observable
-public final class SalesHistoryViewModel {
-    public private(set) var sales: [BusinessSale] = []
-    public private(set) var total: Int?
-    public private(set) var hasMore: Bool?
-    public private(set) var isLoading = false
-    public var query = ""
-    public var selectedStatus: SalesHistoryStatusFilter = .all
-    public var selectedDate = Date()
-    public var useDateFilter = true
-    public var errorMessage: String?
-    public var infoMessage: String?
+final class SalesHistoryViewModel {
+    private(set) var sales: [BusinessSale] = []
+    private(set) var total: Int?
+    private(set) var hasMore: Bool?
+    private(set) var isLoading = false
+    var query = ""
+    var selectedStatus: SalesHistoryStatusFilter = .all
+    var selectedDate = Date()
+    var useDateFilter = true
+    var errorMessage: String?
+    var infoMessage: String?
 
-    public let organizationId: String
-    public let branchId: String
-    public let revisions: BusinessRevisions
-    public let effectivePermissions: Set<String>
+    let organizationId: String
+    let branchId: String
+    let revisions: BusinessRevisions
+    let effectivePermissions: Set<String>
 
     private let repository: SalesHistoryRepository
 
-    public init(
+    init(
         organizationId: String,
         branchId: String,
         revisions: BusinessRevisions,
@@ -43,11 +43,11 @@ public final class SalesHistoryViewModel {
         self.repository = historyRepository
     }
 
-    public var canSearch: Bool {
+    var canSearch: Bool {
         !isLoading && canViewSales && !branchId.isEmpty
     }
 
-    public var canViewSales: Bool {
+    var canViewSales: Bool {
         hasPermission([
             "business.sales.view",
             "sales.view",
@@ -56,11 +56,11 @@ public final class SalesHistoryViewModel {
         ])
     }
 
-    public var hasResults: Bool {
+    var hasResults: Bool {
         !sales.isEmpty
     }
 
-    public var activeFiltersDescription: String {
+    var activeFiltersDescription: String {
         var parts: [String] = []
 
         if !normalized(query).isEmpty {
@@ -78,7 +78,7 @@ public final class SalesHistoryViewModel {
         return parts.isEmpty ? "Sin filtros" : parts.joined(separator: " · ")
     }
 
-    public func load() async {
+    func load() async {
         guard canViewSales else {
             sales = []
             errorMessage = "No tienes permiso para consultar ventas."
@@ -124,7 +124,7 @@ public final class SalesHistoryViewModel {
         }
     }
 
-    public func clearFilters() {
+    func clearFilters() {
         query = ""
         selectedStatus = .all
         selectedDate = Date()
@@ -133,7 +133,7 @@ public final class SalesHistoryViewModel {
         infoMessage = nil
     }
 
-    public func makeSaleDetailViewModel(
+    func makeSaleDetailViewModel(
         for sale: BusinessSale,
         salesRepository: SalesRepository
     ) -> SaleDetailViewModel {
