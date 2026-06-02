@@ -34,7 +34,6 @@ struct SaleCartView: View {
                 searchSection
                 resultsSection
                 cartSection
-                checkoutAdjustmentsSection
                 previewSection
             } else {
                 lockedCartSection
@@ -212,7 +211,8 @@ struct SaleCartView: View {
                     SaleCartRow(
                         item: item,
                         quantity: quantityBinding(for: item),
-                        note: noteBinding(for: item),
+                        taxTreatment: taxTreatmentBinding(for: item),
+                        lineNote: lineNoteBinding(for: item),
                         isEditable: viewModel.canEditCart,
                         removeAction: {
                             viewModel.removeFromCart(cartItemId: item.id)
@@ -223,38 +223,14 @@ struct SaleCartView: View {
         }
     }
 
-
-    @ViewBuilder
-    private var checkoutAdjustmentsSection: some View {
-        if !viewModel.cartItems.isEmpty {
-            Section("Revisión antes de registrar") {
-                TextField("Nota de venta opcional", text: $viewModel.saleNote, axis: .vertical)
-                    .textInputAutocapitalization(.sentences)
-                    .lineLimit(1...3)
-                    .disabled(!viewModel.canEditCart)
-
-                Label("Puedes cambiar cantidades y notas antes de calcular o registrar.", systemImage: "slider.horizontal.3")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-
-                Label(viewModel.taxModePolicyMessage, systemImage: "lock.shield")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-
-                Label("Descuentos y cambio manual de tarifa IVA requieren contrato de backend. No los voy a simular en frontend porque rompería totales y cumplimiento.", systemImage: "lock.shield")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-            }
-        }
-    }
-
     private var lockedCartSection: some View {
         Section("Carrito registrado") {
             ForEach(viewModel.cartItems) { item in
                 SaleCartRow(
                     item: item,
                     quantity: quantityBinding(for: item),
-                    note: noteBinding(for: item),
+                    taxTreatment: taxTreatmentBinding(for: item),
+                    lineNote: lineNoteBinding(for: item),
                     isEditable: false,
                     removeAction: {}
                 )
@@ -317,22 +293,24 @@ struct SaleCartView: View {
     @ViewBuilder
     private var actionsSection: some View {
         if let sale = viewModel.createdSale {
-            if sale.needsCollection {
-                SaleInlinePaymentPanel(
-                    organizationId: viewModel.organizationId,
-                    sale: sale,
-                    effectivePermissions: viewModel.effectivePermissions,
-                    cashRepository: cashRepository,
-                    paymentsRepository: paymentsRepository,
-                    receivablesRepository: receivablesRepository,
-                    customersRepository: customersRepository,
-                    onSaleUpdated: { updatedSale in
-                        viewModel.applyUpdatedSale(updatedSale)
-                    }
-                )
-            }
-
             Section("Siguiente acción") {
+                NavigationLink {
+                    PaymentRegisterView(
+                        viewModel: PaymentRegisterViewModel(
+                            organizationId: viewModel.organizationId,
+                            branchId: sale.branchId,
+                            sale: sale,
+                            effectivePermissions: viewModel.effectivePermissions,
+                            cashRepository: cashRepository,
+                            paymentsRepository: paymentsRepository,
+                            receivablesRepository: receivablesRepository
+                        ),
+                        customersRepository: customersRepository
+                    )
+                } label: {
+                    Label("Cobrar ahora", systemImage: "dollarsign.circle.fill")
+                }
+
                 Button {
                     viewModel.startNewOrder()
                 } label: {
@@ -349,7 +327,7 @@ struct SaleCartView: View {
                         documentsRepository: documentsRepository
                     )
                 } label: {
-                    Label("Ver detalle completo", systemImage: "doc.text.magnifyingglass")
+                    Label("Ver detalle", systemImage: "doc.text.magnifyingglass")
                 }
             }
         } else if !viewModel.cartItems.isEmpty {
@@ -392,10 +370,31 @@ struct SaleCartView: View {
         }
     }
 
+    private func quantityBinding(for item: SaleCartItem) -> Binding<String> {
+        Binding(
+            get: { viewModel.quantity(for: item.id) },
+            set: { viewModel.updateQuantity(cartItemId: item.id, quantity: $0) }
+        )
+    }
+
+    private func taxTreatmentBinding(for item: SaleCartItem) -> Binding<SaleLineTaxTreatmentOption> {
+        Binding(
+            get: { viewModel.taxTreatment(for: item.id) },
+            set: { viewModel.updateTaxTreatment(cartItemId: item.id, taxTreatment: $0) }
+        )
+    }
+
+    private func lineNoteBinding(for item: SaleCartItem) -> Binding<String> {
+        Binding(
+            get: { viewModel.lineNote(for: item.id) },
+            set: { viewModel.updateLineNote(cartItemId: item.id, note: $0) }
+        )
+    }
+
     private var orderStateDescription: String {
         switch viewModel.orderState {
         case .editing:
-            return "Agrega productos, revisa cantidades y registra una sola venta por carrito."
+            return "Agrega productos, revisa cantidades, tratamiento tributario y registra una sola venta por carrito."
         case .previewing:
             return "Estamos calculando subtotal, impuestos y total con el backend."
         case .creating:
@@ -428,36 +427,7 @@ struct SaleCartView: View {
             return .success
         }
     }
-
-    private func quantityBinding(for item: SaleCartItem) -> Binding<String> {
-        Binding(
-            get: {
-                viewModel.quantity(for: item.id)
-            },
-            set: { newValue in
-                viewModel.updateQuantity(
-                    cartItemId: item.id,
-                    quantity: newValue
-                )
-            }
-        )
-    }
-
-
-    private func noteBinding(for item: SaleCartItem) -> Binding<String> {
-        Binding(
-            get: {
-                viewModel.lineNote(for: item.id)
-            },
-            set: { newValue in
-                viewModel.updateLineNote(
-                    cartItemId: item.id,
-                    note: newValue
-                )
-            }
-        )
-    }
-
+    
     private func money(_ value: MoneyAmount) -> String {
         value.displayText
     }
@@ -559,46 +529,6 @@ private struct SaleCartCashCard<DashboardDestination: View>: View {
     }
 }
 
-
-private struct SaleInlinePaymentPanel: View {
-    @State private var paymentViewModel: PaymentRegisterViewModel
-    private let customersRepository: CustomersRepository
-    private let onSaleUpdated: (BusinessSale) -> Void
-
-    init(
-        organizationId: String,
-        sale: BusinessSale,
-        effectivePermissions: Set<String>,
-        cashRepository: CashRepository,
-        paymentsRepository: PaymentsRepository,
-        receivablesRepository: ReceivablesRepository,
-        customersRepository: CustomersRepository,
-        onSaleUpdated: @escaping (BusinessSale) -> Void
-    ) {
-        _paymentViewModel = State(
-            initialValue: PaymentRegisterViewModel(
-                organizationId: organizationId,
-                branchId: sale.branchId,
-                sale: sale,
-                effectivePermissions: effectivePermissions,
-                cashRepository: cashRepository,
-                paymentsRepository: paymentsRepository,
-                receivablesRepository: receivablesRepository
-            )
-        )
-        self.customersRepository = customersRepository
-        self.onSaleUpdated = onSaleUpdated
-    }
-
-    var body: some View {
-        PaymentRegisterInlineView(
-            viewModel: paymentViewModel,
-            customersRepository: customersRepository,
-            onSaleUpdated: onSaleUpdated
-        )
-    }
-}
-
 private struct CatalogResultRow: View {
     let item: BusinessCatalogItem
 
@@ -660,12 +590,13 @@ private struct CatalogResultRow: View {
 private struct SaleCartRow: View {
     let item: SaleCartItem
     @Binding var quantity: String
-    @Binding var note: String
+    @Binding var taxTreatment: SaleLineTaxTreatmentOption
+    @Binding var lineNote: String
     let isEditable: Bool
     let removeAction: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .center, spacing: 12) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(item.catalogItem.name)
@@ -695,16 +626,32 @@ private struct SaleCartRow: View {
                 }
             }
 
-            VStack(alignment: .leading, spacing: 4) {
-                LabeledContent("IVA", value: BusinessSalePriceTaxMode.taxExclusive.displayName)
-
-                Text("El precio se envía como + IVA. La configuración actual no permite IVA incluido.")
+            HStack(alignment: .firstTextBaseline, spacing: 10) {
+                Label("Tratamiento", systemImage: "percent")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+
+                Spacer()
+
+                if isEditable {
+                    Picker("Tratamiento tributario", selection: $taxTreatment) {
+                        ForEach(SaleLineTaxTreatmentOption.allCases) { option in
+                            Text(option.displayName).tag(option)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                } else {
+                    Text(taxTreatment.displayName)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                }
             }
 
-            TextField("Nota de línea opcional", text: $note, axis: .vertical)
-                .lineLimit(1...2)
+            Text(taxTreatment.detailText)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+
+            TextField("Nota de línea opcional", text: $lineNote)
                 .textInputAutocapitalization(.sentences)
                 .disabled(!isEditable)
         }

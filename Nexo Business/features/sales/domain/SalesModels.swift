@@ -86,17 +86,20 @@ struct BusinessSaleItemRequest: Codable, Equatable, Sendable {
     let catalogItemId: String
     let quantity: BusinessSaleQuantityRequest
     let priceTaxMode: String
+    let taxProfileCode: String?
     let notes: String?
 
     init(
         catalogItemId: String,
         quantity: BusinessSaleQuantityRequest,
         priceTaxMode: String = BusinessSalePriceTaxMode.taxExclusive.rawValue,
+        taxProfileCode: String? = nil,
         notes: String? = nil
     ) {
         self.catalogItemId = catalogItemId
         self.quantity = quantity
         self.priceTaxMode = priceTaxMode
+        self.taxProfileCode = taxProfileCode
         self.notes = notes
     }
 }
@@ -735,28 +738,6 @@ struct CancelSaleResponse: Decodable, Equatable, Sendable {
 
         self.sale = try BusinessSale(from: decoder)
         self.idempotencyReplayed = nil
-    }
-}
-
-struct SaleCartItem: Equatable, Identifiable, Sendable {
-    let id: String
-    let catalogItem: BusinessCatalogItem
-    var quantity: String
-    var priceTaxMode: BusinessSalePriceTaxMode
-    var note: String?
-    
-    init(
-        id: String = UUID().uuidString,
-        catalogItem: BusinessCatalogItem,
-        quantity: String = "1",
-        priceTaxMode: BusinessSalePriceTaxMode = .taxExclusive,
-        note: String? = nil
-    ) {
-        self.id = id
-        self.catalogItem = catalogItem
-        self.quantity = quantity
-        self.priceTaxMode = priceTaxMode
-        self.note = note
     }
 }
 
