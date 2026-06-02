@@ -2,7 +2,7 @@
 //  SalesHistoryView.swift
 //  Nexo Business
 //
-//  Created by José Ruiz on 1/6/26.
+//  Created by José Ruiz on 2/6/26.
 //
 
 import SwiftUI
@@ -38,10 +38,12 @@ struct SalesHistoryView: View {
             resultsSection
             messagesSection
         }
+        .nexoKeyboardDismissable()
         .navigationTitle("Historial")
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
+                    NexoKeyboard.dismiss()
                     Task { await viewModel.load() }
                 } label: {
                     Image(systemName: "arrow.clockwise")
@@ -63,6 +65,7 @@ struct SalesHistoryView: View {
                 .autocorrectionDisabled()
                 .submitLabel(.search)
                 .onSubmit {
+                    NexoKeyboard.dismiss()
                     Task { await viewModel.load() }
                 }
 
@@ -84,6 +87,7 @@ struct SalesHistoryView: View {
 
             HStack {
                 Button {
+                    NexoKeyboard.dismiss()
                     Task { await viewModel.load() }
                 } label: {
                     if viewModel.isLoading {
@@ -96,6 +100,7 @@ struct SalesHistoryView: View {
 
                 Button("Limpiar") {
                     viewModel.clearFilters()
+                    NexoKeyboard.dismiss()
                     Task { await viewModel.load() }
                 }
                 .disabled(viewModel.isLoading)

@@ -26,6 +26,7 @@ struct InventoryItemDetailView: View {
             movementsSection
             messagesSection
         }
+        .nexoKeyboardDismissable()
         .navigationTitle("Stock")
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
@@ -93,6 +94,7 @@ struct InventoryItemDetailView: View {
                     .lineLimit(1...3)
 
                 Button {
+                    NexoKeyboard.dismiss()
                     Task { await viewModel.adjust() }
                 } label: {
                     if viewModel.isAdjusting {

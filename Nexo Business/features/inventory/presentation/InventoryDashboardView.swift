@@ -21,6 +21,7 @@ struct InventoryDashboardView: View {
             messagesSection
             itemsSection
         }
+        .nexoKeyboardDismissable()
         .navigationTitle("Inventario")
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
@@ -56,6 +57,7 @@ struct InventoryDashboardView: View {
             }
 
             Button {
+                NexoKeyboard.dismiss()
                 Task { await viewModel.load() }
             } label: {
                 if viewModel.isLoading {

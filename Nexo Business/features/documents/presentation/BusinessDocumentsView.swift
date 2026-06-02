@@ -22,6 +22,7 @@ struct BusinessDocumentsView: View {
             electronicInvoiceWarningSection
             messagesSection
         }
+        .nexoKeyboardDismissable()
         .navigationTitle("Comprobantes")
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
@@ -76,7 +77,8 @@ struct BusinessDocumentsView: View {
                     .textInputAutocapitalization(.sentences)
 
                 Button {
-                    Task { await viewModel.generateInternalTicket() }
+                    NexoKeyboard.dismiss()
+                        Task { await viewModel.generateInternalTicket() }
                 } label: {
                     if viewModel.isGeneratingInternalTicket {
                         ProgressView()
@@ -91,7 +93,8 @@ struct BusinessDocumentsView: View {
                     .autocorrectionDisabled()
 
                 Button {
-                    Task { await viewModel.registerPhysicalSaleNote() }
+                    NexoKeyboard.dismiss()
+                        Task { await viewModel.registerPhysicalSaleNote() }
                 } label: {
                     if viewModel.isRegisteringPhysicalSaleNote {
                         ProgressView()

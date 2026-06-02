@@ -22,10 +22,12 @@ struct CustomerDirectoryView: View {
                     .autocorrectionDisabled()
                     .submitLabel(.search)
                     .onSubmit {
-                        Task { await viewModel.search() }
+                        NexoKeyboard.dismiss()
+                    Task { await viewModel.search() }
                     }
 
                 Button {
+                    NexoKeyboard.dismiss()
                     Task { await viewModel.search() }
                 } label: {
                     if viewModel.isLoading {
@@ -87,10 +89,12 @@ struct CustomerDirectoryView: View {
                 }
             }
         }
+        .nexoKeyboardDismissable()
         .navigationTitle("Clientes")
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
+                    NexoKeyboard.dismiss()
                     Task { await viewModel.search() }
                 } label: {
                     Image(systemName: "arrow.clockwise")

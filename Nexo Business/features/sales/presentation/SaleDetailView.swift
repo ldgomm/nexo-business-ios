@@ -2,7 +2,7 @@
 //  SaleDetailView.swift
 //  Nexo Business
 //
-//  Created by José Ruiz on 1/6/26.
+//  Created by José Ruiz on 2/6/26.
 //
 
 import SwiftUI
@@ -54,6 +54,7 @@ struct SaleDetailView: View {
                 )
             }
         }
+        .nexoKeyboardDismissable()
         .navigationTitle("Detalle de venta")
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
@@ -201,6 +202,7 @@ struct SaleDetailView: View {
             }
 
             Button {
+                NexoKeyboard.dismiss()
                 Task { await viewModel.confirm() }
             } label: {
                 if viewModel.isConfirming {
@@ -215,6 +217,7 @@ struct SaleDetailView: View {
                 .textInputAutocapitalization(.sentences)
 
             Button(role: .destructive) {
+                NexoKeyboard.dismiss()
                 Task { await viewModel.cancel() }
             } label: {
                 if viewModel.isCanceling {

@@ -2,7 +2,7 @@
 //  SaleBuilderView.swift
 //  Nexo Business
 //
-//  Created by José Ruiz on 1/6/26.
+//  Created by José Ruiz on 2/6/26.
 //
 
 import SwiftUI
@@ -70,6 +70,7 @@ struct SaleBuilderView: View {
             Section("Acciones") {
                 if viewModel.createdSale == nil {
                     Button {
+                        NexoKeyboard.dismiss()
                         Task { await viewModel.loadPreview() }
                     } label: {
                         if viewModel.isLoading && viewModel.orderState == .previewing {
@@ -81,6 +82,7 @@ struct SaleBuilderView: View {
                     .disabled(!viewModel.canPreview)
 
                     Button {
+                        NexoKeyboard.dismiss()
                         Task { await viewModel.createQuickSale() }
                     } label: {
                         if viewModel.isLoading && viewModel.orderState == .creating {
@@ -99,6 +101,7 @@ struct SaleBuilderView: View {
                 }
             }
         }
+        .nexoKeyboardDismissable()
         .navigationTitle(viewModel.createdSale == nil ? "Nueva venta" : "Venta registrada")
     }
 }

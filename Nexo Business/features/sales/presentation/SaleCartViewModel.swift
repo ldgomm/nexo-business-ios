@@ -2,7 +2,7 @@
 //  SaleCartViewModel.swift
 //  Nexo Business
 //
-//  Created by José Ruiz on 1/6/26.
+//  Created by José Ruiz on 2/6/26.
 //
 
 import Foundation
@@ -13,7 +13,7 @@ struct SaleCartItem: Equatable, Identifiable, Sendable {
     let catalogItem: BusinessCatalogItem
     var quantity: String
     var note: String?
-
+    
     init(
         id: String = UUID().uuidString,
         catalogItem: BusinessCatalogItem,
@@ -32,7 +32,7 @@ enum SaleCartOrderState: Equatable, Sendable {
     case previewing
     case creating
     case created
-
+    
     var displayName: String {
         switch self {
         case .editing:
@@ -63,16 +63,16 @@ final class SaleCartViewModel {
     private(set) var selectedCustomer: BusinessCustomer?
     var errorMessage: String?
     var infoMessage: String?
-
+    
     let organizationId: String
     let branchId: String
     let activityId: String
     private(set) var revisions: BusinessRevisions
     let effectivePermissions: Set<String>
-
+    
     private let catalogRepository: CatalogRepository
     private let salesRepository: SalesRepository
-
+    
     init(
         organizationId: String,
         branchId: String,
@@ -92,44 +92,44 @@ final class SaleCartViewModel {
         self.catalogRepository = catalogRepository
         self.salesRepository = salesRepository
     }
-
+    
     var canSearchCatalog: Bool {
         !isSearching && !isOrderLocked
     }
-
+    
     var canEditCart: Bool {
         !isOrderLocked && !isPreviewing && !isCreatingSale
     }
-
+    
     var canPreview: Bool {
         canEditCart && !cartItems.isEmpty
     }
-
+    
     var canCreateSale: Bool {
         canEditCart && !cartItems.isEmpty
     }
-
+    
     var canClearCart: Bool {
         canEditCart && !cartItems.isEmpty
     }
-
+    
     var canStartNewOrder: Bool {
         createdSale != nil || !cartItems.isEmpty || preview != nil || selectedCustomer != nil
     }
-
+    
     var isOrderLocked: Bool {
         createdSale != nil || orderState == .created || orderState == .creating
     }
-
+    
     var customerIdForRequest: String? {
         guard let selectedCustomer else { return nil }
         return selectedCustomer.identificationType == .finalConsumer ? nil : selectedCustomer.id
     }
-
+    
     var totalForDisplay: MoneyAmount? {
         createdSale?.totals.grandTotal ?? preview?.totals.grandTotal
     }
-
+    
     func selectCustomer(_ customer: BusinessCustomer) {
         guard ensureOrderIsEditable() else { return }
         selectedCustomer = customer
@@ -137,7 +137,7 @@ final class SaleCartViewModel {
         errorMessage = nil
         infoMessage = nil
     }
-
+    
     func clearCustomer() {
         guard ensureOrderIsEditable() else { return }
         selectedCustomer = nil
@@ -145,32 +145,32 @@ final class SaleCartViewModel {
         errorMessage = nil
         infoMessage = nil
     }
-
+    
     func searchCatalog() async {
         guard !isOrderLocked else {
             errorMessage = "Esta venta ya fue registrada. Inicia una nueva venta para continuar."
             return
         }
-
+        
         let query = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
-
+        
         guard !query.isEmpty else {
             searchResults = []
             errorMessage = "Busca por nombre, SKU o código."
             return
         }
-
+        
         guard validateOperationalContext() else { return }
         guard !isSearching else { return }
-
+        
         isSearching = true
         errorMessage = nil
         infoMessage = nil
-
+        
         defer {
             isSearching = false
         }
-
+        
         do {
             let response = try await catalogRepository.search(
                 organizationId: organizationId,
@@ -180,7 +180,7 @@ final class SaleCartViewModel {
                 query: query,
                 limit: 25
             )
-
+            
             searchResults = response.items
             infoMessage = response.items.isEmpty ? "No encontramos productos o servicios activos." : nil
         } catch let error as APIError {
@@ -189,19 +189,28 @@ final class SaleCartViewModel {
             errorMessage = error.localizedDescription
         }
     }
-
+    
+    func clearSearch() {
+        guard ensureOrderIsEditable() else { return }
+        
+        searchQuery = ""
+        searchResults = []
+        errorMessage = nil
+        infoMessage = nil
+    }
+    
     func addToCart(_ item: BusinessCatalogItem) {
         guard ensureOrderIsEditable() else { return }
-
+        
         errorMessage = nil
         infoMessage = nil
         preview = nil
-
+        
         if let index = cartItems.firstIndex(where: { $0.catalogItem.id == item.id }) {
             cartItems[index].quantity = incrementQuantity(cartItems[index].quantity)
             return
         }
-
+        
         cartItems.append(
             SaleCartItem(
                 catalogItem: item,
@@ -209,26 +218,26 @@ final class SaleCartViewModel {
             )
         )
     }
-
+    
     func updateQuantity(cartItemId: String, quantity: String) {
         guard ensureOrderIsEditable() else { return }
         guard let index = cartItems.firstIndex(where: { $0.id == cartItemId }) else { return }
-
+        
         let normalized = normalizeQuantity(quantity)
         cartItems[index].quantity = normalized
         preview = nil
     }
-
+    
     func quantity(for cartItemId: String) -> String {
         cartItems.first(where: { $0.id == cartItemId })?.quantity ?? ""
     }
-
+    
     func removeFromCart(cartItemId: String) {
         guard ensureOrderIsEditable() else { return }
         cartItems.removeAll { $0.id == cartItemId }
         preview = nil
     }
-
+    
     func clearCart() {
         guard ensureOrderIsEditable() else { return }
         cartItems = []
@@ -237,7 +246,7 @@ final class SaleCartViewModel {
         infoMessage = nil
         orderState = .editing
     }
-
+    
     func startNewOrder() {
         searchQuery = ""
         searchResults = []
@@ -249,28 +258,28 @@ final class SaleCartViewModel {
         infoMessage = nil
         orderState = .editing
     }
-
+    
     func loadPreview() async {
         guard !isOrderLocked else {
             errorMessage = "Esta venta ya fue registrada. Inicia una nueva venta para continuar."
             return
         }
-
+        
         guard validateCart() else { return }
         guard !isPreviewing, !isCreatingSale else { return }
-
+        
         isPreviewing = true
         orderState = .previewing
         errorMessage = nil
         infoMessage = nil
-
+        
         defer {
             isPreviewing = false
             if createdSale == nil {
                 orderState = .editing
             }
         }
-
+        
         do {
             let response = try await salesRepository.preview(
                 organizationId: organizationId,
@@ -284,7 +293,7 @@ final class SaleCartViewModel {
                     items: draftItems()
                 )
             )
-
+            
             preview = response
         } catch let error as APIError {
             handle(apiError: error)
@@ -292,27 +301,27 @@ final class SaleCartViewModel {
             errorMessage = error.localizedDescription
         }
     }
-
+    
     func createQuickSale() async {
         guard !isCreatingSale else { return }
-
+        
         guard createdSale == nil else {
             orderState = .created
             errorMessage = "Esta venta ya fue registrada. Inicia una nueva venta para continuar."
             return
         }
-
+        
         guard validateCart() else { return }
-
+        
         isCreatingSale = true
         orderState = .creating
         errorMessage = nil
         infoMessage = nil
-
+        
         defer {
             isCreatingSale = false
         }
-
+        
         do {
             let identity = BusinessMutationIdentity.generate(prefix: "quick-sale")
             let response = try await salesRepository.quickSale(
@@ -331,13 +340,13 @@ final class SaleCartViewModel {
                     items: draftItems()
                 )
             )
-
+            
             createdSale = response.sale
             preview = nil
             orderState = .created
             infoMessage = response.idempotencyReplayed == true
-                ? "Venta recuperada sin duplicar la operación."
-                : "Venta registrada. Ahora puedes cobrarla o iniciar una nueva venta."
+            ? "Venta recuperada sin duplicar la operación."
+            : "Venta registrada. Ahora puedes cobrarla o iniciar una nueva venta."
         } catch let error as APIError {
             orderState = .editing
             handle(apiError: error)
@@ -346,7 +355,7 @@ final class SaleCartViewModel {
             errorMessage = error.localizedDescription
         }
     }
-
+    
     func makeSaleDetailViewModel(for sale: BusinessSale) -> SaleDetailViewModel {
         SaleDetailViewModel(
             organizationId: organizationId,
@@ -357,7 +366,7 @@ final class SaleCartViewModel {
             salesRepository: salesRepository
         )
     }
-
+    
     private func ensureOrderIsEditable() -> Bool {
         guard !isOrderLocked else {
             errorMessage = "Esta venta ya fue registrada. Toca Nueva venta para continuar."
@@ -365,7 +374,7 @@ final class SaleCartViewModel {
         }
         return true
     }
-
+    
     private func draftItems() -> [BusinessSaleItemRequest] {
         cartItems.map { item in
             BusinessSaleItemRequest(
@@ -380,69 +389,69 @@ final class SaleCartViewModel {
             )
         }
     }
-
+    
     private func validateCart() -> Bool {
         guard validateOperationalContext() else { return false }
-
+        
         guard !cartItems.isEmpty else {
             errorMessage = "Agrega al menos un producto o servicio."
             return false
         }
-
+        
         guard cartItems.allSatisfy({ isValidQuantity($0.quantity) }) else {
             errorMessage = "Revisa las cantidades. Deben ser mayores a cero."
             return false
         }
-
+        
         return true
     }
-
+    
     private func validateOperationalContext() -> Bool {
         if organizationId.isEmpty || branchId.isEmpty || activityId.isEmpty {
             errorMessage = "Falta organización, sucursal o actividad operativa. Actualiza el contexto."
             return false
         }
-
+        
         if revisions.catalogRevision.isEmpty || revisions.taxConfigurationRevision.isEmpty {
             errorMessage = "Faltan revisiones de catálogo o impuestos. Actualiza el contexto."
             return false
         }
-
+        
         return true
     }
-
+    
     private func handle(apiError: APIError) {
         errorMessage = apiError.userMessage
-
+        
         if apiError.statusCode == 409 || apiError.statusCode == 428 {
             infoMessage = "Actualiza el contexto del negocio antes de continuar."
         }
     }
-
+    
     private func normalizeQuantity(_ quantity: String) -> String {
         quantity
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .replacingOccurrences(of: ",", with: ".")
     }
-
+    
     private func isValidQuantity(_ quantity: String) -> Bool {
         let normalized = normalizeQuantity(quantity)
         guard let decimal = Decimal(string: normalized) else { return false }
         return decimal > Decimal.zero
     }
-
+    
     private func incrementQuantity(_ quantity: String) -> String {
         let normalized = normalizeQuantity(quantity)
         let current = Decimal(string: normalized) ?? Decimal.zero
         let next = current + Decimal(1)
         return NSDecimalNumber(decimal: next).stringValue
     }
-
+    
     private func resolvedUnitCode(for item: BusinessCatalogItem) -> String {
         let raw = item.unit?.code?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-            ?? item.unit?.name?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-            ?? "unit"
-
+        ?? item.unit?.name?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        ?? "unit"
+        
         switch raw {
         case "unidad", "unidades", "unit", "u", "und":
             return "unit"
@@ -450,7 +459,7 @@ final class SaleCartViewModel {
             return raw.isEmpty ? "unit" : raw
         }
     }
-
+    
     private func resolvedAllowsDecimal(for item: BusinessCatalogItem) -> Bool {
         item.allowsDecimalQuantity ?? item.unit?.allowsDecimal ?? false
     }

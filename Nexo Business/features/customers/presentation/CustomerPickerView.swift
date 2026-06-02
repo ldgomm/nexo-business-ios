@@ -28,10 +28,12 @@ struct CustomerPickerView: View {
                     .autocorrectionDisabled()
                     .submitLabel(.search)
                     .onSubmit {
-                        Task { await viewModel.search() }
+                        NexoKeyboard.dismiss()
+                    Task { await viewModel.search() }
                     }
 
                 Button {
+                    NexoKeyboard.dismiss()
                     Task { await viewModel.search() }
                 } label: {
                     if viewModel.isSearching {
@@ -114,6 +116,7 @@ struct CustomerPickerView: View {
                 }
             }
         }
+        .nexoKeyboardDismissable()
         .navigationTitle("Seleccionar cliente")
         .task {
             await viewModel.loadInitial()

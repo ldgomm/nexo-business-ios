@@ -1,6 +1,6 @@
 //
 //  LoginView.swift
-//  Nexo Business
+//  Nexo Admin
 //
 //  Created by José Ruiz on 29/5/26.
 //
@@ -59,6 +59,7 @@ struct LoginView: View {
             Spacer()
         }
         .padding(24)
+        .nexoKeyboardDismissable()
     }
 }
 

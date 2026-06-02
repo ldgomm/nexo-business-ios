@@ -2,10 +2,14 @@
 //  NexoOperationUI.swift
 //  Nexo Business
 //
-//  Created by José Ruiz on 1/6/26.
+//  Created by José Ruiz on 2/6/26.
 //
 
 import SwiftUI
+
+#if canImport(UIKit)
+import UIKit
+#endif
 
 enum NexoMessageStyle: Sendable {
     case success
@@ -222,5 +226,46 @@ extension String {
     var nilIfBlankForUI: String? {
         let trimmed = trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : trimmed
+    }
+}
+
+enum NexoKeyboard {
+    static func dismiss() {
+        #if canImport(UIKit)
+        UIApplication.shared.sendAction(
+            #selector(UIResponder.resignFirstResponder),
+            to: nil,
+            from: nil,
+            for: nil
+        )
+        #endif
+    }
+}
+
+extension View {
+    @ViewBuilder
+    func nexoKeyboardDismissable() -> some View {
+        if #available(iOS 16.0, *) {
+            self
+                .scrollDismissesKeyboard(.interactively)
+                .toolbar {
+                    ToolbarItemGroup(placement: .keyboard) {
+                        Spacer()
+                        Button("Ocultar") {
+                            NexoKeyboard.dismiss()
+                        }
+                    }
+                }
+        } else {
+            self
+                .toolbar {
+                    ToolbarItemGroup(placement: .keyboard) {
+                        Spacer()
+                        Button("Ocultar") {
+                            NexoKeyboard.dismiss()
+                        }
+                    }
+                }
+        }
     }
 }

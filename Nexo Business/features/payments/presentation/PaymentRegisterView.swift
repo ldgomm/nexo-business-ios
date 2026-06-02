@@ -2,7 +2,7 @@
 //  PaymentRegisterView.swift
 //  Nexo Business
 //
-//  Created by José Ruiz on 1/6/26.
+//  Created by José Ruiz on 2/6/26.
 //
 
 import SwiftUI
@@ -30,6 +30,7 @@ struct PaymentRegisterView: View {
             messagesSection
             actionsSection
         }
+        .nexoKeyboardDismissable()
         .navigationTitle("Cobrar venta")
         .task {
             await viewModel.load()
@@ -198,6 +199,7 @@ struct PaymentRegisterView: View {
     private var actionsSection: some View {
         Section {
             Button {
+                NexoKeyboard.dismiss()
                 Task { await viewModel.submit() }
             } label: {
                 if viewModel.isSubmitting {
@@ -211,6 +213,7 @@ struct PaymentRegisterView: View {
             .disabled(viewModel.selectedMode == .credit ? !viewModel.canCreateReceivable : !viewModel.canSubmitPayment)
 
             Button {
+                NexoKeyboard.dismiss()
                 Task { await viewModel.load() }
             } label: {
                 Label("Actualizar caja", systemImage: "arrow.clockwise")

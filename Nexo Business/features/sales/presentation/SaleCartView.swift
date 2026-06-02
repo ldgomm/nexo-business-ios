@@ -2,7 +2,7 @@
 //  SaleCartView.swift
 //  Nexo Business
 //
-//  Created by José Ruiz on 1/6/26.
+//  Created by José Ruiz on 2/6/26.
 //
 
 import SwiftUI
@@ -50,6 +50,7 @@ struct SaleCartView: View {
             messagesSection
             actionsSection
         }
+        .nexoKeyboardDismissable()
         .navigationTitle(viewModel.createdSale == nil ? "Nueva venta" : "Venta registrada")
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
@@ -145,22 +146,41 @@ struct SaleCartView: View {
 
     private var searchSection: some View {
         Section("Agregar producto") {
-            TextField("Nombre, SKU o código", text: $viewModel.searchQuery)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-                .submitLabel(.search)
-                .disabled(!viewModel.canSearchCatalog)
-                .onSubmit {
-                    Task { await viewModel.searchCatalog() }
+            HStack(spacing: 10) {
+                Image(systemName: "magnifyingglass")
+                    .foregroundStyle(.secondary)
+
+                TextField("Buscar producto, SKU o código", text: $viewModel.searchQuery)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .submitLabel(.search)
+                    .disabled(!viewModel.canSearchCatalog)
+                    .onSubmit {
+                        NexoKeyboard.dismiss()
+                        Task { await viewModel.searchCatalog() }
+                    }
+
+                if !viewModel.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    Button {
+                        viewModel.clearSearch()
+                        NexoKeyboard.dismiss()
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.borderless)
+                    .accessibilityLabel("Limpiar búsqueda")
                 }
+            }
 
             Button {
+                NexoKeyboard.dismiss()
                 Task { await viewModel.searchCatalog() }
             } label: {
                 if viewModel.isSearching {
                     ProgressView()
                 } else {
-                    Label("Buscar", systemImage: "magnifyingglass")
+                    Label("Buscar producto", systemImage: "magnifyingglass")
                 }
             }
             .disabled(!viewModel.canSearchCatalog)
@@ -174,6 +194,7 @@ struct SaleCartView: View {
                 ForEach(viewModel.searchResults) { item in
                     Button {
                         viewModel.addToCart(item)
+                        NexoKeyboard.dismiss()
                     } label: {
                         CatalogResultRow(item: item)
                     }
@@ -312,36 +333,42 @@ struct SaleCartView: View {
                     Label("Ver detalle", systemImage: "doc.text.magnifyingglass")
                 }
             }
-        } else {
+        } else if !viewModel.cartItems.isEmpty {
             Section("Acciones") {
-                Button {
-                    Task { await viewModel.loadPreview() }
-                } label: {
-                    if viewModel.isPreviewing {
-                        ProgressView()
-                    } else {
-                        Label("Calcular total", systemImage: "doc.text.magnifyingglass")
+                if viewModel.preview == nil {
+                    Button {
+                        NexoKeyboard.dismiss()
+                        Task { await viewModel.loadPreview() }
+                    } label: {
+                        if viewModel.isPreviewing {
+                            ProgressView()
+                        } else {
+                            Label("Calcular total", systemImage: "doc.text.magnifyingglass")
+                        }
                     }
+                    .disabled(!viewModel.canPreview)
                 }
-                .disabled(!viewModel.canPreview)
 
                 Button {
+                    NexoKeyboard.dismiss()
                     Task { await viewModel.createQuickSale() }
                 } label: {
                     if viewModel.isCreatingSale {
                         ProgressView()
                     } else {
-                        Label("Registrar venta", systemImage: "checkmark.seal.fill")
+                        Label(viewModel.preview == nil ? "Registrar venta sin recalcular" : "Registrar venta", systemImage: "checkmark.seal.fill")
                     }
                 }
                 .disabled(!viewModel.canCreateSale)
 
-                Button(role: .destructive) {
-                    viewModel.clearCart()
-                } label: {
-                    Label("Limpiar carrito", systemImage: "trash")
+                if viewModel.canClearCart {
+                    Button(role: .destructive) {
+                        viewModel.clearCart()
+                        NexoKeyboard.dismiss()
+                    } label: {
+                        Label("Limpiar carrito", systemImage: "trash")
+                    }
                 }
-                .disabled(!viewModel.canClearCart)
             }
         }
     }

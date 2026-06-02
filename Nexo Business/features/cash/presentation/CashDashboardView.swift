@@ -2,7 +2,7 @@
 //  CashDashboardView.swift
 //  Nexo Business
 //
-//  Created by José Ruiz on 1/6/26.
+//  Created by José Ruiz on 2/6/26.
 //
 
 import SwiftUI
@@ -26,6 +26,7 @@ struct CashDashboardView: View {
                 openSection
             }
         }
+        .nexoKeyboardDismissable()
         .navigationTitle("Caja")
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
@@ -109,6 +110,7 @@ struct CashDashboardView: View {
                 .lineLimit(1...3)
 
             Button {
+                NexoKeyboard.dismiss()
                 Task { await viewModel.openCash() }
             } label: {
                 if viewModel.isMutating && !viewModel.isOpen {
@@ -136,6 +138,7 @@ struct CashDashboardView: View {
                 .lineLimit(1...3)
 
             Button {
+                NexoKeyboard.dismiss()
                 Task { await viewModel.registerMovement() }
             } label: {
                 Label("Registrar movimiento", systemImage: "plus.forwardslash.minus")
@@ -158,6 +161,7 @@ struct CashDashboardView: View {
                 .lineLimit(1...3)
 
             Button(role: .destructive) {
+                NexoKeyboard.dismiss()
                 Task { await viewModel.closeCash() }
             } label: {
                 Label("Cerrar caja", systemImage: "lock")

@@ -70,6 +70,7 @@ struct CustomerCreateView: View {
             Section {
                 Button {
                     Task {
+                        NexoKeyboard.dismiss()
                         if let customer = await viewModel.save() {
                             onCreated(customer)
                             dismiss()
@@ -85,6 +86,7 @@ struct CustomerCreateView: View {
                 .disabled(!viewModel.canSave)
             }
         }
+        .nexoKeyboardDismissable()
         .navigationTitle("Nuevo cliente")
     }
 }
