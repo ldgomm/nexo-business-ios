@@ -1,3 +1,10 @@
+//
+//  SaleCartViewModel.swift
+//  Nexo Business
+//
+//  Created by José Ruiz on 1/6/26.
+//
+
 import Foundation
 import Observation
 

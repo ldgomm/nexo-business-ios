@@ -1,6 +1,6 @@
 //
 //  ModuleCode.swift
-//  Nexo Admin
+//  Nexo Business
 //
 //  Created by José Ruiz on 29/5/26.
 //
