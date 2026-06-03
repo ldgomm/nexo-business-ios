@@ -1,10 +1,3 @@
-//
-//  SaleDetailViewModel.swift
-//  Nexo Business
-//
-//  Created by José Ruiz on 2/6/26.
-//
-
 import Foundation
 import Observation
 
@@ -213,7 +206,7 @@ final class SaleDetailViewModel {
     }
 
     private func hasPermission(_ permissions: [String]) -> Bool {
-        permissions.contains { effectivePermissions.contains($0) }
+        effectivePermissions.contains("*") || permissions.contains { effectivePermissions.contains($0) }
     }
 
     private func handle(apiError: APIError) {

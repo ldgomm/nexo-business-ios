@@ -1,16 +1,9 @@
-//
-//  DailyClosureViewModelTests.swift
-//  Nexo BusinessTests
-//
-//  Created by José Ruiz on 29/5/26.
-//
-
 import XCTest
 @testable import Nexo_Business
 
 @MainActor
 final class DailyClosureViewModelTests: XCTestCase {
-    func testLoadFetchesReportCashAndPendingWork() async {
+    func testLoadFetchesReportCashAndPendingWorkWhenCashCanBeViewed() async {
         let report = makeReport()
         let cashSession = makeCashSession()
         let pendingRepository = PendingOperationsRepositorySpy(
@@ -28,13 +21,14 @@ final class DailyClosureViewModelTests: XCTestCase {
         let viewModel = makeViewModel(
             pendingRepository: pendingRepository,
             dailyReportRepository: dailyReportRepository,
-            cashRepository: cashRepository
+            cashRepository: cashRepository,
+            capabilities: makeCapabilities(cash: CashCapabilities(canViewCurrent: true, canClose: true))
         )
 
         await viewModel.load()
 
-        XCTAssertEqual(viewModel.reportState, .loaded(report)) //Type 'Equatable' has no member 'loaded'
-        XCTAssertEqual(viewModel.cashState, .loaded(cashSession)) //Type 'Equatable' has no member 'loaded'
+        XCTAssertEqual(viewModel.reportState, AsyncViewState<BusinessDailyReport?>.loaded(report))
+        XCTAssertEqual(viewModel.cashState, AsyncViewState<CashSession?>.loaded(cashSession))
         XCTAssertEqual(viewModel.pendingSales.count, 1)
         XCTAssertEqual(viewModel.pendingReceivables.count, 1)
         XCTAssertEqual(viewModel.pendingDocuments.count, 1)
@@ -42,9 +36,81 @@ final class DailyClosureViewModelTests: XCTestCase {
         XCTAssertTrue(viewModel.canCloseCash)
         XCTAssertEqual(pendingRepository.pendingSalesCallCount, 1)
         XCTAssertEqual(dailyReportRepository.lastBusinessDate, viewModel.selectedBusinessDateString)
+        XCTAssertEqual(cashRepository.currentCallCount, 1)
     }
 
-    func testLoadWithoutPermissionFailsEarly() async {
+    func testSellerWithoutCashAccessDoesNotCallCashCurrent() async {
+        let pendingRepository = PendingOperationsRepositorySpy()
+        let dailyReportRepository = BusinessDailyReportRepositorySpy(
+            response: BusinessDailyReportResponse(report: makeReport())
+        )
+        let cashRepository = CashRepositorySpyForDailyClosure(
+            currentError: APIError.server(
+                statusCode: 422,
+                code: "domain_rule_violation",
+                message: "Missing required permission: cash.session.view_current.",
+                requestId: nil
+            )
+        )
+
+        let viewModel = makeViewModel(
+            pendingRepository: pendingRepository,
+            dailyReportRepository: dailyReportRepository,
+            cashRepository: cashRepository,
+            effectivePermissions: [
+                "reports.today",
+                "sales.view",
+                "receivables.view",
+                "documents.view"
+            ],
+            capabilities: makeCapabilities(
+                reports: ReportCapabilities(canViewToday: true, canViewSales: true),
+                sales: SalesCapabilities(canView: true),
+                cash: CashCapabilities()
+            )
+        )
+
+        await viewModel.load()
+
+        XCTAssertEqual(cashRepository.currentCallCount, 0)
+        XCTAssertEqual(viewModel.cashState, AsyncViewState<CashSession?>.loaded(nil))
+        XCTAssertFalse(viewModel.canAccessCash)
+        XCTAssertFalse(viewModel.canViewCash)
+        XCTAssertFalse(viewModel.canOpenCash)
+        XCTAssertFalse(viewModel.errorMessage?.contains("Missing required permission") == true)
+        XCTAssertFalse(viewModel.errorMessage?.contains("cash.session.view_current") == true)
+    }
+
+    func testCashPermissionFailureIsHumanizedWhenCashWasExpected() async {
+        let pendingRepository = PendingOperationsRepositorySpy()
+        let dailyReportRepository = BusinessDailyReportRepositorySpy(
+            response: BusinessDailyReportResponse(report: makeReport())
+        )
+        let cashRepository = CashRepositorySpyForDailyClosure(
+            currentError: APIError.server(
+                statusCode: 422,
+                code: "domain_rule_violation",
+                message: "Missing required permission: cash.session.view_current.",
+                requestId: nil
+            )
+        )
+
+        let viewModel = makeViewModel(
+            pendingRepository: pendingRepository,
+            dailyReportRepository: dailyReportRepository,
+            cashRepository: cashRepository,
+            capabilities: makeCapabilities(cash: CashCapabilities(canViewCurrent: true))
+        )
+
+        await viewModel.load()
+
+        XCTAssertEqual(cashRepository.currentCallCount, 1)
+        XCTAssertEqual(viewModel.cashState, AsyncViewState<CashSession?>.failed("No tienes permiso para consultar caja."))
+        XCTAssertFalse(viewModel.errorMessage?.contains("Missing required permission") == true)
+        XCTAssertFalse(viewModel.errorMessage?.contains("cash.session.view_current") == true)
+    }
+
+    func testLoadWithoutDailyClosurePermissionFailsEarly() async {
         let pendingRepository = PendingOperationsRepositorySpy()
         let dailyReportRepository = BusinessDailyReportRepositorySpy()
         let cashRepository = CashRepositorySpyForDailyClosure()
@@ -103,7 +169,8 @@ final class DailyClosureViewModelTests: XCTestCase {
         let viewModel = makeViewModel(
             pendingRepository: pendingRepository,
             dailyReportRepository: dailyReportRepository,
-            cashRepository: cashRepository
+            cashRepository: cashRepository,
+            capabilities: makeCapabilities(cash: CashCapabilities(canViewCurrent: true, canClose: true))
         )
 
         await viewModel.load()
@@ -120,13 +187,24 @@ final class DailyClosureViewModelTests: XCTestCase {
 
         XCTAssertEqual(viewModel.pendingSales.count, 0)
         XCTAssertEqual(viewModel.pendingReceivables.count, 1)
-        XCTAssertTrue(viewModel.errorMessage?.contains("Ventas: Error de ventas") == true)
+        XCTAssertTrue(viewModel.errorMessage?.contains("Ventas: El servidor no respondió correctamente") == true)
+        XCTAssertFalse(viewModel.errorMessage?.contains("Missing required permission") == true)
+        XCTAssertFalse(viewModel.errorMessage?.contains("cash.session.view_current") == true)
     }
 
     private func makeViewModel(
         pendingRepository: PendingOperationsRepositorySpy,
         dailyReportRepository: BusinessDailyReportRepositorySpy,
-        cashRepository: CashRepositorySpyForDailyClosure
+        cashRepository: CashRepositorySpyForDailyClosure,
+        effectivePermissions: Set<String> = [
+            "reports.today",
+            "sales.view",
+            "receivables.view",
+            "documents.view",
+            "cash.session.view_current",
+            "cash.session.close"
+        ],
+        capabilities: BusinessCapabilities? = nil
     ) -> DailyClosureViewModel {
         DailyClosureViewModel(
             organizationId: "org_1",
@@ -135,13 +213,8 @@ final class DailyClosureViewModelTests: XCTestCase {
                 catalogRevision: "cat_1",
                 taxConfigurationRevision: "tax_1"
             ),
-            effectivePermissions: [
-                "reports.today",
-                "sales.view",
-                "receivables.view",
-                "documents.view",
-                "cash.close"
-            ],
+            effectivePermissions: effectivePermissions,
+            capabilities: capabilities,
             pendingRepository: pendingRepository,
             dailyReportRepository: dailyReportRepository,
             cashRepository: cashRepository
@@ -155,7 +228,7 @@ private final class PendingOperationsRepositorySpy: PendingOperationsRepository,
     var pendingDocumentsCallCount = 0
 
     let salesResponse: PendingSalesResponse
-    let receivablesResponse: PendingReceivablesResponse //'PendingReceivablesResponse' is ambiguous for type lookup in this context
+    let receivablesResponse: PendingReceivablesResponse
     let documentsResponse: PendingDocumentsResponse
     let salesError: Error?
     let receivablesError: Error?
@@ -163,7 +236,7 @@ private final class PendingOperationsRepositorySpy: PendingOperationsRepository,
 
     init(
         salesResponse: PendingSalesResponse = PendingSalesResponse(sales: [], total: 0),
-        receivablesResponse: PendingReceivablesResponse = PendingReceivablesResponse(receivables: [], total: 0), //'PendingReceivablesResponse' is ambiguous for type lookup in this context
+        receivablesResponse: PendingReceivablesResponse = PendingReceivablesResponse(receivables: [], total: 0),
         documentsResponse: PendingDocumentsResponse = PendingDocumentsResponse(documents: [], total: 0),
         salesError: Error? = nil,
         receivablesError: Error? = nil,
@@ -193,7 +266,7 @@ private final class PendingOperationsRepositorySpy: PendingOperationsRepository,
         organizationId: String,
         branchId: String,
         limit: Int
-    ) async throws -> PendingReceivablesResponse { //'PendingReceivablesResponse' is ambiguous for type lookup in this context
+    ) async throws -> PendingReceivablesResponse {
         pendingReceivablesCallCount += 1
         if let receivablesError {
             throw receivablesError
@@ -308,6 +381,22 @@ private final class CashRepositorySpyForDailyClosure: CashRepository, @unchecked
     }
 }
 
+private func makeCapabilities(
+    reports: ReportCapabilities = ReportCapabilities(canViewToday: true, canViewSales: true),
+    sales: SalesCapabilities = SalesCapabilities(canView: true),
+    cash: CashCapabilities = CashCapabilities(),
+    receivables: ReceivableCapabilities = ReceivableCapabilities(canView: true),
+    documents: DocumentCapabilities = DocumentCapabilities(canView: true)
+) -> BusinessCapabilities {
+    BusinessCapabilities(
+        sales: sales,
+        cash: cash,
+        receivables: receivables,
+        documents: documents,
+        reports: reports
+    )
+}
+
 private func makeReport() -> BusinessDailyReport {
     BusinessDailyReport(
         businessDate: "2026-05-29",
@@ -340,8 +429,8 @@ private func makeCashSession() -> CashSession {
     )
 }
 
-private func makeTotals() -> SaleTotals { //Cannot find type 'SaleTotals' in scope
-    SaleTotals( //Cannot find 'SaleTotals' in scope
+private func makeTotals() -> SaleTotals {
+    SaleTotals(
         subtotalWithoutTaxes: MoneyAmount(amount: "10.00"),
         discountTotal: MoneyAmount(amount: "0.00"),
         taxTotal: MoneyAmount(amount: "1.50"),

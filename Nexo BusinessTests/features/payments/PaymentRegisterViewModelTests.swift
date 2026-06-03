@@ -1,18 +1,25 @@
-//
-//  PaymentRegisterViewModelTests.swift
-//  Nexo BusinessTests
-//
-//  Created by José Ruiz on 29/5/26.
-//
-
 import XCTest
 @testable import Nexo_Business
 
 @MainActor
 final class PaymentRegisterViewModelTests: XCTestCase {
+    func testUserWithoutPaymentOrReceivablePermissionDoesNotQueryCash() async {
+        let cash = SpyCashRepository(currentSession: openCashSession())
+        let viewModel = makeViewModel(
+            permissions: ["sales.create"],
+            cashRepository: cash
+        )
+
+        await viewModel.load()
+
+        XCTAssertFalse(viewModel.canAccessPaymentScreen)
+        XCTAssertEqual(cash.currentCalls, 0)
+        XCTAssertEqual(viewModel.errorMessage, viewModel.accessDeniedMessage)
+    }
+
     func testCashPaymentRequiresOpenCashSession() async {
         let viewModel = makeViewModel(
-            permissions: ["payments.collect"],
+            permissions: ["payments.collect", "cash.session.view_current"],
             cashSession: nil
         )
 
@@ -27,7 +34,7 @@ final class PaymentRegisterViewModelTests: XCTestCase {
     func testRegistersCashPaymentWithCashSessionAndIdempotency() async {
         let payments = SpyPaymentsRepository()
         let viewModel = makeViewModel(
-            permissions: ["payments.collect"],
+            permissions: ["payments.collect", "cash.session.view_current"],
             cashSession: openCashSession(),
             paymentsRepository: payments
         )
@@ -43,24 +50,26 @@ final class PaymentRegisterViewModelTests: XCTestCase {
         XCTAssertEqual(payments.lastRequest?.method, "cash")
         XCTAssertEqual(payments.lastRequest?.amount, "11.50")
         XCTAssertTrue(payments.lastIdempotencyKey?.rawValue.hasPrefix("payment-register-") ?? false)
-        XCTAssertEqual(viewModel.infoMessage, "Cobro registrado correctamente.")
+        XCTAssertEqual(viewModel.infoMessage, "Cobro registrado. La caja fue actualizada automáticamente.")
     }
 
     func testTransferPaymentDoesNotRequireCashSession() async {
         let payments = SpyPaymentsRepository()
+        let cash = SpyCashRepository(currentSession: nil)
         let viewModel = makeViewModel(
             permissions: ["payments.collect"],
-            cashSession: nil,
+            cashRepository: cash,
             paymentsRepository: payments
         )
 
-        await viewModel.load()
         viewModel.selectedMode = .transfer
+        await viewModel.load()
         viewModel.reference = "TRX-001"
         viewModel.amount = "11.50"
 
         await viewModel.registerPayment()
 
+        XCTAssertEqual(cash.currentCalls, 0)
         XCTAssertNil(payments.lastRequest?.cashSessionId)
         XCTAssertEqual(payments.lastRequest?.method, "transfer")
         XCTAssertEqual(payments.lastRequest?.reference, "TRX-001")
@@ -114,7 +123,7 @@ final class PaymentRegisterViewModelTests: XCTestCase {
             )
         )
         let viewModel = makeViewModel(
-            permissions: ["payments.collect"],
+            permissions: ["payments.collect", "cash.session.view_current"],
             cashSession: openCashSession(),
             paymentsRepository: payments
         )
@@ -129,10 +138,33 @@ final class PaymentRegisterViewModelTests: XCTestCase {
         )
     }
 
+    func testMissingPermissionFromBackendIsNotShownRaw() async {
+        let cash = SpyCashRepository(
+            currentError: APIError.server(
+                statusCode: 422,
+                code: "domain_rule_violation",
+                message: "Missing required permission: cash.session.view_current.",
+                requestId: nil
+            )
+        )
+        let viewModel = makeViewModel(
+            permissions: ["payments.collect", "cash.session.view_current"],
+            cashRepository: cash
+        )
+
+        await viewModel.load()
+
+        XCTAssertEqual(
+            viewModel.errorMessage,
+            "No tienes permiso para consultar caja o registrar cobros en efectivo. Pide a un cajero o administrador que registre el cobro."
+        )
+    }
+
     private func makeViewModel(
         sale: BusinessSale? = nil,
         permissions: Set<String>,
-        cashSession: CashSession?,
+        cashSession: CashSession? = nil,
+        cashRepository: SpyCashRepository? = nil,
         paymentsRepository: SpyPaymentsRepository = SpyPaymentsRepository(),
         receivablesRepository: SpyReceivablesRepository = SpyReceivablesRepository()
     ) -> PaymentRegisterViewModel {
@@ -141,7 +173,7 @@ final class PaymentRegisterViewModelTests: XCTestCase {
             branchId: PreviewData.businessContext.branches[0].id,
             sale: sale ?? saleWithCustomer(),
             effectivePermissions: permissions,
-            cashRepository: SpyCashRepository(currentSession: cashSession),
+            cashRepository: cashRepository ?? SpyCashRepository(currentSession: cashSession),
             paymentsRepository: paymentsRepository,
             receivablesRepository: receivablesRepository
         )
@@ -197,16 +229,24 @@ final class PaymentRegisterViewModelTests: XCTestCase {
 
 private final class SpyCashRepository: CashRepository, @unchecked Sendable {
     private let currentSession: CashSession?
+    private let currentError: Error?
+    var currentCalls = 0
 
-    init(currentSession: CashSession?) {
+    init(
+        currentSession: CashSession? = nil,
+        currentError: Error? = nil
+    ) {
         self.currentSession = currentSession
+        self.currentError = currentError
     }
 
     func current(
         organizationId: String,
         branchId: String
     ) async throws -> CashCurrentSessionResponse {
-        CashCurrentSessionResponse(session: currentSession)
+        currentCalls += 1
+        if let currentError { throw currentError }
+        return CashCurrentSessionResponse(session: currentSession)
     }
 
     func open(

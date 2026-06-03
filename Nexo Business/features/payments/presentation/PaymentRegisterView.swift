@@ -1,10 +1,3 @@
-//
-//  PaymentRegisterView.swift
-//  Nexo Business
-//
-//  Created by José Ruiz on 2/6/26.
-//
-
 import SwiftUI
 
 struct PaymentRegisterView: View {
@@ -27,16 +20,21 @@ struct PaymentRegisterView: View {
         Form {
             saleSection
 
-            if !viewModel.hasCompletedSubmission {
-                methodSection
-                amountSection
-                cashSection
-                creditSection
-            }
+            if viewModel.canAccessPaymentScreen {
+                if !viewModel.hasCompletedSubmission {
+                    methodSection
+                    amountSection
+                    cashSection
+                    creditSection
+                }
 
-            resultSection
-            messagesSection
-            actionsSection
+                resultSection
+                messagesSection
+                actionsSection
+            } else {
+                accessDeniedSection
+                messagesSection
+            }
         }
         .nexoKeyboardDismissable()
         .navigationTitle(viewModel.hasCompletedSubmission ? "Cobro registrado" : "Confirmar cobro")
@@ -60,7 +58,8 @@ struct PaymentRegisterView: View {
             await viewModel.load()
         }
         .onChange(of: viewModel.selectedMode) { _, _ in
-            viewModel.handleSelectedModeChanged()
+            viewModel.resetResultMessages()
+            Task { await viewModel.refreshForSelectedMode() }
         }
         .onChange(of: viewModel.sale) { _, sale in
             onSaleUpdated(sale)
@@ -76,10 +75,18 @@ struct PaymentRegisterView: View {
         }
     }
 
+    private var accessDeniedSection: some View {
+        Section("Cobro no habilitado") {
+            Label(viewModel.accessDeniedMessage, systemImage: "lock")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+        }
+    }
+
     private var methodSection: some View {
         Section("Método") {
             Picker("Método", selection: $viewModel.selectedMode) {
-                ForEach(PaymentRegisterMode.allCases) { mode in
+                ForEach(viewModel.availableModes) { mode in
                     Label(mode.title, systemImage: mode.systemImage)
                         .tag(mode)
                 }
@@ -93,14 +100,10 @@ struct PaymentRegisterView: View {
             TextField("Monto", text: $viewModel.amount)
                 .keyboardType(.decimalPad)
 
-            if viewModel.shouldShowExternalReferenceField {
-                TextField(viewModel.referenceFieldTitle, text: $viewModel.reference)
+            if viewModel.selectedMode == .transfer || viewModel.selectedMode == .card {
+                TextField("Referencia", text: $viewModel.reference)
                     .textInputAutocapitalization(.characters)
                     .autocorrectionDisabled()
-
-                Text(viewModel.referenceHelpText)
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
             }
 
             TextField("Nota opcional", text: $viewModel.note, axis: .vertical)
@@ -286,12 +289,6 @@ struct PaymentRegisterView: View {
                 }
                 .disabled(viewModel.selectedMode == .credit ? !viewModel.canCreateReceivable : !viewModel.canSubmitPayment)
 
-                if let hint = viewModel.submitBlockingHint {
-                    Text(hint)
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                }
-
                 Button {
                     NexoKeyboard.dismiss()
                     Task { await viewModel.load() }
@@ -307,7 +304,6 @@ struct PaymentRegisterView: View {
         value.displayText
     }
 }
-
 
 struct PaymentRegisterInlineView: View {
     @Bindable private var viewModel: PaymentRegisterViewModel
@@ -327,7 +323,9 @@ struct PaymentRegisterInlineView: View {
 
     var body: some View {
         Group {
-            if !viewModel.hasCompletedSubmission {
+            if !viewModel.canAccessPaymentScreen {
+                paymentAccessDeniedSection
+            } else if !viewModel.hasCompletedSubmission {
                 paymentMethodSection
                 paymentAmountSection
                 paymentCashSection
@@ -359,17 +357,26 @@ struct PaymentRegisterInlineView: View {
             await viewModel.load()
         }
         .onChange(of: viewModel.selectedMode) { _, _ in
-            viewModel.handleSelectedModeChanged()
+            viewModel.resetResultMessages()
+            Task { await viewModel.refreshForSelectedMode() }
         }
         .onChange(of: viewModel.sale) { _, sale in
             onSaleUpdated(sale)
         }
     }
 
+    private var paymentAccessDeniedSection: some View {
+        Section("Cobro no habilitado") {
+            Label(viewModel.accessDeniedMessage, systemImage: "lock")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+        }
+    }
+
     private var paymentMethodSection: some View {
         Section("Registrar cobro") {
             Picker("Método", selection: $viewModel.selectedMode) {
-                ForEach(PaymentRegisterMode.allCases) { mode in
+                ForEach(viewModel.availableModes) { mode in
                     Label(mode.title, systemImage: mode.systemImage)
                         .tag(mode)
                 }
@@ -387,14 +394,10 @@ struct PaymentRegisterInlineView: View {
             TextField("Monto", text: $viewModel.amount)
                 .keyboardType(.decimalPad)
 
-            if viewModel.shouldShowExternalReferenceField {
-                TextField(viewModel.referenceFieldTitle, text: $viewModel.reference)
+            if viewModel.selectedMode == .transfer || viewModel.selectedMode == .card {
+                TextField("Referencia", text: $viewModel.reference)
                     .textInputAutocapitalization(.characters)
                     .autocorrectionDisabled()
-
-                Text(viewModel.referenceHelpText)
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
             }
 
             TextField("Nota opcional", text: $viewModel.note, axis: .vertical)
@@ -491,12 +494,6 @@ struct PaymentRegisterInlineView: View {
             }
             .disabled(viewModel.selectedMode == .credit ? !viewModel.canCreateReceivable : !viewModel.canSubmitPayment)
 
-            if let hint = viewModel.submitBlockingHint {
-                Text(hint)
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-            }
-
             Button {
                 NexoKeyboard.dismiss()
                 Task { await viewModel.load() }
@@ -565,7 +562,6 @@ struct PaymentRegisterInlineView: View {
         }
     }
 }
-
 
 #Preview {
     NavigationStack {

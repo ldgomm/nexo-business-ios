@@ -1,10 +1,3 @@
-//
-//  DailyClosureView.swift
-//  Nexo Business
-//
-//  Created by José Ruiz on 2/6/26.
-//
-
 import SwiftUI
 
 struct DailyClosureView: View {
@@ -111,48 +104,59 @@ struct DailyClosureView: View {
     @ViewBuilder
     private var cashSection: some View {
         Section("Caja operativa") {
-            switch viewModel.cashState {
-            case .idle, .loading:
-                ProgressView("Consultando caja…")
+            if !viewModel.canAccessCash {
+                Label("Caja no habilitada para este usuario", systemImage: "lock")
+                    .foregroundStyle(.secondary)
 
-            case let .failed(message):
-                Label(message, systemImage: "exclamationmark.triangle")
-                    .foregroundStyle(.red)
+                Text("Puedes revisar ventas y pendientes según tus permisos, pero la apertura, consulta y cierre de caja están reservados para cajeros o administradores.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            } else {
+                switch viewModel.cashState {
+                case .idle, .loading:
+                    ProgressView("Consultando caja…")
 
-            case let .loaded(session):
-                if let session {
-                    CashTodaySummaryView(session: session)
+                case let .failed(message):
+                    Label(message, systemImage: "exclamationmark.triangle")
+                        .foregroundStyle(.red)
 
-                    NavigationLink {
-                        CashDashboardView(
-                            viewModel: CashDashboardViewModel(
-                                organizationId: viewModel.organizationId,
-                                branchId: viewModel.branchId,
-                                permissions: viewModel.effectivePermissions,
-                                cashRepository: cashRepository
+                case let .loaded(session):
+                    if let session {
+                        CashTodaySummaryView(session: session)
+
+                        NavigationLink {
+                            CashDashboardView(
+                                viewModel: CashDashboardViewModel(
+                                    organizationId: viewModel.organizationId,
+                                    branchId: viewModel.branchId,
+                                    permissions: viewModel.effectivePermissions,
+                                    cashCapabilities: viewModel.cashCapabilities,
+                                    cashRepository: cashRepository
+                                )
                             )
-                        )
-                    } label: {
-                        Label(
-                            viewModel.canCloseCash ? "Ver caja o cerrar caja" : "Ver caja operativa",
-                            systemImage: viewModel.canCloseCash ? "lock" : "tray"
-                        )
-                    }
-                } else {
-                    Label("No hay caja abierta", systemImage: "lock.open")
-                        .foregroundStyle(.secondary)
-
-                    NavigationLink {
-                        CashDashboardView(
-                            viewModel: CashDashboardViewModel(
-                                organizationId: viewModel.organizationId,
-                                branchId: viewModel.branchId,
-                                permissions: viewModel.effectivePermissions,
-                                cashRepository: cashRepository
+                        } label: {
+                            Label(
+                                viewModel.canCloseCash ? "Ver caja o cerrar caja" : "Ver caja operativa",
+                                systemImage: viewModel.canCloseCash ? "lock" : "tray"
                             )
-                        )
-                    } label: {
-                        Label("Abrir o revisar caja", systemImage: "tray")
+                        }
+                    } else {
+                        Label("No hay caja abierta", systemImage: "lock.open")
+                            .foregroundStyle(.secondary)
+
+                        NavigationLink {
+                            CashDashboardView(
+                                viewModel: CashDashboardViewModel(
+                                    organizationId: viewModel.organizationId,
+                                    branchId: viewModel.branchId,
+                                    permissions: viewModel.effectivePermissions,
+                                    cashCapabilities: viewModel.cashCapabilities,
+                                    cashRepository: cashRepository
+                                )
+                            )
+                        } label: {
+                            Label(viewModel.canOpenCash ? "Abrir o revisar caja" : "Revisar caja", systemImage: "tray")
+                        }
                     }
                 }
             }
@@ -513,6 +517,7 @@ private struct PendingDocumentRow: View {
                 branchId: PreviewData.businessContext.branches[0].id,
                 revisions: PreviewData.businessContext.revisions,
                 effectivePermissions: PreviewData.businessContext.effectivePermissions,
+                capabilities: PreviewData.businessContext.capabilities,
                 pendingRepository: PreviewPendingOperationsRepository(),
                 dailyReportRepository: PreviewBusinessDailyReportRepository(),
                 cashRepository: PreviewCashRepository()

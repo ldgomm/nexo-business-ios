@@ -1,10 +1,3 @@
-//
-//  SaleCartViewModel.swift
-//  Nexo Business
-//
-//  Created by José Ruiz on 2/6/26.
-//
-
 import Foundation
 import Observation
 
@@ -219,6 +212,31 @@ final class SaleCartViewModel {
         createdSale != nil || orderState == .created || orderState == .creating
     }
     
+    var canCollectCreatedSale: Bool {
+        guard let sale = createdSale else { return false }
+        return SaleStatusPresentation.canCollect(status: sale.status) &&
+        PaymentStatusPresentation.canCollect(status: sale.paymentStatus) &&
+        (hasPaymentPermission || hasReceivablePermission)
+    }
+
+    private var hasPaymentPermission: Bool {
+        hasPermission([
+            "business.payments.collect",
+            "payments.collect",
+            "business.payments.register",
+            "payments.register"
+        ])
+    }
+
+    private var hasReceivablePermission: Bool {
+        hasPermission([
+            "business.receivables.create",
+            "receivables.create",
+            "business.payments.mark_as_credit",
+            "payments.mark_as_credit"
+        ])
+    }
+
     var customerIdForRequest: String? {
         guard let selectedCustomer else { return nil }
         return selectedCustomer.identificationType == .finalConsumer ? nil : selectedCustomer.id
@@ -610,6 +628,10 @@ final class SaleCartViewModel {
         return true
     }
     
+    private func hasPermission(_ permissions: [String]) -> Bool {
+        effectivePermissions.contains("*") || permissions.contains { effectivePermissions.contains($0) }
+    }
+
     private func handle(apiError: APIError) {
         errorMessage = apiError.userMessage
 

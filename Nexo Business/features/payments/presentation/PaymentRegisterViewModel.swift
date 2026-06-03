@@ -1,10 +1,3 @@
-//
-//  PaymentRegisterViewModel.swift
-//  Nexo Business
-//
-//  Created by José Ruiz on 2/6/26.
-//
-
 import Foundation
 import Observation
 
@@ -52,37 +45,6 @@ enum PaymentRegisterMode: String, CaseIterable, Identifiable, Sendable, Hashable
             return .card
         case .credit:
             return nil
-        }
-    }
-
-    var requiresExternalReference: Bool {
-        switch self {
-        case .transfer, .card:
-            return true
-        case .cash, .credit:
-            return false
-        }
-    }
-
-    var referenceTitle: String {
-        switch self {
-        case .transfer:
-            return "Referencia de transferencia"
-        case .card:
-            return "Referencia de voucher"
-        case .cash, .credit:
-            return "Referencia"
-        }
-    }
-
-    var referenceHelpText: String {
-        switch self {
-        case .transfer:
-            return "Para transferencias, ingresa el número de comprobante, referencia bancaria o nombre del banco."
-        case .card:
-            return "Para tarjeta manual, ingresa el número de voucher, lote o autorización."
-        case .cash, .credit:
-            return ""
         }
     }
 }
@@ -136,6 +98,7 @@ final class PaymentRegisterViewModel {
         self.receivablesRepository = receivablesRepository
         self.amount = sale.totals.grandTotal.amount
         self.customerId = sale.customerId ?? ""
+        self.selectedMode = Self.initialMode(effectivePermissions: effectivePermissions)
     }
 
     var hasCompletedSubmission: Bool {
@@ -144,6 +107,28 @@ final class PaymentRegisterViewModel {
 
     var registeredPaymentWasCash: Bool {
         lastSubmittedMode == .cash || paymentResult?.method == BusinessPaymentMethod.cash.rawValue
+    }
+
+    var availableModes: [PaymentRegisterMode] {
+        var modes: [PaymentRegisterMode] = []
+
+        if hasPaymentPermission {
+            modes.append(contentsOf: [.cash, .transfer, .card])
+        }
+
+        if hasReceivablePermission {
+            modes.append(.credit)
+        }
+
+        return modes
+    }
+
+    var canAccessPaymentScreen: Bool {
+        !availableModes.isEmpty
+    }
+
+    var accessDeniedMessage: String {
+        "Este usuario puede registrar o consultar ventas, pero no tiene permiso para cobrar ni crear cuentas por cobrar."
     }
 
     var canSubmitPayment: Bool {
@@ -155,10 +140,6 @@ final class PaymentRegisterViewModel {
 
         if selectedMode == .cash {
             return currentCashSession?.isOpen == true
-        }
-
-        if selectedMode.requiresExternalReference {
-            return !normalized(reference).isEmpty
         }
 
         return true
@@ -199,56 +180,6 @@ final class PaymentRegisterViewModel {
         "\(sale.totals.grandTotal.currency) \(amount)"
     }
 
-    var shouldShowExternalReferenceField: Bool {
-        selectedMode.requiresExternalReference
-    }
-
-    var referenceFieldTitle: String {
-        selectedMode.referenceTitle
-    }
-
-    var referenceHelpText: String {
-        selectedMode.referenceHelpText
-    }
-
-    var submitBlockingHint: String? {
-        if hasCompletedSubmission || isSubmitting { return nil }
-
-        if selectedMode == .credit {
-            if !hasReceivablePermission {
-                return "No tienes permiso para crear cuentas por cobrar."
-            }
-            if !isValidAmount(amount) {
-                return "Ingresa un monto válido mayor a cero."
-            }
-            if normalized(customerId).isEmpty {
-                return "Selecciona un cliente identificado para dejar la venta por cobrar."
-            }
-            return nil
-        }
-
-        if !hasPaymentPermission {
-            return "No tienes permiso para registrar cobros."
-        }
-        if !SaleStatusPresentation.canCollect(status: sale.status) {
-            return "Esta venta no está lista para cobrar."
-        }
-        if !PaymentStatusPresentation.canCollect(status: sale.paymentStatus) {
-            return "Esta venta ya no tiene saldo pendiente de cobro."
-        }
-        if !isValidAmount(amount) {
-            return "Ingresa un monto válido mayor a cero."
-        }
-        if selectedMode == .cash && currentCashSession?.isOpen != true {
-            return "Abre caja para cobrar en efectivo."
-        }
-        if selectedMode.requiresExternalReference && normalized(reference).isEmpty {
-            return externalReferenceRequiredMessage()
-        }
-
-        return nil
-    }
-
     var submitButtonTitle: String {
         selectedMode == .credit ? "Crear cuenta por cobrar" : "Confirmar cobro"
     }
@@ -264,9 +195,6 @@ final class PaymentRegisterViewModel {
         }
 
         var message = "Vas a registrar un cobro por \(amountMoney).\n\nMétodo: \(selectedMode.title)"
-        if selectedMode.requiresExternalReference {
-            message += "\nReferencia: \(normalized(reference))"
-        }
         if selectedMode == .cash {
             message += "\n\nEsto actualizará la caja automáticamente. No registres este valor como movimiento manual."
         }
@@ -288,8 +216,42 @@ final class PaymentRegisterViewModel {
     }
 
     func load() async {
+        await refreshForSelectedMode()
+    }
+
+    func refreshForSelectedMode() async {
         guard !branchId.isEmpty else {
             errorMessage = "Falta sucursal activa. Actualiza el contexto."
+            return
+        }
+
+        guard canAccessPaymentScreen else {
+            currentCashSession = nil
+            errorMessage = accessDeniedMessage
+            return
+        }
+
+        guard availableModes.contains(selectedMode) else {
+            selectedMode = availableModes.first ?? .cash
+            await refreshForSelectedMode()
+            return
+        }
+
+        guard selectedMode == .cash else {
+            currentCashSession = nil
+            errorMessage = nil
+            return
+        }
+
+        guard hasPaymentPermission else {
+            currentCashSession = nil
+            errorMessage = "No tienes permiso para registrar cobros."
+            return
+        }
+
+        guard canViewCashCurrent else {
+            currentCashSession = nil
+            errorMessage = "No tienes permiso para consultar caja. Pide a un cajero o administrador que registre el cobro en efectivo."
             return
         }
 
@@ -309,8 +271,10 @@ final class PaymentRegisterViewModel {
             )
             currentCashSession = response.session
         } catch let error as APIError {
-            errorMessage = error.userMessage
+            currentCashSession = nil
+            errorMessage = humanMessage(for: error)
         } catch {
+            currentCashSession = nil
             errorMessage = error.localizedDescription
         }
     }
@@ -431,13 +395,6 @@ final class PaymentRegisterViewModel {
         }
     }
 
-    func handleSelectedModeChanged() {
-        if !selectedMode.requiresExternalReference {
-            reference = ""
-        }
-        resetResultMessages()
-    }
-
     func resetResultMessages() {
         errorMessage = nil
         infoMessage = nil
@@ -456,6 +413,15 @@ final class PaymentRegisterViewModel {
         BusinessPaymentMethod(rawValue: rawValue)?.displayName ?? rawValue
     }
 
+    private var canViewCashCurrent: Bool {
+        hasPermission([
+            "cash.view",
+            "cash.session.view_current",
+            "cash.view_current",
+            "business.cash.view_current"
+        ])
+    }
+
     private func paymentValidationMessage() -> String {
         if hasCompletedSubmission {
             return "Este cobro ya fue registrado. Actualiza la venta o vuelve al historial."
@@ -471,10 +437,6 @@ final class PaymentRegisterViewModel {
 
         if selectedMode == .cash && currentCashSession?.isOpen != true {
             return "Necesitas una caja abierta para cobrar en efectivo."
-        }
-
-        if selectedMode.requiresExternalReference && normalized(reference).isEmpty {
-            return externalReferenceRequiredMessage()
         }
 
         return "No se puede registrar el cobro con el estado actual."
@@ -500,28 +462,29 @@ final class PaymentRegisterViewModel {
         return "No se puede crear la cuenta por cobrar con el estado actual."
     }
 
-    private func externalReferenceRequiredMessage() -> String {
-        switch selectedMode {
-        case .transfer:
-            return "Ingresa la referencia de la transferencia: número de comprobante, referencia bancaria o banco."
-        case .card:
-            return "Ingresa la referencia de la tarjeta: voucher, lote o autorización."
-        case .cash, .credit:
-            return "Ingresa una referencia para este cobro."
-        }
+    private func handle(apiError: APIError) {
+        errorMessage = humanMessage(for: apiError)
     }
 
-    private func handle(apiError: APIError) {
-        let serverText = [apiError.serverMessage, apiError.code]
-            .compactMap { $0?.lowercased() }
-            .joined(separator: " ")
-
-        if serverText.contains("external reference") || serverText.contains("reference") {
-            errorMessage = externalReferenceRequiredMessage()
-            return
+    private func humanMessage(for error: APIError) -> String {
+        if isMissingPermission(error) {
+            if selectedMode == .cash {
+                return "No tienes permiso para consultar caja o registrar cobros en efectivo. Pide a un cajero o administrador que registre el cobro."
+            }
+            return selectedMode == .credit
+                ? "No tienes permiso para crear cuentas por cobrar."
+                : "No tienes permiso para registrar cobros."
         }
 
-        errorMessage = apiError.userMessage
+        return error.userMessage
+    }
+
+    private func isMissingPermission(_ error: APIError) -> Bool {
+        guard case let .server(_, _, message, _) = error else { return false }
+        return message.localizedCaseInsensitiveContains("Missing required permission") ||
+        message.localizedCaseInsensitiveContains("cash.session") ||
+        message.localizedCaseInsensitiveContains("payments.") ||
+        message.localizedCaseInsensitiveContains("receivables.")
     }
 
     private func inferredPaymentStatus(after payment: PaymentRecord) -> String {
@@ -538,7 +501,7 @@ final class PaymentRegisterViewModel {
     }
 
     private func hasPermission(_ candidates: [String]) -> Bool {
-        candidates.contains { effectivePermissions.contains($0) }
+        effectivePermissions.contains("*") || candidates.contains { effectivePermissions.contains($0) }
     }
 
     private func isValidAmount(_ text: String) -> Bool {
@@ -560,5 +523,27 @@ final class PaymentRegisterViewModel {
     private func emptyToNil(_ text: String) -> String? {
         let value = normalized(text)
         return value.isEmpty ? nil : value
+    }
+
+    private static func initialMode(effectivePermissions: Set<String>) -> PaymentRegisterMode {
+        let hasPayments = effectivePermissions.contains("*") || [
+            "business.payments.collect",
+            "payments.collect",
+            "business.payments.register",
+            "payments.register"
+        ].contains { effectivePermissions.contains($0) }
+
+        if hasPayments {
+            return .cash
+        }
+
+        let hasReceivables = effectivePermissions.contains("*") || [
+            "business.receivables.create",
+            "receivables.create",
+            "business.payments.mark_as_credit",
+            "payments.mark_as_credit"
+        ].contains { effectivePermissions.contains($0) }
+
+        return hasReceivables ? .credit : .cash
     }
 }

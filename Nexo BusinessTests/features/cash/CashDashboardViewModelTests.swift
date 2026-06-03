@@ -1,16 +1,9 @@
-//
-//  CashDashboardViewModelTests.swift
-//  Nexo BusinessTests
-//
-//  Created by José Ruiz on 29/5/26.
-//
-
 import XCTest
 @testable import Nexo_Business
 
 @MainActor
 final class CashDashboardViewModelTests: XCTestCase {
-    func testLoadCurrentSessionUpdatesState() async {
+    func testLoadCurrentSessionUpdatesStateWithCanonicalPermissions() async {
         let repository = CashRepositorySpy(
             currentResponse: CashCurrentSessionResponse(
                 session: makeOpenSession()
@@ -20,9 +13,32 @@ final class CashDashboardViewModelTests: XCTestCase {
 
         await viewModel.load()
 
+        XCTAssertEqual(repository.currentCalls, 1)
         XCTAssertEqual(viewModel.currentSession?.id, "cash_1")
         XCTAssertEqual(viewModel.currentSession?.status, "open")
         XCTAssertEqual(viewModel.state, .loaded(makeOpenSession()))
+    }
+
+    func testCashierWithOpenPermissionCanOpenWhenNoSessionExists() async {
+        let repository = CashRepositorySpy(
+            currentResponse: CashCurrentSessionResponse(session: nil),
+            openResponse: CashSessionResponse(
+                session: makeOpenSession(openingAmount: "25.00"),
+                idempotencyReplayed: false
+            )
+        )
+        let viewModel = makeViewModel(repository: repository)
+        viewModel.openingAmount = "25,00"
+        viewModel.openingNote = "Inicio turno mañana"
+
+        await viewModel.load()
+        await viewModel.openCash()
+
+        XCTAssertEqual(viewModel.state, .loaded(makeOpenSession(openingAmount: "25.00")))
+        XCTAssertEqual(repository.lastOpenRequest?.openingAmount, "25.00")
+        XCTAssertEqual(repository.lastOpenRequest?.note, "Inicio turno mañana")
+        XCTAssertTrue(repository.lastOpenIdempotencyKey?.rawValue.hasPrefix("cash-open-") == true)
+        XCTAssertEqual(viewModel.successMessage, "Caja abierta correctamente.")
     }
 
     func testOpenCashRequiresPermission() async {
@@ -42,26 +58,23 @@ final class CashDashboardViewModelTests: XCTestCase {
         XCTAssertNil(repository.lastOpenRequest)
     }
 
-    func testOpenCashSendsIdempotencyAndUpdatesSession() async {
-        let opened = makeOpenSession(openingAmount: "25.00")
+    func testLoadDoesNotCallCurrentWhenUserCanOpenButCannotViewCurrent() async {
         let repository = CashRepositorySpy(
-            currentResponse: CashCurrentSessionResponse(session: nil),
-            openResponse: CashSessionResponse(
-                session: opened,
-                idempotencyReplayed: false
-            )
+            currentResponse: CashCurrentSessionResponse(session: makeOpenSession())
         )
-        let viewModel = makeViewModel(repository: repository)
-        viewModel.openingAmount = "25,00"
-        viewModel.openingNote = "Inicio turno mañana"
+        let viewModel = CashDashboardViewModel(
+            organizationId: "org_1",
+            branchId: "br_1",
+            permissions: ["cash.session.open"],
+            cashRepository: repository
+        )
 
-        await viewModel.openCash()
+        await viewModel.load()
 
-        XCTAssertEqual(repository.lastOpenRequest?.openingAmount, "25.00")
-        XCTAssertEqual(repository.lastOpenRequest?.note, "Inicio turno mañana")
-        XCTAssertTrue(repository.lastOpenIdempotencyKey?.rawValue.hasPrefix("cash-open-") == true)
-        XCTAssertEqual(viewModel.currentSession, opened)
-        XCTAssertEqual(viewModel.successMessage, "Caja abierta correctamente.")
+        XCTAssertEqual(repository.currentCalls, 0)
+        XCTAssertNil(viewModel.currentSession)
+        XCTAssertEqual(viewModel.state, .loaded(nil))
+        XCTAssertTrue(viewModel.shouldShowOpenSection)
     }
 
     func testRegisterMovementRequiresOpenSession() async {
@@ -73,7 +86,7 @@ final class CashDashboardViewModelTests: XCTestCase {
 
         await viewModel.registerMovement()
 
-        XCTAssertEqual(viewModel.errorMessage, "Debes tener una caja abierta para registrar movimientos.")
+        XCTAssertEqual(viewModel.errorMessage, "Debes tener una caja abierta para registrar ajustes.")
         XCTAssertNil(repository.lastMovementRequest)
     }
 
@@ -148,12 +161,12 @@ final class CashDashboardViewModelTests: XCTestCase {
     private func makeViewModel(
         repository: CashRepositorySpy,
         permissions: Set<String> = [
-            "cash.view_current",
-            "cash.open",
-            "cash.close",
-            "cash.register_inflow",
-            "cash.register_outflow",
-            "cash.adjust"
+            "cash.session.view_current",
+            "cash.session.open",
+            "cash.session.close",
+            "cash.movements.register_inflow",
+            "cash.movements.register_outflow",
+            "cash.movements.adjust"
         ]
     ) -> CashDashboardViewModel {
         CashDashboardViewModel(
@@ -185,6 +198,7 @@ private final class CashRepositorySpy: CashRepository, @unchecked Sendable {
     let movementResponse: CashMovementResponse?
     let closeResponse: CashSessionResponse?
 
+    var currentCalls = 0
     var lastOpenRequest: OpenCashSessionRequest?
     var lastOpenIdempotencyKey: IdempotencyKey?
     var lastMovementRequest: RegisterCashMovementRequest?
@@ -208,7 +222,8 @@ private final class CashRepositorySpy: CashRepository, @unchecked Sendable {
         organizationId: String,
         branchId: String
     ) async throws -> CashCurrentSessionResponse {
-        currentResponse
+        currentCalls += 1
+        return currentResponse
     }
 
     func open(

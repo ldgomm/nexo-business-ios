@@ -1,10 +1,3 @@
-//
-//  CashDashboardView.swift
-//  Nexo Business
-//
-//  Created by José Ruiz on 2/6/26.
-//
-
 import SwiftUI
 
 struct CashDashboardView: View {
@@ -19,10 +12,10 @@ struct CashDashboardView: View {
             heroSection
             messagesSection
 
-            if viewModel.isOpen {
+            if viewModel.shouldShowCloseSection {
                 closeSection
                 manualAdjustmentsSection
-            } else {
+            } else if viewModel.shouldShowOpenSection {
                 openSection
             }
         }
@@ -298,6 +291,7 @@ private struct CashSessionHeroView: View {
                 organizationId: PreviewData.businessContext.organization.id,
                 branchId: PreviewData.businessContext.branches[0].id,
                 permissions: PreviewData.businessContext.effectivePermissions,
+                cashCapabilities: PreviewData.businessContext.capabilities.cash,
                 cashRepository: PreviewCashRepository()
             )
         )

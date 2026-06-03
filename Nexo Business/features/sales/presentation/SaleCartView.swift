@@ -1,10 +1,3 @@
-//
-//  SaleCartView.swift
-//  Nexo Business
-//
-//  Created by José Ruiz on 2/6/26.
-//
-
 import SwiftUI
 
 struct SaleCartView: View {
@@ -301,21 +294,27 @@ struct SaleCartView: View {
     private var actionsSection: some View {
         if let sale = viewModel.createdSale {
             Section("Siguiente acción") {
-                NavigationLink {
-                    PaymentRegisterView(
-                        viewModel: PaymentRegisterViewModel(
-                            organizationId: viewModel.organizationId,
-                            branchId: sale.branchId,
-                            sale: sale,
-                            effectivePermissions: viewModel.effectivePermissions,
-                            cashRepository: cashRepository,
-                            paymentsRepository: paymentsRepository,
-                            receivablesRepository: receivablesRepository
-                        ),
-                        customersRepository: customersRepository
-                    )
-                } label: {
-                    Label("Cobrar ahora", systemImage: "dollarsign.circle.fill")
+                if viewModel.canCollectCreatedSale {
+                    NavigationLink {
+                        PaymentRegisterView(
+                            viewModel: PaymentRegisterViewModel(
+                                organizationId: viewModel.organizationId,
+                                branchId: sale.branchId,
+                                sale: sale,
+                                effectivePermissions: viewModel.effectivePermissions,
+                                cashRepository: cashRepository,
+                                paymentsRepository: paymentsRepository,
+                                receivablesRepository: receivablesRepository
+                            ),
+                            customersRepository: customersRepository
+                        )
+                    } label: {
+                        Label("Cobrar ahora", systemImage: "dollarsign.circle.fill")
+                    }
+                } else {
+                    Label("Este usuario puede registrar ventas, pero no cobrar.", systemImage: "lock")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
                 }
 
                 Button {

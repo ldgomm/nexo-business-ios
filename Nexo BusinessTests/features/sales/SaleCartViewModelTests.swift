@@ -1,10 +1,3 @@
-//
-//  SaleCartViewModelTests.swift
-//  Nexo BusinessTests
-//
-//  Created by José Ruiz on 29/5/26.
-//
-
 import XCTest
 @testable import Nexo_Business
 
@@ -107,9 +100,38 @@ final class SaleCartViewModelTests: XCTestCase {
         )
     }
 
+
+    func testCreatedSaleCannotBeCollectedWithoutPaymentPermission() async {
+        let sales = SalesRepositorySpy(
+            quickSaleResponse: PreviewData.quickSaleResponse
+        )
+        let viewModel = makeViewModel(salesRepository: sales)
+
+        viewModel.addToCart(Self.item)
+        await viewModel.createQuickSale()
+
+        XCTAssertFalse(viewModel.canCollectCreatedSale)
+    }
+
+    func testCreatedSaleCanBeCollectedWithPaymentPermission() async {
+        let sales = SalesRepositorySpy(
+            quickSaleResponse: PreviewData.quickSaleResponse
+        )
+        let viewModel = makeViewModel(
+            salesRepository: sales,
+            effectivePermissions: ["payments.collect"]
+        )
+
+        viewModel.addToCart(Self.item)
+        await viewModel.createQuickSale()
+
+        XCTAssertTrue(viewModel.canCollectCreatedSale)
+    }
+
     private func makeViewModel(
         catalogRepository: CatalogRepository = CatalogRepositorySpy(),
-        salesRepository: SalesRepository = SalesRepositorySpy()
+        salesRepository: SalesRepository = SalesRepositorySpy(),
+        effectivePermissions: Set<String> = []
     ) -> SaleCartViewModel {
         SaleCartViewModel(
             organizationId: "org_1",
@@ -119,6 +141,7 @@ final class SaleCartViewModelTests: XCTestCase {
                 catalogRevision: "cat_rev_test",
                 taxConfigurationRevision: "tax_rev_test"
             ),
+            effectivePermissions: effectivePermissions,
             catalogRepository: catalogRepository,
             salesRepository: salesRepository
         )

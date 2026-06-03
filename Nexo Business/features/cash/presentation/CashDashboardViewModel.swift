@@ -1,10 +1,3 @@
-//
-//  CashDashboardViewModel.swift
-//  Nexo Business
-//
-//  Created by José Ruiz on 2/6/26.
-//
-
 import Foundation
 import Observation
 
@@ -33,17 +26,20 @@ final class CashDashboardViewModel {
     private let organizationId: String
     private let branchId: String
     private let permissions: Set<String>
+    private let cashCapabilities: CashCapabilities?
     private let repository: CashRepository
 
     init(
         organizationId: String,
         branchId: String,
         permissions: Set<String>,
+        cashCapabilities: CashCapabilities? = nil,
         cashRepository: CashRepository
     ) {
         self.organizationId = organizationId
         self.branchId = branchId
         self.permissions = permissions
+        self.cashCapabilities = cashCapabilities
         self.repository = cashRepository
     }
 
@@ -51,23 +47,28 @@ final class CashDashboardViewModel {
         currentSession?.isOpen == true
     }
 
+    var canAccessCash: Bool {
+        canView || canOpenByPermission || canCloseByPermission || canRegisterAnyMovement
+    }
+
     var canView: Bool {
-        hasAnyPermission([
-            "cash.view_current",
-            "business.cash.view_current",
-            "cash.open",
-            "business.cash.open",
-            "cash.close",
-            "business.cash.close"
-        ])
+        cashCapabilities?.canViewCurrent ?? hasAnyPermission(Self.viewCurrentPermissions)
     }
 
     var canOpen: Bool {
-        !isOpen && hasAnyPermission(["cash.open", "business.cash.open"])
+        !isOpen && canOpenByPermission
     }
 
     var canClose: Bool {
-        isOpen && hasAnyPermission(["cash.close", "business.cash.close"])
+        isOpen && canCloseByPermission
+    }
+
+    var shouldShowOpenSection: Bool {
+        !isOpen && canOpenByPermission && !isLoading && !isMutating
+    }
+
+    var shouldShowCloseSection: Bool {
+        isOpen
     }
 
     var canPrepareClose: Bool {
@@ -79,11 +80,11 @@ final class CashDashboardViewModel {
 
         switch movementType {
         case .inflow:
-            return hasAnyPermission(["cash.register_inflow", "business.cash.register_inflow"])
+            return cashCapabilities?.canRegisterInflow ?? hasAnyPermission(Self.registerInflowPermissions)
         case .outflow:
-            return hasAnyPermission(["cash.register_outflow", "business.cash.register_outflow"])
+            return cashCapabilities?.canRegisterOutflow ?? hasAnyPermission(Self.registerOutflowPermissions)
         case .adjustment:
-            return hasAnyPermission(["cash.adjust", "business.cash.adjust"])
+            return cashCapabilities?.canAdjust ?? hasAnyPermission(Self.adjustPermissions)
         }
     }
 
@@ -124,9 +125,17 @@ final class CashDashboardViewModel {
             return
         }
 
+        guard canAccessCash else {
+            currentSession = nil
+            state = .failed("Tu usuario no tiene permiso para abrir, consultar o cerrar caja.")
+            return
+        }
+
         guard canView else {
             currentSession = nil
-            state = .failed("No tienes permiso para consultar caja.")
+            state = canOpenByPermission
+                ? .loaded(nil)
+                : .failed("No tienes permiso para consultar caja.")
             return
         }
 
@@ -147,7 +156,14 @@ final class CashDashboardViewModel {
             apply(session: response.session)
         } catch let error as APIError {
             currentSession = nil
-            state = .failed(error.userMessage)
+            let message = humanMessage(for: error, context: .viewCurrent)
+
+            if isMissingCashPermission(error), canOpenByPermission {
+                state = .loaded(nil)
+                errorMessage = "No se pudo consultar la caja actual, pero puedes abrir una nueva caja si corresponde."
+            } else {
+                state = .failed(message)
+            }
         } catch {
             currentSession = nil
             state = .failed(error.localizedDescription)
@@ -190,7 +206,7 @@ final class CashDashboardViewModel {
                 ? "Caja recuperada sin duplicar la operación."
                 : "Caja abierta correctamente."
         } catch let error as APIError {
-            errorMessage = error.userMessage
+            errorMessage = humanMessage(for: error, context: .open)
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -260,7 +276,7 @@ final class CashDashboardViewModel {
                 ? "Ajuste recuperado sin duplicar la operación."
                 : "Ajuste manual registrado correctamente."
         } catch let error as APIError {
-            errorMessage = error.userMessage
+            errorMessage = humanMessage(for: error, context: .movement)
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -325,7 +341,7 @@ final class CashDashboardViewModel {
                 ? "Cierre recuperado sin duplicar la operación."
                 : "Caja cerrada correctamente."
         } catch let error as APIError {
-            errorMessage = error.userMessage
+            errorMessage = humanMessage(for: error, context: .close)
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -336,6 +352,20 @@ final class CashDashboardViewModel {
         if closingNote.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             closingNote = "Cierre de caja"
         }
+    }
+
+    private var canOpenByPermission: Bool {
+        cashCapabilities?.canOpen ?? hasAnyPermission(Self.openPermissions)
+    }
+
+    private var canCloseByPermission: Bool {
+        cashCapabilities?.canClose ?? hasAnyPermission(Self.closePermissions)
+    }
+
+    private var canRegisterAnyMovement: Bool {
+        (cashCapabilities?.canRegisterInflow ?? hasAnyPermission(Self.registerInflowPermissions)) ||
+        (cashCapabilities?.canRegisterOutflow ?? hasAnyPermission(Self.registerOutflowPermissions)) ||
+        (cashCapabilities?.canAdjust ?? hasAnyPermission(Self.adjustPermissions))
     }
 
     private func apply(session: CashSession?, preserveCountedAmount: Bool = false) {
@@ -358,7 +388,7 @@ final class CashDashboardViewModel {
     }
 
     private func hasAnyPermission(_ candidates: [String]) -> Bool {
-        candidates.contains { permissions.contains($0) }
+        permissions.contains("*") || candidates.contains { permissions.contains($0) }
     }
 
     private func validateAmount(_ value: String, fieldName: String, allowsZero: Bool) -> Bool {
@@ -421,4 +451,72 @@ final class CashDashboardViewModel {
         let number = NSDecimalNumber(decimal: value)
         return String(format: "%.2f", number.doubleValue)
     }
+
+    private enum CashActionContext {
+        case viewCurrent
+        case open
+        case close
+        case movement
+    }
+
+    private func humanMessage(for error: APIError, context: CashActionContext) -> String {
+        if isMissingCashPermission(error) {
+            switch context {
+            case .viewCurrent:
+                return "No tienes permiso para consultar caja."
+            case .open:
+                return "No tienes permiso para abrir caja."
+            case .close:
+                return "No tienes permiso para cerrar caja."
+            case .movement:
+                return "No tienes permiso para registrar movimientos de caja."
+            }
+        }
+
+        return error.userMessage
+    }
+
+    private func isMissingCashPermission(_ error: APIError) -> Bool {
+        guard case let .server(_, _, message, _) = error else { return false }
+        return message.localizedCaseInsensitiveContains("Missing required permission") ||
+        message.localizedCaseInsensitiveContains("cash.session") ||
+        message.localizedCaseInsensitiveContains("cash.movements")
+    }
+
+    private static let viewCurrentPermissions = [
+        "cash.view",
+        "cash.session.view_current",
+        "cash.view_current",
+        "business.cash.view_current"
+    ]
+
+    private static let openPermissions = [
+        "cash.open",
+        "cash.session.open",
+        "business.cash.open"
+    ]
+
+    private static let closePermissions = [
+        "cash.close",
+        "cash.session.close",
+        "business.cash.close"
+    ]
+
+    private static let registerInflowPermissions = [
+        "cash.movements.register_inflow",
+        "cash.register_inflow",
+        "business.cash.register_inflow"
+    ]
+
+    private static let registerOutflowPermissions = [
+        "cash.movements.register_outflow",
+        "cash.register_outflow",
+        "business.cash.register_outflow"
+    ]
+
+    private static let adjustPermissions = [
+        "cash.movements.adjust",
+        "cash.adjust",
+        "business.cash.adjust"
+    ]
 }
