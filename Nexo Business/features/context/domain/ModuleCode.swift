@@ -1,10 +1,3 @@
-//
-//  ModuleCode.swift
-//  Nexo Business
-//
-//  Created by José Ruiz on 29/5/26.
-//
-
 import Foundation
 
 struct ModuleCode: RawRepresentable, Codable, Equatable, Hashable, Sendable, ExpressibleByStringLiteral {
@@ -31,6 +24,10 @@ struct ModuleCode: RawRepresentable, Codable, Equatable, Hashable, Sendable, Exp
     static let coreCash: ModuleCode = "core.cash"
     static let coreDocuments: ModuleCode = "core.documents"
     static let coreReceivables: ModuleCode = "core.receivables"
+    static let coreReports: ModuleCode = "core.reports"
+    static let coreCatalog: ModuleCode = "core.catalog"
+    static let coreCustomers: ModuleCode = "core.customers"
+    static let coreInventoryBasic: ModuleCode = "core.inventory_basic"
     static let foundationIdempotency: ModuleCode = "foundation.idempotency"
     static let foundationCatalogRevision: ModuleCode = "foundation.catalog_revision"
     static let foundationTaxRevision: ModuleCode = "foundation.tax_revision"

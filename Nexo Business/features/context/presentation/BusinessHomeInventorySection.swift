@@ -1,10 +1,3 @@
-//
-//  BusinessHomeInventorySection.swift
-//  Nexo Business
-//
-//  Created by José Ruiz on 29/5/26.
-//
-
 import SwiftUI
 
 struct BusinessHomeInventorySection: View {
@@ -52,9 +45,11 @@ struct BusinessHomeInventorySection: View {
     }
 
     private var allowsInventory: Bool {
-        effectivePermissions.contains("business.inventory.view") ||
-        effectivePermissions.contains("inventory.view") ||
-        effectivePermissions.contains("business.inventory.adjust") ||
-        effectivePermissions.contains("inventory.adjust")
+        PermissionGate(effectivePermissions: effectivePermissions).allowsAny([
+            "business.inventory.view",
+            "inventory.view",
+            "business.inventory.adjust",
+            "inventory.adjust"
+        ])
     }
 }

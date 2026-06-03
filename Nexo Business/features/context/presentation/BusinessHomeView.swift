@@ -1,10 +1,3 @@
-//
-//  BusinessHomeView.swift
-//  Nexo Business
-//
-//  Created by José Ruiz on 2/6/26.
-//
-
 import SwiftUI
 
 struct BusinessHomeView: View {
@@ -65,7 +58,7 @@ struct BusinessHomeView: View {
 
     private var sellTab: some View {
         NavigationStack {
-            if moduleGate.allows(.coreSales), hasSalesAccess(permissionGate) {
+            if capabilityGate.canAccessSales {
                 SaleCartView(
                     viewModel: SaleCartViewModel(
                         organizationId: organizationId,
@@ -102,7 +95,7 @@ struct BusinessHomeView: View {
 
     private var todayTab: some View {
         NavigationStack {
-            if hasPendingAccess(permissionGate) {
+            if capabilityGate.canAccessToday {
                 DailyClosureView(
                     viewModel: DailyClosureViewModel(
                         organizationId: organizationId,
@@ -139,7 +132,7 @@ struct BusinessHomeView: View {
 
     private var cashTab: some View {
         NavigationStack {
-            if moduleGate.allows(.coreCash), hasCashAccess(permissionGate) {
+            if capabilityGate.canAccessCash {
                 CashDashboardView(
                     viewModel: CashDashboardViewModel(
                         organizationId: organizationId,
@@ -167,7 +160,7 @@ struct BusinessHomeView: View {
 
     private var historyTab: some View {
         NavigationStack {
-            if hasHistoryAccess(permissionGate) {
+            if capabilityGate.canAccessHistory {
                 SalesHistoryView(
                     viewModel: SalesHistoryViewModel(
                         organizationId: organizationId,
@@ -227,7 +220,11 @@ struct BusinessHomeView: View {
                     .foregroundStyle(.secondary)
 
                 HStack(spacing: 8) {
-                    NexoStatusBadge(context.readiness.status, systemImage: "checkmark.seal", style: context.readiness.status.lowercased() == "ready" ? .success : .warning)
+                    NexoStatusBadge(
+                        context.readiness.status,
+                        systemImage: "checkmark.seal",
+                        style: context.readiness.status.lowercased() == "ready" ? .success : .warning
+                    )
                 }
             }
             .padding(.vertical, 4)
@@ -245,7 +242,7 @@ struct BusinessHomeView: View {
     @ViewBuilder
     private var toolsSection: some View {
         Section("Herramientas") {
-            if hasCustomerAccess(permissionGate) {
+            if capabilityGate.canAccessCustomers {
                 NavigationLink {
                     CustomerDirectoryView(
                         viewModel: CustomerDirectoryViewModel(
@@ -259,7 +256,7 @@ struct BusinessHomeView: View {
                 }
             }
 
-            if hasInventoryAccess(permissionGate) {
+            if capabilityGate.canAccessInventory {
                 Label("Inventario no disponible en staging", systemImage: "shippingbox")
                     .foregroundStyle(.secondary)
 
@@ -287,6 +284,15 @@ struct BusinessHomeView: View {
 
     private var modulesSection: some View {
         Section("Diagnóstico técnico") {
+            DisclosureGroup("Capacidades de negocio") {
+                capabilityDiagnosticRow("Ventas", enabled: capabilityGate.canAccessSales)
+                capabilityDiagnosticRow("Hoy", enabled: capabilityGate.canAccessToday)
+                capabilityDiagnosticRow("Caja", enabled: capabilityGate.canAccessCash)
+                capabilityDiagnosticRow("Historial", enabled: capabilityGate.canAccessHistory)
+                capabilityDiagnosticRow("Clientes", enabled: capabilityGate.canAccessCustomers)
+                capabilityDiagnosticRow("Inventario", enabled: capabilityGate.canAccessInventory)
+            }
+
             DisclosureGroup("Módulos activos") {
                 ForEach(context.activeModules.map(\.rawValue).sorted(), id: \.self) { module in
                     Text(module)
@@ -294,6 +300,16 @@ struct BusinessHomeView: View {
                 }
             }
         }
+    }
+
+    private func capabilityDiagnosticRow(_ title: String, enabled: Bool) -> some View {
+        HStack {
+            Text(title)
+            Spacer()
+            Image(systemName: enabled ? "checkmark.circle.fill" : "minus.circle")
+                .foregroundStyle(enabled ? Color.green : Color.secondary)
+        }
+        .font(.footnote)
     }
 
     private var accountSection: some View {
@@ -351,12 +367,8 @@ struct BusinessHomeView: View {
         }
     }
 
-    private var moduleGate: ModuleGate {
-        ModuleGate(activeModules: context.activeModules)
-    }
-
-    private var permissionGate: PermissionGate {
-        PermissionGate(effectivePermissions: context.effectivePermissions)
+    private var capabilityGate: BusinessCapabilityGate {
+        BusinessCapabilityGate(capabilities: context.capabilities)
     }
 
     private var organizationId: String {
@@ -387,52 +399,6 @@ struct BusinessHomeView: View {
     private var selectedActivityName: String {
         context.activities.first(where: { $0.id == operationalSelection.activityId })?.name
             ?? operationalSelection.activityId
-    }
-
-    private func hasSalesAccess(_ permissionGate: PermissionGate) -> Bool {
-        permissionGate.allows("business.sales.create") ||
-        permissionGate.allows("sales.create") ||
-        permissionGate.allows("business.sales.preview") ||
-        permissionGate.allows("sales.preview")
-    }
-
-    private func hasCashAccess(_ permissionGate: PermissionGate) -> Bool {
-        permissionGate.allows("cash.view_current") ||
-        permissionGate.allows("business.cash.view_current") ||
-        permissionGate.allows("cash.open") ||
-        permissionGate.allows("business.cash.open") ||
-        permissionGate.allows("cash.close") ||
-        permissionGate.allows("business.cash.close")
-    }
-
-    private func hasCustomerAccess(_ permissionGate: PermissionGate) -> Bool {
-        permissionGate.allows("business.customers.view") ||
-        permissionGate.allows("customers.view") ||
-        permissionGate.allows("business.customers.create") ||
-        permissionGate.allows("customers.create")
-    }
-
-    private func hasPendingAccess(_ permissionGate: PermissionGate) -> Bool {
-        permissionGate.allows("business.pending.view") ||
-        permissionGate.allows("pending.view") ||
-        permissionGate.allows("business.reports.today") ||
-        permissionGate.allows("reports.today") ||
-        permissionGate.allows("business.reports.daily") ||
-        permissionGate.allows("reports.daily")
-    }
-
-    private func hasHistoryAccess(_ permissionGate: PermissionGate) -> Bool {
-        permissionGate.allows("business.sales.view") ||
-        permissionGate.allows("sales.view") ||
-        permissionGate.allows("business.sales.history") ||
-        permissionGate.allows("sales.history")
-    }
-
-    private func hasInventoryAccess(_ permissionGate: PermissionGate) -> Bool {
-        permissionGate.allows("business.inventory.view") ||
-        permissionGate.allows("inventory.view") ||
-        permissionGate.allows("business.inventory.adjust") ||
-        permissionGate.allows("inventory.adjust")
     }
 }
 
