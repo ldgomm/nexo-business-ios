@@ -90,11 +90,41 @@ enum SaleLineTaxTreatmentOption: String, CaseIterable, Identifiable, Sendable {
     }
 }
 
+
+enum SaleDiscountInputType: String, CaseIterable, Identifiable, Sendable {
+    case value
+    case percentage
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .value: return "Valor"
+        case .percentage: return "Porcentaje"
+        }
+    }
+}
+
+enum SaleDiscountTarget: String, CaseIterable, Identifiable, Sendable {
+    case wholeSale
+    case selectedItems
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .wholeSale: return "Toda la compra"
+        case .selectedItems: return "Ítems seleccionados"
+        }
+    }
+}
+
 struct SaleCartItem: Equatable, Identifiable, Sendable {
     let id: String
     let catalogItem: BusinessCatalogItem
     var quantity: String
     var taxTreatment: SaleLineTaxTreatmentOption
+    var discount: MoneyAmount?
     var note: String?
     
     init(
@@ -102,12 +132,14 @@ struct SaleCartItem: Equatable, Identifiable, Sendable {
         catalogItem: BusinessCatalogItem,
         quantity: String = "1",
         taxTreatment: SaleLineTaxTreatmentOption = .defaultForNewLine(),
+        discount: MoneyAmount? = nil,
         note: String? = nil
     ) {
         self.id = id
         self.catalogItem = catalogItem
         self.quantity = quantity
         self.taxTreatment = taxTreatment
+        self.discount = discount
         self.note = note
     }
 }
@@ -148,6 +180,11 @@ final class SaleCartViewModel {
     private(set) var selectedCustomer: BusinessCustomer?
     var errorMessage: String?
     var infoMessage: String?
+    var discountTarget: SaleDiscountTarget = .wholeSale
+    var discountType: SaleDiscountInputType = .percentage
+    var discountValue: String = ""
+    var discountReason: String = ""
+    var selectedDiscountItemIds: Set<String> = []
     
     let organizationId: String
     let branchId: String
@@ -202,6 +239,21 @@ final class SaleCartViewModel {
     
     var canClearCart: Bool {
         canEditCart && !cartItems.isEmpty
+    }
+
+    var canApplyDiscount: Bool {
+        canEditCart && !cartItems.isEmpty && hasDiscountPermission && normalizedDiscountValue() != nil
+    }
+
+    var canClearDiscounts: Bool {
+        canEditCart && cartItems.contains { $0.discount != nil }
+    }
+
+    private var hasDiscountPermission: Bool {
+        hasPermission([
+            "business.sales.apply_discount",
+            "sales.apply_discount"
+        ])
     }
     
     var canStartNewOrder: Bool {
@@ -288,6 +340,115 @@ final class SaleCartViewModel {
         cartItems.first(where: { $0.id == cartItemId })?.taxTreatment ?? .defaultForNewLine()
     }
     
+    func lineDiscount(for cartItemId: String) -> String {
+        cartItems.first(where: { $0.id == cartItemId })?.discount?.amount ?? ""
+    }
+
+    func updateLineDiscount(cartItemId: String, discount: String) {
+        guard ensureOrderIsEditable() else { return }
+        guard hasDiscountPermission else {
+            errorMessage = "No tienes permiso para aplicar descuentos."
+            return
+        }
+        guard let index = cartItems.firstIndex(where: { $0.id == cartItemId }) else { return }
+        let normalized = discount.trimmingCharacters(in: .whitespacesAndNewlines).replacingOccurrences(of: ",", with: ".")
+        if normalized.isEmpty {
+            cartItems[index].discount = nil
+        } else if let value = Decimal(string: normalized, locale: Locale(identifier: "en_US_POSIX")), value >= .zero {
+            cartItems[index].discount = MoneyAmount(amount: formatMoney(value))
+        } else {
+            errorMessage = "El descuento debe ser un valor válido."
+            return
+        }
+        preview = nil
+        infoMessage = "Calcula nuevamente el total para validar el descuento."
+    }
+
+    func isSelectedForDiscount(_ cartItemId: String) -> Bool {
+        selectedDiscountItemIds.contains(cartItemId)
+    }
+
+    func toggleDiscountSelection(_ cartItemId: String) {
+        guard ensureOrderIsEditable() else { return }
+        if selectedDiscountItemIds.contains(cartItemId) {
+            selectedDiscountItemIds.remove(cartItemId)
+        } else {
+            selectedDiscountItemIds.insert(cartItemId)
+        }
+    }
+
+    func applyDiscountDraft() {
+        guard ensureOrderIsEditable() else { return }
+        guard hasDiscountPermission else {
+            errorMessage = "No tienes permiso para aplicar descuentos."
+            return
+        }
+        guard let value = normalizedDiscountValue() else {
+            errorMessage = "Ingresa un descuento válido."
+            return
+        }
+        let targetIds: Set<String> = discountTarget == .wholeSale ? Set(cartItems.map(\.id)) : selectedDiscountItemIds
+        guard !targetIds.isEmpty else {
+            errorMessage = "Selecciona al menos un ítem para aplicar el descuento."
+            return
+        }
+        let indexes = cartItems.indices.filter { targetIds.contains(cartItems[$0].id) }
+        let grossByIndex = indexes.map { index in (index, grossAmount(for: cartItems[index])) }
+        let totalGross = grossByIndex.reduce(Decimal.zero) { $0 + $1.1 }
+        guard totalGross > .zero else {
+            errorMessage = "No se pudo calcular la base del descuento."
+            return
+        }
+        let totalDiscount: Decimal
+        switch discountType {
+        case .percentage:
+            guard value <= Decimal(100) else {
+                errorMessage = "El porcentaje no puede superar 100%."
+                return
+            }
+            totalDiscount = totalGross * value / Decimal(100)
+        case .value:
+            guard value <= totalGross else {
+                errorMessage = "El descuento no puede superar el subtotal seleccionado."
+                return
+            }
+            totalDiscount = value
+        }
+        guard totalDiscount >= .zero else {
+            errorMessage = "El descuento no puede ser negativo."
+            return
+        }
+        var remaining = totalDiscount
+        for pair in grossByIndex.dropLast() {
+            let index = pair.0
+            let gross = pair.1
+            let allocated = min(gross, roundMoney(totalDiscount * gross / totalGross))
+            cartItems[index].discount = allocated > .zero ? MoneyAmount(amount: formatMoney(allocated)) : nil
+            remaining -= allocated
+        }
+        if let last = grossByIndex.last {
+            let index = last.0
+            let allocated = min(last.1, max(.zero, remaining))
+            cartItems[index].discount = allocated > .zero ? MoneyAmount(amount: formatMoney(allocated)) : nil
+        }
+        preview = nil
+        infoMessage = "Descuento aplicado. Calcula nuevamente el total antes de registrar la venta."
+    }
+
+    func clearDiscounts() {
+        guard ensureOrderIsEditable() else { return }
+        cartItems = cartItems.map { item in
+            var copy = item
+            copy.discount = nil
+            return copy
+        }
+        discountValue = ""
+        discountReason = ""
+        selectedDiscountItemIds = []
+        preview = nil
+        infoMessage = "Descuentos eliminados."
+    }
+
     func searchCatalog() async {
         guard !isOrderLocked else {
             errorMessage = "Esta venta ya fue registrada. Inicia una nueva venta para continuar."
@@ -591,6 +752,7 @@ final class SaleCartViewModel {
                     unitCode: resolvedUnitCode(for: item.catalogItem),
                     allowsDecimal: resolvedAllowsDecimal(for: item.catalogItem)
                 ),
+                discount: item.discount,
                 priceTaxMode: BusinessSalePriceTaxMode.taxExclusive.rawValue,
                 taxProfileCode: item.taxTreatment.taxProfileCode,
                 notes: item.note?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfBlankForUI
@@ -628,6 +790,35 @@ final class SaleCartViewModel {
         return true
     }
     
+    private func normalizedDiscountValue() -> Decimal? {
+        let normalized = discountValue.trimmingCharacters(in: .whitespacesAndNewlines).replacingOccurrences(of: ",", with: ".")
+        guard !normalized.isEmpty,
+              let value = Decimal(string: normalized, locale: Locale(identifier: "en_US_POSIX")),
+              value > .zero else { return nil }
+        return value
+    }
+
+    private func grossAmount(for item: SaleCartItem) -> Decimal {
+        let price = item.catalogItem.price?.amount ?? "0"
+        let unitPrice = Decimal(string: price, locale: Locale(identifier: "en_US_POSIX")) ?? .zero
+        let quantity = Decimal(string: normalizeQuantity(item.quantity), locale: Locale(identifier: "en_US_POSIX")) ?? .zero
+        return unitPrice * quantity
+    }
+
+    private func roundMoney(_ value: Decimal) -> Decimal {
+        var input = value
+        var output = Decimal()
+        NSDecimalRound(&output, &input, 2, .plain)
+        return output
+    }
+
+    private func formatMoney(_ decimal: Decimal) -> String {
+        let rounded = roundMoney(decimal)
+        return NSDecimalNumber(decimal: rounded).stringValue.contains(".")
+            ? String(format: "%.2f", NSDecimalNumber(decimal: rounded).doubleValue)
+            : "\(NSDecimalNumber(decimal: rounded).stringValue).00"
+    }
+
     private func hasPermission(_ permissions: [String]) -> Bool {
         effectivePermissions.contains("*") || permissions.contains { effectivePermissions.contains($0) }
     }

@@ -1,10 +1,3 @@
-//
-//  BusinessAppContainer.swift
-//  Nexo Business
-//
-//  Created by José Ruiz on 29/5/26.
-//
-
 import Foundation
 
 final class BusinessAppContainer: @unchecked Sendable {
@@ -26,6 +19,7 @@ final class BusinessAppContainer: @unchecked Sendable {
     let salesHistoryRepository: SalesHistoryRepository
     let customersRepository: CustomersRepository
     let inventoryRepository: InventoryRepository
+    let teamRepository: BusinessTeamRepository
 
     init(
         tokenStore: AuthTokenStoring,
@@ -45,7 +39,8 @@ final class BusinessAppContainer: @unchecked Sendable {
         dailyReportRepository: BusinessDailyReportRepository,
         salesHistoryRepository: SalesHistoryRepository,
         customersRepository: CustomersRepository,
-        inventoryRepository: InventoryRepository
+        inventoryRepository: InventoryRepository,
+        teamRepository: BusinessTeamRepository
     ) {
         self.tokenStore = tokenStore
         self.selectionStore = selectionStore
@@ -65,6 +60,7 @@ final class BusinessAppContainer: @unchecked Sendable {
         self.salesHistoryRepository = salesHistoryRepository
         self.customersRepository = customersRepository
         self.inventoryRepository = inventoryRepository
+        self.teamRepository = teamRepository
     }
 
     static func live(config: BusinessRuntimeConfig) -> BusinessAppContainer {
@@ -109,7 +105,8 @@ final class BusinessAppContainer: @unchecked Sendable {
             dailyReportRepository: BusinessDailyReportAPIRepository(apiClient: apiClient),
             salesHistoryRepository: SalesHistoryAPIRepository(apiClient: apiClient),
             customersRepository: CustomersAPIRepository(apiClient: apiClient),
-            inventoryRepository: InventoryAPIRepository(apiClient: apiClient)
+            inventoryRepository: InventoryAPIRepository(apiClient: apiClient),
+            teamRepository: BusinessTeamAPIRepository(apiClient: apiClient)
         )
     }
 }

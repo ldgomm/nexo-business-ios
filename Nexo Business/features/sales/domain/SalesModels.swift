@@ -1,10 +1,3 @@
-//
-//  SalesModels.swift
-//  Nexo Business
-//
-//  Created by José Ruiz on 29/5/26.
-//
-
 import Foundation
 
 struct SaleDraftItem: Codable, Equatable, Identifiable, Sendable {
@@ -85,6 +78,8 @@ struct BusinessSaleQuantityRequest: Codable, Equatable, Sendable {
 struct BusinessSaleItemRequest: Codable, Equatable, Sendable {
     let catalogItemId: String
     let quantity: BusinessSaleQuantityRequest
+    let unitPrice: MoneyAmount?
+    let discount: MoneyAmount?
     let priceTaxMode: String
     let taxProfileCode: String?
     let notes: String?
@@ -92,12 +87,16 @@ struct BusinessSaleItemRequest: Codable, Equatable, Sendable {
     init(
         catalogItemId: String,
         quantity: BusinessSaleQuantityRequest,
+        unitPrice: MoneyAmount? = nil,
+        discount: MoneyAmount? = nil,
         priceTaxMode: String = BusinessSalePriceTaxMode.taxExclusive.rawValue,
         taxProfileCode: String? = nil,
         notes: String? = nil
     ) {
         self.catalogItemId = catalogItemId
         self.quantity = quantity
+        self.unitPrice = unitPrice
+        self.discount = discount
         self.priceTaxMode = priceTaxMode
         self.taxProfileCode = taxProfileCode
         self.notes = notes

@@ -102,7 +102,6 @@ struct BusinessHomeView: View {
                         branchId: branchId,
                         revisions: revisions,
                         effectivePermissions: permissions,
-                        capabilities: context.capabilities,
                         pendingRepository: container.pendingOperationsRepository,
                         dailyReportRepository: container.dailyReportRepository,
                         cashRepository: container.cashRepository,
@@ -254,6 +253,17 @@ struct BusinessHomeView: View {
                 }
             }
 
+
+            if canAccessTeamManagement {
+                NavigationLink {
+                    BusinessTeamView(
+                        viewModel: BusinessTeamViewModel(repository: container.teamRepository)
+                    )
+                } label: {
+                    Label("Equipo y roles", systemImage: "person.3.sequence")
+                }
+            }
+
             if capabilityGate.canAccessInventory {
                 Label("Inventario no disponible en staging", systemImage: "shippingbox")
                     .foregroundStyle(.secondary)
@@ -375,6 +385,13 @@ struct BusinessHomeView: View {
 
     private var permissionGate: PermissionGate {
         PermissionGate(effectivePermissions: context.effectivePermissions)
+    }
+
+    private var canAccessTeamManagement: Bool {
+        permissionGate.allows("credentials.users.view") ||
+        permissionGate.allows("credentials.roles.view") ||
+        permissionGate.allows("credentials.users.create") ||
+        permissionGate.allows("credentials.roles.manage")
     }
 
     private var organizationId: String {

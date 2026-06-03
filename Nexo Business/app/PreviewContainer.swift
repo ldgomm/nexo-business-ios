@@ -1,10 +1,3 @@
-//
-//  PreviewContainer.swift
-//  Nexo Business
-//
-//  Created by José Ruiz on 29/5/26.
-//
-
 import Foundation
 
 extension BusinessAppContainer {
@@ -43,7 +36,8 @@ extension BusinessAppContainer {
             dailyReportRepository: PreviewBusinessDailyReportRepository(),
             salesHistoryRepository: PreviewSalesHistoryRepository(),
             customersRepository: PreviewCustomersRepository(),
-            inventoryRepository: PreviewInventoryRepository()
+            inventoryRepository: PreviewInventoryRepository(),
+            teamRepository: PreviewBusinessTeamRepository()
         )
     }
 }

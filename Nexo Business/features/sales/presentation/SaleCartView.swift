@@ -34,6 +34,7 @@ struct SaleCartView: View {
                 searchSection
                 resultsSection
                 cartSection
+                discountSection
                 previewSection
             } else {
                 lockedCartSection
@@ -212,6 +213,8 @@ struct SaleCartView: View {
                         item: item,
                         quantity: quantityBinding(for: item),
                         taxTreatment: taxTreatmentBinding(for: item),
+                        isSelectedForDiscount: viewModel.isSelectedForDiscount(item.id),
+                        toggleDiscountSelection: { viewModel.toggleDiscountSelection(item.id) },
                         lineNote: lineNoteBinding(for: item),
                         isEditable: viewModel.canEditCart,
                         removeAction: {
@@ -230,10 +233,109 @@ struct SaleCartView: View {
                     item: item,
                     quantity: quantityBinding(for: item),
                     taxTreatment: taxTreatmentBinding(for: item),
+                    isSelectedForDiscount: false,
+                    toggleDiscountSelection: {},
                     lineNote: lineNoteBinding(for: item),
                     isEditable: false,
                     removeAction: {}
                 )
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var discountSection: some View {
+        if !viewModel.cartItems.isEmpty {
+            Section {
+                Toggle(isOn: discountEditorBinding) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("¿Aplicar descuento?")
+                            .font(.subheadline.weight(.semibold))
+
+                        Text("Actívalo solo si esta venta tendrá descuento.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .disabled(!viewModel.canEditCart)
+
+                if discountEditorBinding.wrappedValue {
+                    Picker("Aplicar a", selection: $viewModel.discountTarget) {
+                        ForEach(SaleDiscountTarget.allCases) { target in
+                            Text(target.displayName).tag(target)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .disabled(!viewModel.canEditCart)
+
+                    Picker("Tipo", selection: $viewModel.discountType) {
+                        ForEach(SaleDiscountInputType.allCases) { type in
+                            Text(type.displayName).tag(type)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .disabled(!viewModel.canEditCart)
+                    .onChange(of: viewModel.discountType) { _, _ in
+                        normalizeDiscountValueForCurrentType()
+                    }
+
+                    Stepper(value: discountStepperBinding, in: discountRange, step: discountStep) {
+                        HStack {
+                            Text(viewModel.discountType == .percentage ? "Porcentaje" : "Valor")
+                            
+                            Text(discountDisplayValue)
+                                .font(.subheadline.weight(.semibold))
+                                .monospacedDigit()
+                            Spacer()
+                        }
+                    }
+                    .disabled(!viewModel.canEditCart)
+
+                    TextField("Motivo opcional", text: $viewModel.discountReason)
+                        .textInputAutocapitalization(.sentences)
+                        .disabled(!viewModel.canEditCart)
+
+                    if viewModel.discountTarget == .selectedItems {
+                        Text("Marca los ítems del carrito a los que se aplicará el descuento.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Button {
+                        viewModel.applyDiscountDraft()
+                        NexoKeyboard.dismiss()
+
+                        Task {
+                            await viewModel.loadPreview()
+                        }
+                    } label: {
+                        Label(
+                            viewModel.preview == nil ? "Aplicar y calcular" : "Actualizar cálculo",
+                            systemImage: "percent"
+                        )
+                    }
+                    .disabled(!viewModel.canApplyDiscount)
+
+                    if viewModel.canClearDiscounts || !viewModel.discountValue.trimmed.isEmpty {
+                        Button(role: .destructive) {
+                            viewModel.clearDiscounts()
+                            NexoKeyboard.dismiss()
+
+                            Task {
+                                await viewModel.loadPreview()
+                            }
+                        } label: {
+                            Label("Quitar descuento y recalcular", systemImage: "xmark.circle")
+                        }
+                        .disabled(!viewModel.canEditCart)
+                    }
+                }
+            } header: {
+                Text("Descuento")
+            } footer: {
+                if viewModel.preview != nil {
+                    Text("Si cambias el descuento, el cálculo debe actualizarse antes de registrar la venta.")
+                }
             }
         }
     }
@@ -375,6 +477,85 @@ struct SaleCartView: View {
             }
         }
     }
+    
+    private var discountEditorBinding: Binding<Bool> {
+        Binding(
+            get: {
+                viewModel.canClearDiscounts ||
+                !viewModel.discountValue.trimmed.isEmpty ||
+                !viewModel.discountReason.trimmed.isEmpty
+            },
+            set: { enabled in
+                if enabled {
+                    if viewModel.discountValue.trimmed.isEmpty {
+                        viewModel.discountValue = viewModel.discountType == .percentage ? "5" : "1.00"
+                    }
+                } else {
+                    viewModel.clearDiscounts()
+                    NexoKeyboard.dismiss()
+
+                    Task {
+                        await viewModel.loadPreview()
+                    }
+                }
+            }
+        )
+    }
+
+    private var discountStepperBinding: Binding<Double> {
+        Binding(
+            get: {
+                Double(viewModel.discountValue.replacingOccurrences(of: ",", with: ".")) ?? 0
+            },
+            set: { value in
+                if viewModel.discountType == .percentage {
+                    viewModel.discountValue = String(Int(value.rounded()))
+                } else {
+                    viewModel.discountValue = String(format: "%.2f", value)
+                }
+            }
+        )
+    }
+
+    private var discountRange: ClosedRange<Double> {
+        switch viewModel.discountType {
+        case .percentage:
+            return 0...100
+        default:
+            return 0...9_999
+        }
+    }
+
+    private var discountStep: Double {
+        switch viewModel.discountType {
+        case .percentage:
+            return 1
+        default:
+            return 0.50
+        }
+    }
+
+    private var discountDisplayValue: String {
+        let value = Double(viewModel.discountValue.replacingOccurrences(of: ",", with: ".")) ?? 0
+
+        switch viewModel.discountType {
+        case .percentage:
+            return "\(Int(value.rounded()))%"
+        default:
+            return String(format: "$%.2f", value)
+        }
+    }
+
+    private func normalizeDiscountValueForCurrentType() {
+        let value = Double(viewModel.discountValue.replacingOccurrences(of: ",", with: ".")) ?? 0
+
+        switch viewModel.discountType {
+        case .percentage:
+            viewModel.discountValue = String(Int(min(max(value, 0), 100).rounded()))
+        default:
+            viewModel.discountValue = String(format: "%.2f", max(value, 0))
+        }
+    }
 
     private func quantityBinding(for item: SaleCartItem) -> Binding<String> {
         Binding(
@@ -387,6 +568,13 @@ struct SaleCartView: View {
         Binding(
             get: { viewModel.taxTreatment(for: item.id) },
             set: { viewModel.updateTaxTreatment(cartItemId: item.id, taxTreatment: $0) }
+        )
+    }
+
+    private func lineDiscountBinding(for item: SaleCartItem) -> Binding<String> {
+        Binding(
+            get: { viewModel.lineDiscount(for: item.id) },
+            set: { viewModel.updateLineDiscount(cartItemId: item.id, discount: $0) }
         )
     }
 
@@ -597,6 +785,8 @@ private struct SaleCartRow: View {
     let item: SaleCartItem
     @Binding var quantity: String
     @Binding var taxTreatment: SaleLineTaxTreatmentOption
+    let isSelectedForDiscount: Bool
+    let toggleDiscountSelection: () -> Void
     @Binding var lineNote: String
     let isEditable: Bool
     let removeAction: () -> Void
@@ -663,6 +853,19 @@ private struct SaleCartRow: View {
                     .foregroundStyle(.orange)
             }
 
+            if isEditable {
+                Button {
+                    toggleDiscountSelection()
+                } label: {
+                    Label(
+                        isSelectedForDiscount ? "Seleccionado para descuento" : "Seleccionar para descuento",
+                        systemImage: isSelectedForDiscount ? "checkmark.circle.fill" : "circle"
+                    )
+                    .font(.caption)
+                }
+                .buttonStyle(.borderless)
+            }
+
             TextField("Nota de línea opcional", text: $lineNote)
                 .textInputAutocapitalization(.sentences)
                 .disabled(!isEditable)
@@ -691,4 +894,9 @@ private struct SaleCartRow: View {
             documentsRepository: PreviewBusinessDocumentsRepository()
         )
     }
+}
+
+private extension String {
+    var trimmed: String { trimmingCharacters(in: .whitespacesAndNewlines) }
+    var nilIfBlank: String? { trimmed.isEmpty ? nil : trimmed }
 }
