@@ -11,9 +11,11 @@ protocol BusinessTeamRepository: Sendable {
     func revokeSessions(userId: String, reason: String) async throws -> BusinessTeamSessionRevocationResult
     func listRoles(includeSystemTemplates: Bool) async throws -> [BusinessTeamRole]
     func createRole(_ input: CreateBusinessTeamRoleInput) async throws -> BusinessTeamRole
+    func createRoleFromTemplate(_ input: CreateBusinessRoleFromTemplateInput) async throws -> BusinessTeamRole
     func updateRole(id: String, input: UpdateBusinessTeamRoleInput) async throws -> BusinessTeamRole
     func activateRole(id: String, reason: String) async throws -> BusinessTeamRole
     func deactivateRole(id: String, reason: String) async throws -> BusinessTeamRole
+    func listRoleTemplates(vertical: String?) async throws -> [BusinessRoleTemplate]
     func listPermissions(includeReserved: Bool) async throws -> [BusinessTeamPermission]
     func listAssignablePermissions() async throws -> [BusinessTeamPermission]
     func listBranches() async throws -> [BusinessTeamBranch]
@@ -44,10 +46,7 @@ final class BusinessTeamAPIRepository: BusinessTeamRepository, @unchecked Sendab
 
     func getUser(id: String) async throws -> BusinessTeamUser {
         let response: BusinessTeamUserEnvelope = try await apiClient.send(
-            APIRequest(
-                method: .get,
-                path: "/api/v1/business/team/users/\(id)"
-            )
+            APIRequest(method: .get, path: "/api/v1/business/team/users/\(id)")
         )
         return response.user
     }
@@ -141,6 +140,17 @@ final class BusinessTeamAPIRepository: BusinessTeamRepository, @unchecked Sendab
         return response.role
     }
 
+    func createRoleFromTemplate(_ input: CreateBusinessRoleFromTemplateInput) async throws -> BusinessTeamRole {
+        let response: BusinessTeamRoleEnvelope = try await apiClient.send(
+            try APIRequest<BusinessTeamRoleEnvelope>.json(
+                method: .post,
+                path: "/api/v1/business/team/roles/from-template",
+                body: input
+            )
+        )
+        return response.role
+    }
+
     func updateRole(id: String, input: UpdateBusinessTeamRoleInput) async throws -> BusinessTeamRole {
         let response: BusinessTeamRoleEnvelope = try await apiClient.send(
             try APIRequest<BusinessTeamRoleEnvelope>.json(
@@ -172,6 +182,17 @@ final class BusinessTeamAPIRepository: BusinessTeamRepository, @unchecked Sendab
             )
         )
         return response.role
+    }
+
+    func listRoleTemplates(vertical: String?) async throws -> [BusinessRoleTemplate] {
+        let response: BusinessRoleTemplatesResponse = try await apiClient.send(
+            APIRequest(
+                method: .get,
+                path: "/api/v1/business/team/role-templates",
+                queryItems: queryItems(["vertical": vertical])
+            )
+        )
+        return response.templates
     }
 
     func listPermissions(includeReserved: Bool) async throws -> [BusinessTeamPermission] {

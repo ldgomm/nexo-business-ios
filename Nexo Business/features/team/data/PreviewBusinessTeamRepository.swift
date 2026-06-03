@@ -63,6 +63,26 @@ final class PreviewBusinessTeamRepository: BusinessTeamRepository, @unchecked Se
                 editable: true,
                 status: "ACTIVE",
                 schemaVersion: 1
+            ),
+            BusinessTeamRole(
+                id: "role_discount_manager",
+                code: "encargado_descuentos",
+                name: "Encargado de descuentos",
+                description: "Puede aplicar y quitar descuentos en ventas.",
+                scopeType: "ORGANIZATION",
+                rank: 320,
+                permissionKeys: [
+                    "sales.apply_discount",
+                    "sales.apply_item_discount",
+                    "sales.apply_selected_items_discount",
+                    "sales.apply_cart_discount",
+                    "sales.remove_discount"
+                ],
+                systemRole: false,
+                critical: false,
+                editable: true,
+                status: "ACTIVE",
+                schemaVersion: 1
             )
         ]
     }
@@ -261,6 +281,25 @@ final class PreviewBusinessTeamRepository: BusinessTeamRepository, @unchecked Se
         )
     }
 
+    func createRoleFromTemplate(_ input: CreateBusinessRoleFromTemplateInput) async throws -> BusinessTeamRole {
+        let template = (try await listRoleTemplates(vertical: nil)).first { $0.templateCode == input.templateCode }
+        guard let template else { throw PreviewBusinessTeamRepositoryError.notFound }
+        return BusinessTeamRole(
+            id: "role_preview_template_\(UUID().uuidString.lowercased())",
+            code: input.code ?? template.roleCode,
+            name: input.name ?? template.name,
+            description: input.description ?? template.description,
+            scopeType: "ORGANIZATION",
+            rank: template.rank,
+            permissionKeys: template.permissionKeys,
+            systemRole: false,
+            critical: template.critical,
+            editable: template.editableByBusiness,
+            status: "ACTIVE",
+            schemaVersion: 1
+        )
+    }
+
     func updateRole(id: String, input: UpdateBusinessTeamRoleInput) async throws -> BusinessTeamRole {
         let current = try role(id: id)
         return BusinessTeamRole(
@@ -288,6 +327,39 @@ final class PreviewBusinessTeamRepository: BusinessTeamRepository, @unchecked Se
 
     func deactivateRole(id: String, reason: String) async throws -> BusinessTeamRole {
         try role(id: id, status: "INACTIVE")
+    }
+
+    func listRoleTemplates(vertical: String?) async throws -> [BusinessRoleTemplate] {
+        let templates = [
+            BusinessRoleTemplate(
+                templateCode: "core.discount_manager",
+                vertical: "CORE",
+                roleCode: "encargado_descuentos",
+                name: "Encargado de descuentos",
+                description: "Puede aplicar y quitar descuentos en ventas.",
+                permissionKeys: ["sales.apply_discount", "sales.apply_item_discount", "sales.apply_cart_discount", "sales.remove_discount"],
+                requiredModules: ["core.sales"],
+                assignableByBusiness: true,
+                editableByBusiness: true,
+                critical: false,
+                rank: 320
+            ),
+            BusinessRoleTemplate(
+                templateCode: "restaurant.waiter",
+                vertical: "RESTAURANT",
+                roleCode: "mesero",
+                name: "Mesero",
+                description: "Puede tomar pedidos y registrar ventas.",
+                permissionKeys: ["sales.view", "sales.create", "customers.view"],
+                requiredModules: ["core.sales"],
+                assignableByBusiness: true,
+                editableByBusiness: true,
+                critical: false,
+                rank: 220
+            )
+        ]
+        guard let vertical, !vertical.isEmpty else { return templates }
+        return templates.filter { $0.vertical == "CORE" || $0.vertical == vertical }
     }
 
     func listPermissions(includeReserved: Bool) async throws -> [BusinessTeamPermission] {

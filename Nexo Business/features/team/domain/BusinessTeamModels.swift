@@ -534,3 +534,61 @@ struct BusinessTeamSessionRevocationResult: Decodable, Equatable, Sendable {
 }
 
 typealias BusinessTeamSessionRevocationResponse = BusinessTeamSessionRevocationResult
+
+struct BusinessRoleTemplate: Identifiable, Equatable, Decodable, Sendable {
+    let templateCode: String
+    let vertical: String
+    let roleCode: String
+    let name: String
+    let description: String
+    let permissionKeys: Set<String>
+    let requiredModules: Set<String>
+    let assignableByBusiness: Bool
+    let editableByBusiness: Bool
+    let critical: Bool
+    let rank: Int
+
+    var id: String { templateCode }
+
+    var readableVertical: String {
+        switch vertical.uppercased() {
+        case "CORE": return "General"
+        case "RESTAURANT": return "Restaurante"
+        case "RETAIL": return "Tienda"
+        case "HARDWARE_STORE": return "Ferretería"
+        case "PHARMACY": return "Farmacia"
+        case "HEALTH_CENTER": return "Centro de salud"
+        case "CLOTHING_STORE": return "Ropa"
+        case "SHOE_STORE": return "Zapatos"
+        case "SERVICES": return "Servicios"
+        case "TOURISM": return "Turismo"
+        default: return vertical
+        }
+    }
+}
+
+struct BusinessRoleTemplatesResponse: Decodable, Equatable, Sendable {
+    let templates: [BusinessRoleTemplate]
+}
+
+struct CreateBusinessRoleFromTemplateInput: Encodable, Equatable, Sendable {
+    let templateCode: String
+    let code: String?
+    let name: String?
+    let description: String?
+    let reason: String
+
+    init(
+        templateCode: String,
+        code: String? = nil,
+        name: String? = nil,
+        description: String? = nil,
+        reason: String
+    ) {
+        self.templateCode = templateCode
+        self.code = code
+        self.name = name
+        self.description = description
+        self.reason = reason
+    }
+}

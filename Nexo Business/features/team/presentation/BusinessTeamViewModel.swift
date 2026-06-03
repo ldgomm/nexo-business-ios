@@ -18,6 +18,7 @@ final class BusinessTeamViewModel {
     var state: State = .idle
     var users: [BusinessTeamUser] = []
     var roles: [BusinessTeamRole] = []
+    var roleTemplates: [BusinessRoleTemplate] = []
     var permissions: [BusinessTeamPermission] = []
     var branches: [BusinessTeamBranch] = []
     var query: String = ""
@@ -26,6 +27,7 @@ final class BusinessTeamViewModel {
     var createPhone = ""
     var createReason = "Crear usuario desde Business"
     var selectedRoleIds: Set<String> = []
+    var selectedTemplateVertical: String? = nil
     var actionReason = ""
     var lastTemporaryPassword: String?
     var errorMessage: String?
@@ -55,6 +57,14 @@ final class BusinessTeamViewModel {
         activeRoles.filter { roleGrantsDiscounts($0) }
     }
 
+    var availableTemplates: [BusinessRoleTemplate] {
+        roleTemplates.sorted { lhs, rhs in
+            if lhs.vertical != rhs.vertical { return lhs.vertical < rhs.vertical }
+            if lhs.rank != rhs.rank { return lhs.rank > rhs.rank }
+            return lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
+        }
+    }
+
     var canCreateUser: Bool {
         createEmail.contains("@") &&
         !createDisplayName.trimmed.isEmpty &&
@@ -74,18 +84,14 @@ final class BusinessTeamViewModel {
                 limit: 100
             )
 
-            async let loadedRoles = repository.listRoles(
-                includeSystemTemplates: true
-            )
-
-            async let loadedPermissions = repository.listPermissions(
-                includeReserved: false
-            )
-
+            async let loadedRoles = repository.listRoles(includeSystemTemplates: false)
+            async let loadedTemplates = repository.listRoleTemplates(vertical: selectedTemplateVertical)
+            async let loadedPermissions = repository.listPermissions(includeReserved: false)
             async let loadedBranches = repository.listBranches()
 
             self.users = try await loadedUsers
             self.roles = try await loadedRoles
+            self.roleTemplates = try await loadedTemplates
             self.permissions = try await loadedPermissions
             self.branches = try await loadedBranches
 
@@ -153,19 +159,22 @@ final class BusinessTeamViewModel {
         let permissionCount = role.permissionKeys.count
         let permissionText = permissionCount == 1 ? "1 permiso" : "\(permissionCount) permisos"
 
-        if roleGrantsDiscounts(role) {
-            return "\(permissionText) · incluye descuentos"
-        }
-
-        if role.critical {
-            return "\(permissionText) · rol sensible"
-        }
-
-        if role.systemRole {
-            return "\(permissionText) · rol base"
-        }
-
+        if roleGrantsDiscounts(role) { return "\(permissionText) · incluye descuentos" }
+        if role.critical { return "\(permissionText) · rol sensible" }
+        if role.systemRole { return "\(permissionText) · rol base" }
         return permissionText
+    }
+
+    func readableCapabilities(for permissionKeys: Set<String>) -> [String] {
+        var capabilities: [String] = []
+        if permissionKeys.contains(where: { $0.contains("sales.create") || $0 == "sales.create" }) { capabilities.append("Puede vender") }
+        if permissionKeys.contains(where: { $0.contains("payments.collect") || $0 == "payments.collect" }) { capabilities.append("Puede cobrar") }
+        if permissionKeys.contains(where: { $0.contains("cash") }) { capabilities.append("Puede operar caja") }
+        if Self.discountPermissionKeys.contains(where: permissionKeys.contains) { capabilities.append("Puede aplicar descuentos") }
+        if permissionKeys.contains(where: { $0.contains("reports") }) { capabilities.append("Puede ver reportes") }
+        if permissionKeys.contains(where: { $0.contains("credentials.users") || $0.contains("roles") || $0.contains("team") }) { capabilities.append("Puede administrar equipo") }
+        if permissionKeys.contains(where: { $0.contains("catalog") || $0.contains("inventory") }) { capabilities.append("Puede ver productos/inventario") }
+        return capabilities.isEmpty ? ["Permisos operativos básicos"] : Array(Set(capabilities)).sorted()
     }
 
     func createUser() async {
@@ -234,6 +243,19 @@ final class BusinessTeamViewModel {
         }
     }
 
+    func createRoleFromTemplate(_ template: BusinessRoleTemplate, reason: String) async {
+        let normalizedReason = reason.trimmed.nilIfBlank ?? "Crear rol desde plantilla \(template.name)"
+        await mutate(successMessage: "Rol \(template.name) creado desde plantilla.") {
+            let role = try await repository.createRoleFromTemplate(
+                CreateBusinessRoleFromTemplateInput(
+                    templateCode: template.templateCode,
+                    reason: normalizedReason
+                )
+            )
+            roles.append(role)
+        }
+    }
+
     func block(_ user: BusinessTeamUser, reason: String) async {
         let normalizedReason = reason.trimmed.nilIfBlank ?? "Bloquear usuario desde Business"
         await mutate(successMessage: "Usuario bloqueado correctamente.") {
@@ -282,9 +304,7 @@ final class BusinessTeamViewModel {
         errorMessage = nil
         infoMessage = nil
 
-        defer {
-            isMutating = false
-        }
+        defer { isMutating = false }
 
         do {
             try await operation()
@@ -319,20 +339,14 @@ final class BusinessTeamViewModel {
             .contains { roleGrantsDiscounts($0) }
 
         if !previous && next {
-            return revokedSessions
-            ? "Permisos de descuento otorgados y sesiones revocadas."
-            : "Permisos de descuento otorgados."
+            return revokedSessions ? "Permisos de descuento otorgados y sesiones revocadas." : "Permisos de descuento otorgados."
         }
 
         if previous && !next {
-            return revokedSessions
-            ? "Permisos de descuento retirados y sesiones revocadas."
-            : "Permisos de descuento retirados."
+            return revokedSessions ? "Permisos de descuento retirados y sesiones revocadas." : "Permisos de descuento retirados."
         }
 
-        return revokedSessions
-        ? "Roles actualizados y sesiones revocadas."
-        : "Roles actualizados correctamente."
+        return revokedSessions ? "Roles actualizados y sesiones revocadas." : "Roles actualizados correctamente."
     }
 
     static let discountPermissionKeys: Set<String> = [
@@ -352,11 +366,6 @@ final class BusinessTeamViewModel {
 }
 
 private extension String {
-    var trimmed: String {
-        trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
-    var nilIfBlank: String? {
-        trimmed.isEmpty ? nil : trimmed
-    }
+    var trimmed: String { trimmingCharacters(in: .whitespacesAndNewlines) }
+    var nilIfBlank: String? { trimmed.isEmpty ? nil : trimmed }
 }
