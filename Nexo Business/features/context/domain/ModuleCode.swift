@@ -1,3 +1,10 @@
+//
+//  ModuleCode.swift
+//  Nexo Business
+//
+//  Created by José Ruiz on 2/6/26.
+//
+
 import Foundation
 
 struct ModuleCode: RawRepresentable, Codable, Equatable, Hashable, Sendable, ExpressibleByStringLiteral {
