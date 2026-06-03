@@ -1,3 +1,10 @@
+//
+//  SaleCartView.swift
+//  Nexo Business
+//
+//  Created by José Ruiz on 2/6/26.
+//
+
 import SwiftUI
 
 struct SaleCartView: View {

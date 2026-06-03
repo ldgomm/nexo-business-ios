@@ -2,7 +2,7 @@
 //  SalesHistoryViewModel.swift
 //  Nexo Business
 //
-//  Created by José Ruiz on 29/5/26.
+//  Created by José Ruiz on 2/6/26.
 //
 
 import Foundation

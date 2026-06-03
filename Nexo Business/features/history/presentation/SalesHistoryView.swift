@@ -15,8 +15,6 @@ struct SalesHistoryView: View {
     private let receivablesRepository: ReceivablesRepository
     private let documentsRepository: BusinessDocumentsRepository
 
-    @State private var showsFilters = false
-
     init(
         viewModel: SalesHistoryViewModel,
         salesRepository: SalesRepository,
@@ -34,13 +32,12 @@ struct SalesHistoryView: View {
     }
 
     var body: some View {
-        List {
-            summaryHeaderSection
+        Form {
             filtersSection
+            summarySection
             resultsSection
             messagesSection
         }
-        .listStyle(.insetGrouped)
         .nexoKeyboardDismissable()
         .navigationTitle("Historial")
         .toolbar {
@@ -61,124 +58,71 @@ struct SalesHistoryView: View {
         }
     }
 
-    private var summaryHeaderSection: some View {
-        Section {
-            VStack(alignment: .leading, spacing: 14) {
-                HStack(alignment: .firstTextBaseline) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Ventas encontradas")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(.secondary)
-                        Text(String(viewModel.total ?? viewModel.sales.count))
-                            .font(.title2.weight(.bold))
-                            .monospacedDigit()
-                    }
-
-                    Spacer()
-
-                    VStack(alignment: .trailing, spacing: 4) {
-                        Text("Total listado")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(.secondary)
-                        Text(totalSalesAmount.displayText)
-                            .font(.title3.weight(.bold))
-                            .monospacedDigit()
-                    }
+    private var filtersSection: some View {
+        Section("Buscar") {
+            TextField("Venta, cliente o referencia", text: $viewModel.query)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .submitLabel(.search)
+                .onSubmit {
+                    NexoKeyboard.dismiss()
+                    Task { await viewModel.load() }
                 }
 
-                HStack(spacing: 8) {
-                    NexoHistoryFilterChip(
-                        title: viewModel.useDateFilter
-                            ? viewModel.selectedDate.formatted(date: .abbreviated, time: .omitted)
-                            : "Todas las fechas",
-                        systemImage: "calendar"
-                    )
-
-                    if viewModel.selectedStatus != .all {
-                        NexoHistoryFilterChip(
-                            title: viewModel.selectedStatus.displayName,
-                            systemImage: "line.3.horizontal.decrease.circle"
-                        )
-                    }
-
-                    if !viewModel.query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                        NexoHistoryFilterChip(title: "Texto", systemImage: "magnifyingglass")
-                    }
-                }
-
-                if viewModel.hasMore == true {
-                    Text("Hay más ventas disponibles. Refina la búsqueda para ver menos resultados.")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
+            Picker("Estado", selection: $viewModel.selectedStatus) {
+                ForEach(SalesHistoryStatusFilter.allCases) { status in
+                    Text(status.displayName).tag(status)
                 }
             }
-            .padding(.vertical, 4)
+
+            Toggle("Filtrar por fecha", isOn: $viewModel.useDateFilter)
+
+            if viewModel.useDateFilter {
+                DatePicker(
+                    "Fecha",
+                    selection: $viewModel.selectedDate,
+                    displayedComponents: [.date]
+                )
+            }
+
+            HStack {
+                Button {
+                    NexoKeyboard.dismiss()
+                    Task { await viewModel.load() }
+                } label: {
+                    if viewModel.isLoading {
+                        ProgressView()
+                    } else {
+                        Label("Buscar", systemImage: "magnifyingglass")
+                    }
+                }
+                .disabled(!viewModel.canSearch)
+
+                Button("Limpiar") {
+                    viewModel.clearFilters()
+                    NexoKeyboard.dismiss()
+                    Task { await viewModel.load() }
+                }
+                .disabled(viewModel.isLoading)
+            }
         }
     }
 
-    private var filtersSection: some View {
-        Section {
-            DisclosureGroup(isExpanded: $showsFilters) {
-                VStack(alignment: .leading, spacing: 14) {
-                    TextField("Venta, cliente o referencia", text: $viewModel.query)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                        .submitLabel(.search)
-                        .onSubmit {
-                            NexoKeyboard.dismiss()
-                            Task { await viewModel.load() }
-                        }
+    private var summarySection: some View {
+        Section("Resumen") {
+            LabeledContent("Filtros", value: viewModel.activeFiltersDescription)
 
-                    Picker("Estado", selection: $viewModel.selectedStatus) {
-                        ForEach(SalesHistoryStatusFilter.allCases) { status in
-                            Text(status.displayName).tag(status)
-                        }
-                    }
-                    .pickerStyle(.menu)
+            if let total = viewModel.total {
+                LabeledContent("Ventas encontradas", value: String(total))
+            } else {
+                LabeledContent("Ventas", value: String(viewModel.sales.count))
+            }
 
-                    Toggle("Filtrar por fecha", isOn: $viewModel.useDateFilter)
-
-                    if viewModel.useDateFilter {
-                        DatePicker(
-                            "Fecha",
-                            selection: $viewModel.selectedDate,
-                            displayedComponents: [.date]
-                        )
-                    }
-
-                    HStack(spacing: 12) {
-                        Button {
-                            NexoKeyboard.dismiss()
-                            Task { await viewModel.load() }
-                        } label: {
-                            if viewModel.isLoading {
-                                ProgressView()
-                            } else {
-                                Label("Buscar", systemImage: "magnifyingglass")
-                            }
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .disabled(!viewModel.canSearch)
-
-                        Button("Limpiar") {
-                            viewModel.clearFilters()
-                            NexoKeyboard.dismiss()
-                            Task { await viewModel.load() }
-                        }
-                        .buttonStyle(.bordered)
-                        .disabled(viewModel.isLoading)
-                    }
-                }
-                .padding(.top, 10)
-            } label: {
-                HStack {
-                    Label("Filtros", systemImage: "slider.horizontal.3")
-                    Spacer()
-                    Text(viewModel.activeFiltersDescription)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                }
+            if viewModel.hasMore == true {
+                NexoMessageBanner(
+                    "Hay más ventas disponibles. Refina la búsqueda para ver menos resultados.",
+                    style: .info
+                )
             }
         }
     }
@@ -208,7 +152,7 @@ struct SalesHistoryView: View {
                             documentsRepository: documentsRepository
                         )
                     } label: {
-                        SalesHistoryCompactRow(sale: sale)
+                        SalesHistoryRow(sale: sale)
                     }
                 }
             }
@@ -229,43 +173,29 @@ struct SalesHistoryView: View {
             }
         }
     }
-
-    private var totalSalesAmount: MoneyAmount {
-        let total = viewModel.sales.reduce(Decimal(0)) { partial, sale in
-            partial + (Decimal(string: sale.totals.grandTotal.amount, locale: Locale(identifier: "en_US_POSIX")) ?? Decimal(0))
-        }
-        return MoneyAmount(amount: format(total))
-    }
-
-    private func format(_ decimal: Decimal) -> String {
-        let number = NSDecimalNumber(decimal: decimal)
-        return String(format: "%.2f", number.doubleValue)
-    }
 }
 
-private struct SalesHistoryCompactRow: View {
+private struct SalesHistoryRow: View {
     let sale: BusinessSale
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .firstTextBaseline) {
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(sale.compactDisplayNumber)
-                        .font(.subheadline.weight(.bold))
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 5) {
+                    Text(sale.displayNumber)
+                        .font(.subheadline.weight(.semibold))
                         .lineLimit(1)
 
                     Text(sale.displayCustomerName)
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                        .lineLimit(1)
                 }
 
-                Spacer(minLength: 12)
+                Spacer()
 
                 Text(sale.totals.grandTotal.displayText)
                     .font(.subheadline.weight(.bold))
                     .monospacedDigit()
-                    .lineLimit(1)
             }
 
             if !sale.displayItemsSummary.isEmpty {
@@ -275,24 +205,17 @@ private struct SalesHistoryCompactRow: View {
                     .lineLimit(2)
             }
 
-            HStack(spacing: 8) {
-                NexoHistoryFilterChip(
-                    title: SaleStatusPresentation.title(for: sale.status),
-                    systemImage: SaleStatusPresentation.systemImage(for: sale.status)
-                )
+            HStack(spacing: 10) {
+                SaleStatusLabel(status: sale.status)
 
-                NexoHistoryFilterChip(
-                    title: PaymentStatusPresentation.displayName(sale.paymentStatus),
-                    systemImage: "dollarsign.circle"
-                )
+                Label(PaymentStatusPresentation.displayName(sale.paymentStatus), systemImage: "dollarsign.circle")
 
                 if let documentStatus = sale.documentStatus {
-                    NexoHistoryFilterChip(
-                        title: BusinessDocumentStatusPresentation.displayName(documentStatus),
-                        systemImage: "doc.text"
-                    )
+                    Label(BusinessDocumentStatusPresentation.displayName(documentStatus), systemImage: "doc.text")
                 }
             }
+            .font(.caption)
+            .foregroundStyle(.secondary)
 
             if let createdAt = sale.createdAt {
                 Text(createdAt.formatted(date: .abbreviated, time: .shortened))
@@ -300,22 +223,7 @@ private struct SalesHistoryCompactRow: View {
                     .foregroundStyle(.secondary)
             }
         }
-        .padding(.vertical, 5)
-    }
-}
-
-private struct NexoHistoryFilterChip: View {
-    let title: String
-    let systemImage: String
-
-    var body: some View {
-        Label(title, systemImage: systemImage)
-            .font(.caption2.weight(.semibold))
-            .lineLimit(1)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 5)
-            .background(.thinMaterial, in: Capsule())
-            .foregroundStyle(.secondary)
+        .padding(.vertical, 4)
     }
 }
 

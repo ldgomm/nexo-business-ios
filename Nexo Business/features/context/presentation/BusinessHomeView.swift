@@ -1,3 +1,10 @@
+//
+//  BusinessHomeView.swift
+//  Nexo Business
+//
+//  Created by José Ruiz on 2/6/26.
+//
+
 import SwiftUI
 
 struct BusinessHomeView: View {
@@ -67,7 +74,8 @@ struct BusinessHomeView: View {
                         revisions: revisions,
                         effectivePermissions: permissions,
                         catalogRepository: container.catalogRepository,
-                        salesRepository: container.salesRepository
+                        salesRepository: container.salesRepository,
+                        contextRepository: container.contextRepository
                     ),
                     customersRepository: container.customersRepository,
                     cashRepository: container.cashRepository,
@@ -410,23 +418,7 @@ struct BusinessHomeView: View {
         permissionGate.allows("business.reports.today") ||
         permissionGate.allows("reports.today") ||
         permissionGate.allows("business.reports.daily") ||
-        permissionGate.allows("reports.daily") ||
-        permissionGate.allows("business.reports.sales.view") ||
-        permissionGate.allows("reports.sales.view") ||
-        permissionGate.allows("business.reports.cash.view") ||
-        permissionGate.allows("reports.cash.view") ||
-        permissionGate.allows("business.reports.dashboard.view") ||
-        permissionGate.allows("reports.dashboard.view") ||
-        permissionGate.allows("business.sales.view") ||
-        permissionGate.allows("sales.view") ||
-        permissionGate.allows("business.receivables.view") ||
-        permissionGate.allows("receivables.view") ||
-        permissionGate.allows("business.documents.view") ||
-        permissionGate.allows("documents.view") ||
-        permissionGate.allows("business.cash.view") ||
-        permissionGate.allows("cash.view") ||
-        permissionGate.allows("business.cash.view_current") ||
-        permissionGate.allows("cash.view_current")
+        permissionGate.allows("reports.daily")
     }
 
     private func hasHistoryAccess(_ permissionGate: PermissionGate) -> Bool {

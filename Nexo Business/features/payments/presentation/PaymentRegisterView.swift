@@ -53,7 +53,7 @@ struct PaymentRegisterView: View {
             await viewModel.load()
         }
         .onChange(of: viewModel.selectedMode) { _, _ in
-            viewModel.resetResultMessages()
+            viewModel.handleSelectedModeChanged()
         }
         .onChange(of: viewModel.sale) { _, sale in
             onSaleUpdated(sale)
@@ -86,10 +86,14 @@ struct PaymentRegisterView: View {
             TextField("Monto", text: $viewModel.amount)
                 .keyboardType(.decimalPad)
 
-            if viewModel.selectedMode == .transfer || viewModel.selectedMode == .card {
-                TextField("Referencia", text: $viewModel.reference)
+            if viewModel.shouldShowExternalReferenceField {
+                TextField(viewModel.referenceFieldTitle, text: $viewModel.reference)
                     .textInputAutocapitalization(.characters)
                     .autocorrectionDisabled()
+
+                Text(viewModel.referenceHelpText)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
             }
 
             TextField("Nota opcional", text: $viewModel.note, axis: .vertical)
@@ -275,6 +279,12 @@ struct PaymentRegisterView: View {
                 }
                 .disabled(viewModel.selectedMode == .credit ? !viewModel.canCreateReceivable : !viewModel.canSubmitPayment)
 
+                if let hint = viewModel.submitBlockingHint {
+                    Text(hint)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+
                 Button {
                     NexoKeyboard.dismiss()
                     Task { await viewModel.load() }
@@ -342,7 +352,7 @@ struct PaymentRegisterInlineView: View {
             await viewModel.load()
         }
         .onChange(of: viewModel.selectedMode) { _, _ in
-            viewModel.resetResultMessages()
+            viewModel.handleSelectedModeChanged()
         }
         .onChange(of: viewModel.sale) { _, sale in
             onSaleUpdated(sale)
@@ -370,10 +380,14 @@ struct PaymentRegisterInlineView: View {
             TextField("Monto", text: $viewModel.amount)
                 .keyboardType(.decimalPad)
 
-            if viewModel.selectedMode == .transfer || viewModel.selectedMode == .card {
-                TextField("Referencia", text: $viewModel.reference)
+            if viewModel.shouldShowExternalReferenceField {
+                TextField(viewModel.referenceFieldTitle, text: $viewModel.reference)
                     .textInputAutocapitalization(.characters)
                     .autocorrectionDisabled()
+
+                Text(viewModel.referenceHelpText)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
             }
 
             TextField("Nota opcional", text: $viewModel.note, axis: .vertical)
@@ -469,6 +483,12 @@ struct PaymentRegisterInlineView: View {
                 }
             }
             .disabled(viewModel.selectedMode == .credit ? !viewModel.canCreateReceivable : !viewModel.canSubmitPayment)
+
+            if let hint = viewModel.submitBlockingHint {
+                Text(hint)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
 
             Button {
                 NexoKeyboard.dismiss()

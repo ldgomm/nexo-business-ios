@@ -2,7 +2,7 @@
 //  DailyClosureViewModel.swift
 //  Nexo Business
 //
-//  Created by José Ruiz on 1/6/26.
+//  Created by José Ruiz on 2/6/26.
 //
 
 import Foundation

@@ -47,6 +47,37 @@ enum PaymentRegisterMode: String, CaseIterable, Identifiable, Sendable, Hashable
             return nil
         }
     }
+
+    var requiresExternalReference: Bool {
+        switch self {
+        case .transfer, .card:
+            return true
+        case .cash, .credit:
+            return false
+        }
+    }
+
+    var referenceTitle: String {
+        switch self {
+        case .transfer:
+            return "Referencia de transferencia"
+        case .card:
+            return "Referencia de voucher"
+        case .cash, .credit:
+            return "Referencia"
+        }
+    }
+
+    var referenceHelpText: String {
+        switch self {
+        case .transfer:
+            return "Para transferencias, ingresa el número de comprobante, referencia bancaria o nombre del banco."
+        case .card:
+            return "Para tarjeta manual, ingresa el número de voucher, lote o autorización."
+        case .cash, .credit:
+            return ""
+        }
+    }
 }
 
 @MainActor
@@ -119,6 +150,10 @@ final class PaymentRegisterViewModel {
             return currentCashSession?.isOpen == true
         }
 
+        if selectedMode.requiresExternalReference {
+            return !normalized(reference).isEmpty
+        }
+
         return true
     }
 
@@ -157,6 +192,56 @@ final class PaymentRegisterViewModel {
         "\(sale.totals.grandTotal.currency) \(amount)"
     }
 
+    var shouldShowExternalReferenceField: Bool {
+        selectedMode.requiresExternalReference
+    }
+
+    var referenceFieldTitle: String {
+        selectedMode.referenceTitle
+    }
+
+    var referenceHelpText: String {
+        selectedMode.referenceHelpText
+    }
+
+    var submitBlockingHint: String? {
+        if hasCompletedSubmission || isSubmitting { return nil }
+
+        if selectedMode == .credit {
+            if !hasReceivablePermission {
+                return "No tienes permiso para crear cuentas por cobrar."
+            }
+            if !isValidAmount(amount) {
+                return "Ingresa un monto válido mayor a cero."
+            }
+            if normalized(customerId).isEmpty {
+                return "Selecciona un cliente identificado para dejar la venta por cobrar."
+            }
+            return nil
+        }
+
+        if !hasPaymentPermission {
+            return "No tienes permiso para registrar cobros."
+        }
+        if !SaleStatusPresentation.canCollect(status: sale.status) {
+            return "Esta venta no está lista para cobrar."
+        }
+        if !PaymentStatusPresentation.canCollect(status: sale.paymentStatus) {
+            return "Esta venta ya no tiene saldo pendiente de cobro."
+        }
+        if !isValidAmount(amount) {
+            return "Ingresa un monto válido mayor a cero."
+        }
+        if selectedMode == .cash && currentCashSession?.isOpen != true {
+            return "Abre caja para cobrar en efectivo."
+        }
+        if selectedMode.requiresExternalReference && normalized(reference).isEmpty {
+            return externalReferenceRequiredMessage()
+        }
+
+        return nil
+    }
+
     var submitButtonTitle: String {
         selectedMode == .credit ? "Crear cuenta por cobrar" : "Confirmar cobro"
     }
@@ -172,6 +257,9 @@ final class PaymentRegisterViewModel {
         }
 
         var message = "Vas a registrar un cobro por \(amountMoney).\n\nMétodo: \(selectedMode.title)"
+        if selectedMode.requiresExternalReference {
+            message += "\nReferencia: \(normalized(reference))"
+        }
         if selectedMode == .cash {
             message += "\n\nEsto actualizará la caja automáticamente. No registres este valor como movimiento manual."
         }
@@ -336,6 +424,13 @@ final class PaymentRegisterViewModel {
         }
     }
 
+    func handleSelectedModeChanged() {
+        if !selectedMode.requiresExternalReference {
+            reference = ""
+        }
+        resetResultMessages()
+    }
+
     func resetResultMessages() {
         errorMessage = nil
         infoMessage = nil
@@ -371,6 +466,10 @@ final class PaymentRegisterViewModel {
             return "Necesitas una caja abierta para cobrar en efectivo."
         }
 
+        if selectedMode.requiresExternalReference && normalized(reference).isEmpty {
+            return externalReferenceRequiredMessage()
+        }
+
         return "No se puede registrar el cobro con el estado actual."
     }
 
@@ -394,7 +493,27 @@ final class PaymentRegisterViewModel {
         return "No se puede crear la cuenta por cobrar con el estado actual."
     }
 
+    private func externalReferenceRequiredMessage() -> String {
+        switch selectedMode {
+        case .transfer:
+            return "Ingresa la referencia de la transferencia: número de comprobante, referencia bancaria o banco."
+        case .card:
+            return "Ingresa la referencia de la tarjeta: voucher, lote o autorización."
+        case .cash, .credit:
+            return "Ingresa una referencia para este cobro."
+        }
+    }
+
     private func handle(apiError: APIError) {
+        let serverText = [apiError.serverMessage, apiError.code]
+            .compactMap { $0?.lowercased() }
+            .joined(separator: " ")
+
+        if serverText.contains("external reference") || serverText.contains("reference") {
+            errorMessage = externalReferenceRequiredMessage()
+            return
+        }
+
         errorMessage = apiError.userMessage
     }
 
