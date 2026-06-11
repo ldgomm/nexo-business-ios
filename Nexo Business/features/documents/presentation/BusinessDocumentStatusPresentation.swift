@@ -1,15 +1,8 @@
-//
-//  BusinessDocumentStatusPresentation.swift
-//  Nexo Business
-//
-//  Created by José Ruiz on 29/5/26.
-//
-
 import Foundation
 
 enum BusinessDocumentStatusPresentation {
     static func displayName(_ status: String) -> String {
-        switch status {
+        switch normalized(status) {
         case "not_required":
             return "No requerido"
         case "draft":
@@ -22,41 +15,61 @@ enum BusinessDocumentStatusPresentation {
             return "Validado"
         case "signed":
             return "Firmado"
-        case "sent":
+        case "sent", "submitted", "submitted_to_sri":
             return "Enviado"
-        case "received":
-            return "Recibido"
-        case "authorized":
+        case "received", "received_by_sri", "recibida":
+            return "Recibido por SRI"
+        case "authorized", "autorizado":
             return "Autorizado"
-        case "rejected":
+        case "rejected", "rechazado":
             return "Rechazado"
-        case "returned":
+        case "returned", "devuelta":
             return "Devuelto"
+        case "delivered", "sent_email", "email_sent":
+            return "Email enviado"
+        case "delivery_failed", "email_failed":
+            return "Email fallido"
         case "cancellation_requested":
             return "Anulación solicitada"
         case "pending_cancellation":
             return "Pendiente de anular"
-        case "canceled":
+        case "canceled", "cancelled", "annulled":
             return "Anulado"
-        case "error":
+        case "failed", "error":
             return "Error"
         default:
-            return status
+            return status.isEmpty ? "Desconocido" : status
         }
     }
 
     static func systemImage(_ status: String) -> String {
-        switch status {
-        case "authorized", "generated", "registered":
+        switch normalized(status) {
+        case "authorized", "autorizado", "generated", "registered", "delivered", "email_sent", "sent_email":
             return "checkmark.seal"
-        case "rejected", "returned", "error":
+        case "rejected", "rechazado", "returned", "devuelta", "error", "failed", "delivery_failed", "email_failed":
             return "exclamationmark.triangle"
-        case "sent", "received", "signed", "validated":
+        case "sent", "submitted", "submitted_to_sri", "received", "received_by_sri", "recibida", "signed", "validated":
             return "arrow.triangle.2.circlepath"
-        case "canceled", "pending_cancellation", "cancellation_requested":
+        case "canceled", "cancelled", "annulled", "pending_cancellation", "cancellation_requested":
             return "xmark.seal"
         default:
             return "doc.text"
         }
+    }
+
+    static func isError(_ status: String) -> Bool {
+        switch normalized(status) {
+        case "rejected", "rechazado", "returned", "devuelta", "error", "failed", "delivery_failed", "email_failed":
+            return true
+        default:
+            return false
+        }
+    }
+
+    private static func normalized(_ status: String) -> String {
+        status
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+            .replacingOccurrences(of: "-", with: "_")
     }
 }

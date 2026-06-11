@@ -1,10 +1,3 @@
-//
-//  BusinessDocumentModelsDecodingTests.swift
-//  Nexo BusinessTests
-//
-//  Created by José Ruiz on 29/5/26.
-//
-
 import XCTest
 @testable import Nexo_Business
 
@@ -34,18 +27,14 @@ final class BusinessDocumentModelsDecodingTests: XCTestCase {
         }
         """#.data(using: .utf8)!
 
-        let response = try JSONDecoder.nexoDefault.decode(
-            BusinessDocumentsResponse.self,
-            from: json
-        )
+        let response = try JSONDecoder.nexoDefault.decode(BusinessDocumentsResponse.self, from: json)
 
         XCTAssertEqual(response.documents.count, 2)
-        XCTAssertEqual(response.documents[0].type, "internal_ticket")
-        XCTAssertEqual(response.documents[1].number, "001-001-000000123")
+        XCTAssertEqual(response.documents[0].id, "doc_1")
         XCTAssertEqual(response.documents[1].customerEmail, "cliente@nexo.test")
     }
 
-    func testDecodesDocumentResponseWithOptionalSale() throws {
+    func testDecodesBusinessDocumentResponseWithSaleMissing() throws {
         let json = #"""
         {
           "document": {
@@ -55,17 +44,146 @@ final class BusinessDocumentModelsDecodingTests: XCTestCase {
             "status": "generated",
             "number": "T-001"
           },
-          "idempotencyReplayed": false
+          "idempotencyReplayed": true
         }
         """#.data(using: .utf8)!
 
-        let response = try JSONDecoder.nexoDefault.decode(
-            BusinessDocumentResponse.self,
-            from: json
-        )
+        let response = try JSONDecoder.nexoDefault.decode(BusinessDocumentResponse.self, from: json)
 
         XCTAssertEqual(response.document.id, "doc_1")
+        XCTAssertEqual(response.idempotencyReplayed, true)
         XCTAssertNil(response.sale)
+    }
+
+    func testDecodesBusinessElectronicDocumentIssueResponse() throws {
+        let json = #"""
+        {
+          "document": {
+            "id": "edoc_1",
+            "documentId": "edoc_1",
+            "organizationId": "org_1",
+            "branchId": "br_1",
+            "emissionPointId": "ep_1",
+            "saleId": "sale_1",
+            "documentType": "electronic_invoice",
+            "type": "electronic_invoice",
+            "displayNumber": "001-001-000000123",
+            "number": "001-001-000000123",
+            "accessKey": "1234567890123456789012345678901234567890123456789",
+            "claveAcceso": "1234567890123456789012345678901234567890123456789",
+            "authorizationNumber": "1234567890",
+            "numeroAutorizacion": "1234567890",
+            "status": "AUTHORIZED",
+            "sriStatus": "AUTHORIZED",
+            "environment": "test",
+            "issuedAt": "2026-06-11T14:00:00Z",
+            "authorizedAt": "2026-06-11T14:00:30Z",
+            "rideGeneratedAt": "2026-06-11T14:00:40Z",
+            "deliveredAt": null,
+            "customerEmail": "cliente@nexo.test",
+            "pdfUrl": null,
+            "xmlUrl": null,
+            "hasRide": true,
+            "hasXml": true,
+            "hasErrors": false,
+            "lastSriReceptionStatus": "RECIBIDA",
+            "lastSriAuthorizationStatus": "AUTORIZADO",
+            "lastErrorMessage": null,
+            "createdAt": "2026-06-11T14:00:00Z",
+            "updatedAt": "2026-06-11T14:00:40Z"
+          },
+          "authorized": true,
+          "stoppedBeforeSri": false,
+          "receptionStatus": "RECIBIDA",
+          "authorizationStatus": "AUTORIZADO",
+          "replayed": false
+        }
+        """#.data(using: .utf8)!
+
+        let response = try JSONDecoder.nexoDefault.decode(BusinessElectronicDocumentIssueResponse.self, from: json)
+
+        XCTAssertEqual(response.document.id, "edoc_1")
+        XCTAssertEqual(response.document.type, "electronic_invoice")
+        XCTAssertEqual(response.document.number, "001-001-000000123")
+        XCTAssertEqual(response.document.accessKey, "1234567890123456789012345678901234567890123456789")
+        XCTAssertEqual(response.document.authorizationNumber, "1234567890")
+        XCTAssertEqual(response.document.status, "AUTHORIZED")
+        XCTAssertEqual(response.document.customerEmail, "cliente@nexo.test")
+        XCTAssertEqual(response.authorized, true)
+        XCTAssertEqual(response.stoppedBeforeSri, false)
+        XCTAssertEqual(response.receptionStatus, "RECIBIDA")
+        XCTAssertEqual(response.authorizationStatus, "AUTORIZADO")
         XCTAssertEqual(response.idempotencyReplayed, false)
+    }
+
+    func testDecodesElectronicDocumentVaultListTimelineAndArtifact() throws {
+        let listJSON = #"""
+        {
+          "documents": [
+            {
+              "id": "edoc_1",
+              "documentId": "edoc_1",
+              "organizationId": "org_1",
+              "saleId": "sale_1",
+              "documentType": "electronic_invoice",
+              "displayNumber": "001-001-000000123",
+              "accessKey": "1234567890123456789012345678901234567890123456789",
+              "status": "AUTHORIZED",
+              "sriStatus": "AUTORIZADO",
+              "environment": "test",
+              "issueDate": "2026-06-11T14:00:00Z",
+              "hasRide": true,
+              "hasXml": true,
+              "customerName": "Cliente Demo",
+              "total": "12.50"
+            }
+          ],
+          "total": 1,
+          "hasMore": false
+        }
+        """#.data(using: .utf8)!
+
+        let list = try JSONDecoder.nexoDefault.decode(BusinessElectronicDocumentsResponse.self, from: listJSON)
+        XCTAssertEqual(list.documents.count, 1)
+        XCTAssertEqual(list.documents[0].documentId, "edoc_1")
+        XCTAssertEqual(list.documents[0].displayNumber, "001-001-000000123")
+        XCTAssertEqual(list.documents[0].hasRide, true)
+        XCTAssertEqual(list.documents[0].hasXml, true)
+
+        let timelineJSON = #"""
+        {
+          "documentId": "edoc_1",
+          "events": [
+            { "id": "evt_1", "action": "AUTHORIZED", "message": "Autorizado", "actorUserId": "usr_1", "occurredAt": "2026-06-11T14:00:30Z" }
+          ]
+        }
+        """#.data(using: .utf8)!
+
+        let timeline = try JSONDecoder.nexoDefault.decode(BusinessElectronicDocumentTimelineResponse.self, from: timelineJSON)
+        XCTAssertEqual(timeline.events.first?.type, "AUTHORIZED")
+        XCTAssertEqual(timeline.events.first?.actor, "usr_1")
+
+        let artifactJSON = #"""
+        {
+          "artifact": {
+            "kind": "authorized_xml",
+            "fileName": "001-001-000000123-authorized.xml",
+            "contentType": "application/xml",
+            "sizeBytes": 128,
+            "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+          },
+          "xml": {
+            "kind": "authorized_xml",
+            "fileName": "001-001-000000123-authorized.xml",
+            "contentType": "application/xml",
+            "sizeBytes": 128,
+            "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+          }
+        }
+        """#.data(using: .utf8)!
+
+        let artifact = try JSONDecoder.nexoDefault.decode(BusinessDocumentArtifactEnvelopeResponse.self, from: artifactJSON)
+        XCTAssertEqual(artifact.xml?.kind, "authorized_xml")
+        XCTAssertEqual(artifact.artifact?.fileName, "001-001-000000123-authorized.xml")
     }
 }

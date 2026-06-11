@@ -1,10 +1,3 @@
-//
-//  PreviewRepositories.swift
-//  Nexo Business
-//
-//  Created by José Ruiz on 29/5/26.
-//
-
 import Foundation
 
 final class PreviewAuthRepository: AuthRepository, @unchecked Sendable {
@@ -242,6 +235,274 @@ final class PreviewBusinessDocumentsRepository: BusinessDocumentsRepository, @un
     ) async throws -> BusinessDocumentResponse {
         PreviewData.physicalSaleNoteDocumentResponse
     }
+
+    func issueElectronicInvoice(
+        organizationId: String,
+        saleId: String,
+        branchId: String,
+        activityId: String,
+        revisions: BusinessRevisions,
+        idempotencyKey: IdempotencyKey,
+        request: IssueBusinessElectronicDocumentRequest
+    ) async throws -> BusinessElectronicDocumentIssueResponse {
+        BusinessElectronicDocumentIssueResponse(
+            document: BusinessDocument(
+                id: "edoc_preview_invoice",
+                saleId: saleId,
+                type: "electronic_invoice",
+                status: "AUTHORIZED",
+                number: "001-001-000000123",
+                authorizationNumber: "1234567890",
+                accessKey: "1234567890123456789012345678901234567890123456789",
+                customerEmail: "cliente@nexo.test",
+                createdAt: Date(),
+                authorizedAt: Date()
+            ),
+            authorized: true,
+            stoppedBeforeSri: false,
+            receptionStatus: "RECIBIDA",
+            authorizationStatus: "AUTORIZADO",
+            replayed: false
+        )
+    }
+
+    func retryElectronicInvoiceReception(
+        organizationId: String,
+        documentId: String,
+        branchId: String?,
+        activityId: String?,
+        idempotencyKey: IdempotencyKey,
+        request: RetryBusinessElectronicInvoiceReceptionRequest
+    ) async throws -> BusinessElectronicDocumentIssueResponse {
+        BusinessElectronicDocumentIssueResponse(
+            document: BusinessDocument(
+                id: documentId,
+                saleId: PreviewData.confirmedSaleResponse.sale.id,
+                type: "electronic_invoice",
+                status: "RECEIVED_BY_SRI",
+                number: "001-001-000000123",
+                accessKey: "1234567890123456789012345678901234567890123456789",
+                customerEmail: "cliente@nexo.test",
+                createdAt: Date()
+            ),
+            authorized: false,
+            stoppedBeforeSri: false,
+            receptionStatus: "RECIBIDA",
+            authorizationStatus: nil,
+            replayed: false
+        )
+    }
+
+    func listElectronicDocuments(
+        organizationId: String,
+        filters: BusinessElectronicDocumentFilters
+    ) async throws -> BusinessElectronicDocumentsResponse {
+        BusinessElectronicDocumentsResponse(
+            documents: [
+                BusinessDocument(
+                    id: "edoc_preview_invoice",
+                    saleId: PreviewData.confirmedSaleResponse.sale.id,
+                    type: "electronic_invoice",
+                    status: "AUTHORIZED",
+                    number: "001-001-000000123",
+                    authorizationNumber: "1234567890123456789012345678901234567890123456789",
+                    accessKey: "1234567890123456789012345678901234567890123456789",
+                    customerEmail: "cliente@nexo.test",
+                    createdAt: Date().addingTimeInterval(-3600),
+                    authorizedAt: Date().addingTimeInterval(-3500),
+                    documentId: "edoc_preview_invoice",
+                    organizationId: organizationId,
+                    branchId: PreviewData.businessContext.branches.first?.id,
+                    environment: "test",
+                    sriStatus: "AUTORIZADO",
+                    issuedAt: Date().addingTimeInterval(-3600),
+                    updatedAt: Date().addingTimeInterval(-3400),
+                    rideGeneratedAt: Date().addingTimeInterval(-3400),
+                    deliveredAt: Date().addingTimeInterval(-3300),
+                    hasRide: true,
+                    hasXml: true,
+                    hasErrors: false,
+                    lastSriReceptionStatus: "RECIBIDA",
+                    lastSriAuthorizationStatus: "AUTORIZADO",
+                    customerName: "Cliente Demo",
+                    customerIdentification: "9999999999999",
+                    total: "12.50"
+                )
+            ]
+        )
+    }
+
+    func electronicDocumentDetail(
+        organizationId: String,
+        documentId: String
+    ) async throws -> BusinessElectronicDocumentDetailEnvelopeResponse {
+        let summary = BusinessDocument(
+            id: documentId,
+            saleId: PreviewData.confirmedSaleResponse.sale.id,
+            type: "electronic_invoice",
+            status: "AUTHORIZED",
+            number: "001-001-000000123",
+            authorizationNumber: "1234567890123456789012345678901234567890123456789",
+            accessKey: "1234567890123456789012345678901234567890123456789",
+            customerEmail: "cliente@nexo.test",
+            createdAt: Date().addingTimeInterval(-3600),
+            authorizedAt: Date().addingTimeInterval(-3500),
+            documentId: documentId,
+            organizationId: organizationId,
+            environment: "test",
+            sriStatus: "AUTORIZADO",
+            issuedAt: Date().addingTimeInterval(-3600),
+            updatedAt: Date().addingTimeInterval(-3400),
+            rideGeneratedAt: Date().addingTimeInterval(-3400),
+            deliveredAt: Date().addingTimeInterval(-3300),
+            hasRide: true,
+            hasXml: true,
+            hasErrors: false,
+            lastSriReceptionStatus: "RECIBIDA",
+            lastSriAuthorizationStatus: "AUTORIZADO",
+            customerName: "Cliente Demo",
+            customerIdentification: "9999999999999",
+            total: "12.50"
+        )
+
+        let json = """
+        {
+          "document": {
+            "id": "\(documentId)",
+            "documentId": "\(documentId)",
+            "summary": {
+              "id": "\(documentId)",
+              "saleId": "\(summary.saleId)",
+              "documentType": "electronic_invoice",
+              "displayNumber": "001-001-000000123",
+              "accessKey": "1234567890123456789012345678901234567890123456789",
+              "authorizationNumber": "1234567890123456789012345678901234567890123456789",
+              "status": "AUTHORIZED",
+              "sriStatus": "AUTORIZADO",
+              "environment": "test",
+              "issueDate": "2026-06-11T14:00:00Z",
+              "authorizedAt": "2026-06-11T14:00:30Z",
+              "updatedAt": "2026-06-11T14:01:00Z",
+              "hasRide": true,
+              "hasXml": true,
+              "emailSentAt": "2026-06-11T14:02:00Z",
+              "customerEmail": "cliente@nexo.test",
+              "customerName": "Cliente Demo",
+              "total": "12.50"
+            },
+            "organizationId": "\(organizationId)",
+            "saleId": "\(summary.saleId)",
+            "documentType": "electronic_invoice",
+            "displayNumber": "001-001-000000123",
+            "accessKey": "1234567890123456789012345678901234567890123456789",
+            "authorizationNumber": "1234567890123456789012345678901234567890123456789",
+            "customerName": "Cliente Demo",
+            "customerIdentification": "9999999999999",
+            "customerEmail": "cliente@nexo.test",
+            "total": "12.50",
+            "currency": "USD",
+            "status": "AUTHORIZED",
+            "sriStatus": "AUTORIZADO",
+            "environment": "test",
+            "issueDate": "2026-06-11T14:00:00Z",
+            "authorizedAt": "2026-06-11T14:00:30Z",
+            "updatedAt": "2026-06-11T14:01:00Z",
+            "sri": {
+              "environment": "test",
+              "receptionStatus": "RECIBIDA",
+              "authorizationStatus": "AUTORIZADO",
+              "authorizationNumber": "1234567890123456789012345678901234567890123456789",
+              "accessKey": "1234567890123456789012345678901234567890123456789",
+              "authorizedAt": "2026-06-11T14:00:30Z",
+              "lastCheckedAt": "2026-06-11T14:01:00Z"
+            },
+            "artifacts": {
+              "ride": { "kind": "ride", "fileName": "001-001-000000123.pdf", "contentType": "application/pdf", "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" },
+              "authorizedXml": { "kind": "authorized_xml", "fileName": "001-001-000000123-authorized.xml", "contentType": "application/xml", "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" },
+              "xml": { "kind": "authorized_xml", "fileName": "001-001-000000123-authorized.xml", "contentType": "application/xml", "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" }
+            },
+            "email": {
+              "recipient": "cliente@nexo.test",
+              "status": "sent",
+              "sentAt": "2026-06-11T14:02:00Z",
+              "lastError": null,
+              "attempts": 1
+            },
+            "timeline": [
+              { "id": "evt_1", "type": "AUTHORIZED", "title": "Autorizado", "message": "Comprobante autorizado", "actor": "system", "createdAt": "2026-06-11T14:00:30Z", "severity": "info" }
+            ],
+            "errors": [],
+            "warnings": []
+          }
+        }
+        """.data(using: .utf8)!
+        return try JSONDecoder.nexoDefault.decode(BusinessElectronicDocumentDetailEnvelopeResponse.self, from: json)
+    }
+
+    func electronicDocumentRide(
+        organizationId: String,
+        documentId: String
+    ) async throws -> BusinessDocumentArtifactEnvelopeResponse {
+        let artifact = BusinessDocumentArtifact(
+            kind: "ride",
+            fileName: "001-001-000000123.pdf",
+            contentType: "application/pdf",
+            sizeBytes: 2048,
+            sha256: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        )
+        return BusinessDocumentArtifactEnvelopeResponse(artifact: artifact, ride: artifact, xml: nil)
+    }
+
+    func electronicDocumentXml(
+        organizationId: String,
+        documentId: String,
+        authorizedOnly: Bool
+    ) async throws -> BusinessDocumentArtifactEnvelopeResponse {
+        let artifact = BusinessDocumentArtifact(
+            kind: authorizedOnly ? "authorized_xml" : "signed_xml",
+            fileName: authorizedOnly ? "001-001-000000123-authorized.xml" : "001-001-000000123-signed.xml",
+            contentType: "application/xml",
+            sizeBytes: 4096,
+            sha256: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        )
+        return BusinessDocumentArtifactEnvelopeResponse(artifact: artifact, ride: nil, xml: artifact)
+    }
+
+    func electronicDocumentTimeline(
+        organizationId: String,
+        documentId: String,
+        limit: Int
+    ) async throws -> BusinessElectronicDocumentTimelineResponse {
+        BusinessElectronicDocumentTimelineResponse(
+            documentId: documentId,
+            events: [
+                BusinessElectronicDocumentTimelineEvent(
+                    id: "evt_preview_1",
+                    type: "AUTHORIZED",
+                    title: "Autorizado",
+                    message: "Comprobante autorizado por SRI.",
+                    actor: "system",
+                    createdAt: Date().addingTimeInterval(-3000),
+                    severity: "info"
+                )
+            ]
+        )
+    }
+
+    func resendElectronicDocumentEmail(
+        organizationId: String,
+        documentId: String,
+        request: BusinessDocumentEmailResendRequest
+    ) async throws -> BusinessDocumentEmailResendResponse {
+        BusinessDocumentEmailResendResponse(
+            documentId: documentId,
+            accepted: true,
+            recipient: request.recipientOverride ?? "cliente@nexo.test",
+            message: "Email reenviado.",
+            requestedAt: Date()
+        )
+    }
+
 }
 
 final class PreviewReceivablesRepository: ReceivablesRepository, @unchecked Sendable {
