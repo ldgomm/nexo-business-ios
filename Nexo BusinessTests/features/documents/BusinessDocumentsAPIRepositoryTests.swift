@@ -25,6 +25,7 @@ final class BusinessDocumentsAPIRepositoryTests: XCTestCase {
         XCTAssertEqual(request.headers[BusinessHeaders.catalogRevision], "cat_rev_1")
         XCTAssertEqual(request.headers[BusinessHeaders.taxConfigurationRevision], "tax_rev_1")
         XCTAssertEqual(request.headers[BusinessHeaders.idempotencyKey], "document-electronic-invoice-1")
+        XCTAssertEqual(request.headers["X-Idempotency-Key"], "document-electronic-invoice-1")
         XCTAssertNotNil(request.body)
     }
 
@@ -48,9 +49,40 @@ final class BusinessDocumentsAPIRepositoryTests: XCTestCase {
         XCTAssertEqual(request.headers[BusinessHeaders.branchId], "br_1")
         XCTAssertEqual(request.headers[BusinessHeaders.activityId], "act_1")
         XCTAssertEqual(request.headers[BusinessHeaders.idempotencyKey], "document-electronic-invoice-retry-1")
+        XCTAssertEqual(request.headers["X-Idempotency-Key"], "document-electronic-invoice-retry-1")
         XCTAssertNil(request.headers[BusinessHeaders.catalogRevision])
         XCTAssertNil(request.headers[BusinessHeaders.taxConfigurationRevision])
         XCTAssertNotNil(request.body)
+    }
+
+    func testBusinessOperationalMutationsUseCanonicalRoutesAndIdempotencyHeaders() async throws {
+        let apiClient = CapturingDocumentsAPIClient(responseJSON: Self.actionResponseJSON)
+        let repository = BusinessDocumentsAPIRepository(apiClient: apiClient)
+
+        _ = try await repository.retryElectronicInvoiceAuthorization(
+            organizationId: "org_1",
+            documentId: "edoc_1",
+            branchId: "br_1",
+            activityId: "act_1",
+            idempotencyKey: IdempotencyKey(rawValue: "document-retry-authorization-1"),
+            request: RetryBusinessElectronicInvoiceAuthorizationRequest(reason: "manual")
+        )
+
+        _ = try await repository.regenerateElectronicDocumentRide(
+            organizationId: "org_1",
+            documentId: "edoc_1",
+            branchId: "br_1",
+            activityId: "act_1",
+            idempotencyKey: IdempotencyKey(rawValue: "document-regenerate-ride-1"),
+            request: RegenerateBusinessElectronicDocumentRideRequest(reason: "manual")
+        )
+
+        XCTAssertEqual(apiClient.capturedRequests[0].path, "/api/v1/business/electronic-documents/edoc_1/retry-authorization")
+        XCTAssertEqual(apiClient.capturedRequests[0].headers[BusinessHeaders.idempotencyKey], "document-retry-authorization-1")
+        XCTAssertEqual(apiClient.capturedRequests[0].headers["X-Idempotency-Key"], "document-retry-authorization-1")
+        XCTAssertEqual(apiClient.capturedRequests[1].path, "/api/v1/business/electronic-documents/edoc_1/ride")
+        XCTAssertEqual(apiClient.capturedRequests[1].headers[BusinessHeaders.idempotencyKey], "document-regenerate-ride-1")
+        XCTAssertEqual(apiClient.capturedRequests[1].headers["X-Idempotency-Key"], "document-regenerate-ride-1")
     }
 
     func testBusinessVaultRoutesUseCanonicalElectronicDocumentsPaths() async throws {
@@ -76,6 +108,7 @@ final class BusinessDocumentsAPIRepositoryTests: XCTestCase {
         _ = try await repository.resendElectronicDocumentEmail(
             organizationId: "org_1",
             documentId: "edoc_1",
+            idempotencyKey: IdempotencyKey(rawValue: "document-resend-email-1"),
             request: BusinessDocumentEmailResendRequest(
                 recipientOverride: "cliente@example.com",
                 reason: "Reenvío solicitado por cliente"
@@ -93,7 +126,8 @@ final class BusinessDocumentsAPIRepositoryTests: XCTestCase {
         XCTAssertTrue(apiClient.capturedRequests.allSatisfy { !$0.path.contains(legacyInvoices) })
         let legacyIssue = "documents/" + "electronic-invoice"
         XCTAssertTrue(apiClient.capturedRequests.allSatisfy { !$0.path.contains(legacyIssue) })
-        XCTAssertNil(apiClient.capturedRequests[5].headers[BusinessHeaders.idempotencyKey])
+        XCTAssertEqual(apiClient.capturedRequests[5].headers[BusinessHeaders.idempotencyKey], "document-resend-email-1")
+        XCTAssertEqual(apiClient.capturedRequests[5].headers["X-Idempotency-Key"], "document-resend-email-1")
         XCTAssertNotNil(apiClient.capturedRequests[5].body)
     }
 
@@ -140,8 +174,8 @@ final class BusinessDocumentsAPIRepositoryTests: XCTestCase {
         )
 
         XCTAssertEqual(apiClient.capturedDataRequests.map(\.path), [
-            "/api/v1/business/electronic-documents/edoc_1/ride/download",
-            "/api/v1/business/electronic-documents/edoc_1/xml/download"
+            "/api/v1/business/electronic-documents/edoc_1/ride/file",
+            "/api/v1/business/electronic-documents/edoc_1/xml/file"
         ])
         XCTAssertEqual(apiClient.capturedDataRequests[0].headers[BusinessHeaders.organizationId], "org_1")
         XCTAssertEqual(apiClient.capturedDataRequests[1].queryItems, [URLQueryItem(name: "authorizedOnly", value: "true")])
@@ -304,6 +338,17 @@ final class BusinessDocumentsAPIRepositoryTests: XCTestCase {
       "recipient": "cliente@example.com",
       "message": "Email resend requested.",
       "requestedAt": "2026-06-11T15:00:00Z"
+    }
+    """#
+
+    private static let actionResponseJSON = #"""
+    {
+      "documentId": "edoc_1",
+      "accepted": true,
+      "status": "queued",
+      "message": "Action queued.",
+      "requestedAt": "2026-06-11T15:00:00Z",
+      "idempotencyReplayed": false
     }
     """#
 }

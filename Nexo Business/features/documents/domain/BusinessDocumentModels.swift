@@ -257,6 +257,135 @@ struct BusinessDocumentResponse: Decodable, Equatable, Sendable {
     }
 }
 
+
+enum BusinessElectronicDocumentAction: Equatable, Hashable, Codable, Sendable {
+    case viewDetail
+    case viewTimeline
+    case downloadRide
+    case downloadXml
+    case retryReception
+    case retryAuthorization
+    case resendEmail
+    case regenerateRide
+    case unknown(String)
+
+    init(rawValue: String) {
+        switch rawValue.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+        case "view_detail", "viewdetail": self = .viewDetail
+        case "view_timeline", "viewtimeline": self = .viewTimeline
+        case "download_ride", "downloadride": self = .downloadRide
+        case "download_xml", "downloadxml": self = .downloadXml
+        case "retry_reception", "retryreception": self = .retryReception
+        case "retry_authorization", "retryauthorization": self = .retryAuthorization
+        case "resend_email", "resendemail": self = .resendEmail
+        case "regenerate_ride", "regenerateride": self = .regenerateRide
+        case let value where value.isEmpty: self = .unknown("unknown")
+        case let value: self = .unknown(value)
+        }
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        self.init(rawValue: (try? container.decode(String.self)) ?? "unknown")
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(publicRawValue)
+    }
+
+    var publicRawValue: String {
+        switch self {
+        case .viewDetail: return "view_detail"
+        case .viewTimeline: return "view_timeline"
+        case .downloadRide: return "download_ride"
+        case .downloadXml: return "download_xml"
+        case .retryReception: return "retry_reception"
+        case .retryAuthorization: return "retry_authorization"
+        case .resendEmail: return "resend_email"
+        case .regenerateRide: return "regenerate_ride"
+        case .unknown(let rawValue): return rawValue
+        }
+    }
+
+    var displayName: String {
+        switch self {
+        case .viewDetail: return "Ver detalle"
+        case .viewTimeline: return "Ver timeline"
+        case .downloadRide: return "Ver RIDE"
+        case .downloadXml: return "Ver XML"
+        case .retryReception: return "Reintentar recepción"
+        case .retryAuthorization: return "Reintentar autorización"
+        case .resendEmail: return "Reenviar email"
+        case .regenerateRide: return "Regenerar RIDE"
+        case .unknown: return "Acción no disponible"
+        }
+    }
+}
+
+struct BusinessElectronicDocumentRetrySummary: Decodable, Equatable, Sendable {
+    let canRetryReception: Bool
+    let canRetryAuthorization: Bool
+    let canResendEmail: Bool
+    let canRegenerateRide: Bool
+    let receptionRetryCount: Int
+    let authorizationRetryCount: Int
+    let emailAttempts: Int
+    let rideRegenerationCount: Int
+    let nextRetryAt: Date?
+    let lastRetryAt: Date?
+    let message: String?
+
+    init(
+        canRetryReception: Bool = false,
+        canRetryAuthorization: Bool = false,
+        canResendEmail: Bool = false,
+        canRegenerateRide: Bool = false,
+        receptionRetryCount: Int = 0,
+        authorizationRetryCount: Int = 0,
+        emailAttempts: Int = 0,
+        rideRegenerationCount: Int = 0,
+        nextRetryAt: Date? = nil,
+        lastRetryAt: Date? = nil,
+        message: String? = nil
+    ) {
+        self.canRetryReception = canRetryReception
+        self.canRetryAuthorization = canRetryAuthorization
+        self.canResendEmail = canResendEmail
+        self.canRegenerateRide = canRegenerateRide
+        self.receptionRetryCount = receptionRetryCount
+        self.authorizationRetryCount = authorizationRetryCount
+        self.emailAttempts = emailAttempts
+        self.rideRegenerationCount = rideRegenerationCount
+        self.nextRetryAt = nextRetryAt
+        self.lastRetryAt = lastRetryAt
+        self.message = BusinessDocumentTextSanitizer.sanitizedMessage(message)
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case canRetryReception, canRetryAuthorization, canResendEmail, canRegenerateRide
+        case receptionRetryCount, authorizationRetryCount, emailAttempts, rideRegenerationCount
+        case nextRetryAt, lastRetryAt, message
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(
+            canRetryReception: try c.decodeIfPresent(Bool.self, forKey: .canRetryReception) ?? false,
+            canRetryAuthorization: try c.decodeIfPresent(Bool.self, forKey: .canRetryAuthorization) ?? false,
+            canResendEmail: try c.decodeIfPresent(Bool.self, forKey: .canResendEmail) ?? false,
+            canRegenerateRide: try c.decodeIfPresent(Bool.self, forKey: .canRegenerateRide) ?? false,
+            receptionRetryCount: try c.decodeIfPresent(Int.self, forKey: .receptionRetryCount) ?? 0,
+            authorizationRetryCount: try c.decodeIfPresent(Int.self, forKey: .authorizationRetryCount) ?? 0,
+            emailAttempts: try c.decodeIfPresent(Int.self, forKey: .emailAttempts) ?? 0,
+            rideRegenerationCount: try c.decodeIfPresent(Int.self, forKey: .rideRegenerationCount) ?? 0,
+            nextRetryAt: try c.decodeFirstDateIfPresent(for: [.nextRetryAt]),
+            lastRetryAt: try c.decodeFirstDateIfPresent(for: [.lastRetryAt]),
+            message: try c.decodeFirstStringIfPresent(for: [.message])
+        )
+    }
+}
+
 struct BusinessElectronicDocumentDetailEnvelopeResponse: Decodable, Equatable, Sendable {
     let document: BusinessElectronicDocumentDetail
 }
@@ -288,13 +417,19 @@ struct BusinessElectronicDocumentDetail: Decodable, Equatable, Identifiable, Sen
     let timeline: [BusinessElectronicDocumentTimelineEvent]
     let errors: [BusinessSriDocumentError]
     let warnings: [String]
+    let availableActions: [BusinessElectronicDocumentAction]
+    let retrySummary: BusinessElectronicDocumentRetrySummary
+
+    func allows(_ action: BusinessElectronicDocumentAction) -> Bool {
+        availableActions.contains(action)
+    }
 
     private enum CodingKeys: String, CodingKey {
         case id, documentId, summary, organizationId, saleId, documentType, type, displayNumber, number, documentNumber
         case accessKey, claveAcceso, authorizationNumber, numeroAutorizacion
         case customerName, customerIdentification, customerEmail, total, grandTotal, currency
         case status, sriStatus, environment, issueDate, issuedAt, authorizedAt, updatedAt
-        case sri, artifacts, email, timeline, errors, warnings
+        case sri, artifacts, email, timeline, errors, warnings, availableActions, retrySummary
     }
 
     init(from decoder: Decoder) throws {
@@ -377,6 +512,8 @@ struct BusinessElectronicDocumentDetail: Decodable, Equatable, Identifiable, Sen
         timeline = try c.decodeIfPresent([BusinessElectronicDocumentTimelineEvent].self, forKey: .timeline) ?? []
         errors = try c.decodeIfPresent([BusinessSriDocumentError].self, forKey: .errors) ?? []
         warnings = try c.decodeIfPresent([String].self, forKey: .warnings) ?? []
+        availableActions = (try c.decodeIfPresent([BusinessElectronicDocumentAction].self, forKey: .availableActions) ?? []).uniqueByPublicRawValue
+        retrySummary = try c.decodeIfPresent(BusinessElectronicDocumentRetrySummary.self, forKey: .retrySummary) ?? BusinessElectronicDocumentRetrySummary()
     }
 }
 
@@ -866,9 +1003,67 @@ struct IssueBusinessElectronicDocumentRequest: Encodable, Equatable, Sendable {
 
 struct RetryBusinessElectronicInvoiceReceptionRequest: Encodable, Equatable, Sendable {
     let queryAuthorizationImmediately: Bool
-    init(queryAuthorizationImmediately: Bool = true) {
+    let reason: String?
+    init(queryAuthorizationImmediately: Bool = true, reason: String? = nil) {
         self.queryAuthorizationImmediately = queryAuthorizationImmediately
+        self.reason = reason?.trimmedNilIfBlank
     }
+}
+
+struct RetryBusinessElectronicInvoiceAuthorizationRequest: Encodable, Equatable, Sendable {
+    let reason: String?
+    init(reason: String? = nil) {
+        self.reason = reason?.trimmedNilIfBlank
+    }
+}
+
+struct RegenerateBusinessElectronicDocumentRideRequest: Encodable, Equatable, Sendable {
+    let reason: String?
+    let forceRegenerateRide: Bool
+    init(reason: String? = nil, forceRegenerateRide: Bool = true) {
+        self.reason = reason?.trimmedNilIfBlank
+        self.forceRegenerateRide = forceRegenerateRide
+    }
+}
+
+struct BusinessElectronicDocumentActionResponse: Decodable, Equatable, Sendable {
+    let documentId: String
+    let accepted: Bool
+    let status: String?
+    let message: String
+    let requestedAt: Date?
+    let replayed: Bool
+
+    private enum CodingKeys: String, CodingKey {
+        case documentId, id, accepted, status, message, requestedAt, replayed, idempotencyReplayed
+    }
+
+    init(documentId: String, accepted: Bool = true, status: String? = nil, message: String, requestedAt: Date? = nil, replayed: Bool = false) {
+        self.documentId = documentId
+        self.accepted = accepted
+        self.status = status
+        self.message = message
+        self.requestedAt = requestedAt
+        self.replayed = replayed
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+
+        documentId = try c.decodeFirstStringIfPresent(for: [.documentId, .id]) ?? ""
+        accepted = try c.decodeIfPresent(Bool.self, forKey: .accepted) ?? true
+        status = try c.decodeFirstStringIfPresent(for: [.status])
+        message = BusinessDocumentTextSanitizer.sanitizedMessage(
+            try c.decodeFirstStringIfPresent(for: [.message])
+        ) ?? "Acción solicitada correctamente."
+        requestedAt = try c.decodeFirstDateIfPresent(for: [.requestedAt])
+
+        let replayedValue = try c.decodeIfPresent(Bool.self, forKey: .replayed)
+        let idempotencyReplayedValue = try c.decodeIfPresent(Bool.self, forKey: .idempotencyReplayed)
+        replayed = replayedValue ?? idempotencyReplayedValue ?? false
+    }
+
+    var idempotencyReplayed: Bool { replayed }
 }
 
 struct BusinessElectronicDocumentIssueResponse: Decodable, Equatable, Sendable {
@@ -920,6 +1115,18 @@ private extension KeyedDecodingContainer {
             }
         }
         return nil
+    }
+}
+
+private extension Array where Element == BusinessElectronicDocumentAction {
+    var uniqueByPublicRawValue: [BusinessElectronicDocumentAction] {
+        var seen = Set<String>()
+        return filter { action in
+            let key = action.publicRawValue
+            guard !seen.contains(key) else { return false }
+            seen.insert(key)
+            return true
+        }
     }
 }
 

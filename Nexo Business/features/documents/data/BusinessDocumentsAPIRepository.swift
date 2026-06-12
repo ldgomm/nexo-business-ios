@@ -34,16 +34,16 @@ enum BusinessDocumentsRoutes {
         "/api/v1/business/electronic-documents/\(documentId)/ride"
     }
 
-    static func electronicDocumentRideDownload(documentId: String) -> String {
-        "/api/v1/business/electronic-documents/\(documentId)/ride/download"
+    static func electronicDocumentRideFile(documentId: String) -> String {
+        "/api/v1/business/electronic-documents/\(documentId)/ride/file"
     }
 
     static func electronicDocumentXml(documentId: String) -> String {
         "/api/v1/business/electronic-documents/\(documentId)/xml"
     }
 
-    static func electronicDocumentXmlDownload(documentId: String) -> String {
-        "/api/v1/business/electronic-documents/\(documentId)/xml/download"
+    static func electronicDocumentXmlFile(documentId: String) -> String {
+        "/api/v1/business/electronic-documents/\(documentId)/xml/file"
     }
 
     static func electronicDocumentTimeline(documentId: String) -> String {
@@ -56,6 +56,14 @@ enum BusinessDocumentsRoutes {
 
     static func retryElectronicInvoiceReception(documentId: String) -> String {
         "/api/v1/business/electronic-documents/\(documentId)/retry-reception"
+    }
+
+    static func retryElectronicInvoiceAuthorization(documentId: String) -> String {
+        "/api/v1/business/electronic-documents/\(documentId)/retry-authorization"
+    }
+
+    static func regenerateElectronicDocumentRide(documentId: String) -> String {
+        "/api/v1/business/electronic-documents/\(documentId)/ride"
     }
 }
 
@@ -171,6 +179,54 @@ final class BusinessDocumentsAPIRepository: BusinessDocumentsRepository, Busines
         )
     }
 
+    func retryElectronicInvoiceAuthorization(
+        organizationId: String,
+        documentId: String,
+        branchId: String?,
+        activityId: String?,
+        idempotencyKey: IdempotencyKey,
+        request body: RetryBusinessElectronicInvoiceAuthorizationRequest
+    ) async throws -> BusinessElectronicDocumentActionResponse {
+        try await apiClient.send(
+            try APIRequest<BusinessElectronicDocumentActionResponse>.json(
+                method: .post,
+                path: BusinessDocumentsRoutes.retryElectronicInvoiceAuthorization(documentId: documentId),
+                body: body,
+                headers: electronicDocumentHeaders(
+                    organizationId: organizationId,
+                    branchId: branchId,
+                    activityId: activityId,
+                    revisions: nil,
+                    idempotencyKey: idempotencyKey
+                )
+            )
+        )
+    }
+
+    func regenerateElectronicDocumentRide(
+        organizationId: String,
+        documentId: String,
+        branchId: String?,
+        activityId: String?,
+        idempotencyKey: IdempotencyKey,
+        request body: RegenerateBusinessElectronicDocumentRideRequest
+    ) async throws -> BusinessElectronicDocumentActionResponse {
+        try await apiClient.send(
+            try APIRequest<BusinessElectronicDocumentActionResponse>.json(
+                method: .post,
+                path: BusinessDocumentsRoutes.regenerateElectronicDocumentRide(documentId: documentId),
+                body: body,
+                headers: electronicDocumentHeaders(
+                    organizationId: organizationId,
+                    branchId: branchId,
+                    activityId: activityId,
+                    revisions: nil,
+                    idempotencyKey: idempotencyKey
+                )
+            )
+        )
+    }
+
     func listElectronicDocuments(
         organizationId: String,
         filters: BusinessElectronicDocumentFilters = BusinessElectronicDocumentFilters()
@@ -232,7 +288,7 @@ final class BusinessDocumentsAPIRepository: BusinessDocumentsRepository, Busines
     ) async throws -> BusinessDocumentDownloadedFile {
         try await downloadElectronicDocumentFile(
             organizationId: organizationId,
-            path: BusinessDocumentsRoutes.electronicDocumentRideDownload(documentId: documentId),
+            path: BusinessDocumentsRoutes.electronicDocumentRideFile(documentId: documentId),
             queryItems: [],
             kind: .ride,
             fallbackFileName: "\(documentId)_RIDE.pdf",
@@ -247,7 +303,7 @@ final class BusinessDocumentsAPIRepository: BusinessDocumentsRepository, Busines
     ) async throws -> BusinessDocumentDownloadedFile {
         try await downloadElectronicDocumentFile(
             organizationId: organizationId,
-            path: BusinessDocumentsRoutes.electronicDocumentXmlDownload(documentId: documentId),
+            path: BusinessDocumentsRoutes.electronicDocumentXmlFile(documentId: documentId),
             queryItems: [URLQueryItem(name: "authorizedOnly", value: authorizedOnly ? "true" : "false")],
             kind: authorizedOnly ? .authorizedXml : .signedXml,
             fallbackFileName: authorizedOnly ? "\(documentId)_authorized.xml" : "\(documentId)_signed.xml",
@@ -273,6 +329,7 @@ final class BusinessDocumentsAPIRepository: BusinessDocumentsRepository, Busines
     func resendElectronicDocumentEmail(
         organizationId: String,
         documentId: String,
+        idempotencyKey: IdempotencyKey,
         request body: BusinessDocumentEmailResendRequest
     ) async throws -> BusinessDocumentEmailResendResponse {
         try await apiClient.send(
@@ -280,7 +337,13 @@ final class BusinessDocumentsAPIRepository: BusinessDocumentsRepository, Busines
                 method: .post,
                 path: BusinessDocumentsRoutes.electronicDocumentResendEmail(documentId: documentId),
                 body: body,
-                headers: [BusinessHeaders.organizationId: organizationId]
+                headers: electronicDocumentHeaders(
+                    organizationId: organizationId,
+                    branchId: nil,
+                    activityId: nil,
+                    revisions: nil,
+                    idempotencyKey: idempotencyKey
+                )
             )
         )
     }
@@ -353,7 +416,8 @@ final class BusinessDocumentsAPIRepository: BusinessDocumentsRepository, Busines
     ) -> [String: String] {
         var headers: [String: String] = [
             BusinessHeaders.organizationId: organizationId,
-            BusinessHeaders.idempotencyKey: idempotencyKey.rawValue
+            BusinessHeaders.idempotencyKey: idempotencyKey.rawValue,
+            "X-Idempotency-Key": idempotencyKey.rawValue
         ]
 
         if let branchId = branchId?.trimmingCharacters(in: .whitespacesAndNewlines), !branchId.isEmpty {

@@ -29,7 +29,7 @@ struct BusinessElectronicDocumentDetailView: View {
                 emailSection(detail)
                 errorsSection(detail)
                 timelineSection
-                if viewModel.shouldShowRetryReception {
+                if viewModel.hasOperationalActions {
                     actionsSection
                 }
             }
@@ -278,16 +278,44 @@ struct BusinessElectronicDocumentDetailView: View {
 
     private var actionsSection: some View {
         Section("Acciones operativas") {
-            Button {
-                Task { await viewModel.retryReception() }
-            } label: {
-                if viewModel.isRetryingReception {
-                    ProgressView()
-                } else {
-                    Label("Reintentar recepción SRI", systemImage: "arrow.triangle.2.circlepath")
+            if viewModel.shouldShowRetryReception {
+                Button {
+                    Task { await viewModel.retryReception() }
+                } label: {
+                    if viewModel.isRetryingReception {
+                        ProgressView()
+                    } else {
+                        Label("Reintentar recepción SRI", systemImage: "arrow.up.doc")
+                    }
                 }
+                .disabled(viewModel.isRetryingReception)
             }
-            .disabled(!viewModel.shouldShowRetryReception || viewModel.isRetryingReception)
+
+            if viewModel.shouldShowRetryAuthorization {
+                Button {
+                    Task { await viewModel.retryAuthorization() }
+                } label: {
+                    if viewModel.isRetryingAuthorization {
+                        ProgressView()
+                    } else {
+                        Label("Reintentar autorización SRI", systemImage: "arrow.triangle.2.circlepath")
+                    }
+                }
+                .disabled(viewModel.isRetryingAuthorization)
+            }
+
+            if viewModel.shouldShowRegenerateRide {
+                Button {
+                    Task { await viewModel.regenerateRide() }
+                } label: {
+                    if viewModel.isRegeneratingRide {
+                        ProgressView()
+                    } else {
+                        Label("Regenerar RIDE", systemImage: "doc.badge.gearshape")
+                    }
+                }
+                .disabled(viewModel.isRegeneratingRide)
+            }
         }
     }
 

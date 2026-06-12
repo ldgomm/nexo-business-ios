@@ -111,7 +111,7 @@ final class BusinessDocumentsViewModelTests: XCTestCase {
         XCTAssertEqual(repository.detailCalls, 2)
         XCTAssertEqual(repository.rideFileDownloadCalls, 2)
         XCTAssertEqual(repository.xmlFileDownloadCalls, 2)
-        XCTAssertEqual(repository.timelineCalls, 1)
+        XCTAssertEqual(repository.timelineCalls, 2)
         XCTAssertEqual(repository.resendEmailCalls, 1)
         XCTAssertEqual(viewModel.lastDownloadedFile?.humanName, "XML autorizado")
         XCTAssertNotNil(viewModel.previewFile)
@@ -141,6 +141,8 @@ final class MockBusinessDocumentsRepository: BusinessDocumentFileDownloadingRepo
     var registerPhysicalCalls = 0
     var issueElectronicInvoiceCalls = 0
     var retryElectronicInvoiceReceptionCalls = 0
+    var retryElectronicInvoiceAuthorizationCalls = 0
+    var regenerateRideCalls = 0
     var listElectronicDocumentsCalls = 0
     var detailCalls = 0
     var rideCalls = 0
@@ -153,6 +155,9 @@ final class MockBusinessDocumentsRepository: BusinessDocumentFileDownloadingRepo
     var lastPhysicalIdempotencyKey: String?
     var lastElectronicInvoiceIdempotencyKey: String?
     var lastRetryReceptionIdempotencyKey: String?
+    var lastRetryAuthorizationIdempotencyKey: String?
+    var lastRegenerateRideIdempotencyKey: String?
+    var lastResendEmailIdempotencyKey: String?
     var lastPhysicalNumber: String?
     var error: Error?
 
@@ -240,6 +245,34 @@ final class MockBusinessDocumentsRepository: BusinessDocumentFileDownloadingRepo
         )
     }
 
+    func retryElectronicInvoiceAuthorization(
+        organizationId: String,
+        documentId: String,
+        branchId: String?,
+        activityId: String?,
+        idempotencyKey: IdempotencyKey,
+        request: RetryBusinessElectronicInvoiceAuthorizationRequest
+    ) async throws -> BusinessElectronicDocumentActionResponse {
+        if let error { throw error }
+        retryElectronicInvoiceAuthorizationCalls += 1
+        lastRetryAuthorizationIdempotencyKey = idempotencyKey.rawValue
+        return BusinessElectronicDocumentActionResponse(documentId: documentId, status: "queued", message: "Retry authorization requested.", requestedAt: Date())
+    }
+
+    func regenerateElectronicDocumentRide(
+        organizationId: String,
+        documentId: String,
+        branchId: String?,
+        activityId: String?,
+        idempotencyKey: IdempotencyKey,
+        request: RegenerateBusinessElectronicDocumentRideRequest
+    ) async throws -> BusinessElectronicDocumentActionResponse {
+        if let error { throw error }
+        regenerateRideCalls += 1
+        lastRegenerateRideIdempotencyKey = idempotencyKey.rawValue
+        return BusinessElectronicDocumentActionResponse(documentId: documentId, status: "queued", message: "RIDE regeneration requested.", requestedAt: Date())
+    }
+
     func listElectronicDocuments(
         organizationId: String,
         filters: BusinessElectronicDocumentFilters
@@ -307,7 +340,14 @@ final class MockBusinessDocumentsRepository: BusinessDocumentFileDownloadingRepo
             "email": {},
             "timeline": [],
             "errors": [],
-            "warnings": []
+            "warnings": [],
+            "availableActions": ["download_ride", "download_xml", "resend_email", "retry_reception", "retry_authorization", "regenerate_ride"],
+            "retrySummary": {
+              "canRetryReception": true,
+              "canRetryAuthorization": true,
+              "canResendEmail": true,
+              "canRegenerateRide": true
+            }
           }
         }
         """#.data(using: .utf8)!
@@ -372,10 +412,12 @@ final class MockBusinessDocumentsRepository: BusinessDocumentFileDownloadingRepo
     func resendElectronicDocumentEmail(
         organizationId: String,
         documentId: String,
+        idempotencyKey: IdempotencyKey,
         request: BusinessDocumentEmailResendRequest
     ) async throws -> BusinessDocumentEmailResendResponse {
         if let error { throw error }
         resendEmailCalls += 1
+        lastResendEmailIdempotencyKey = idempotencyKey.rawValue
         return BusinessDocumentEmailResendResponse(
             documentId: documentId,
             accepted: true,

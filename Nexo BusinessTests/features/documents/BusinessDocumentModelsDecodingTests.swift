@@ -282,4 +282,52 @@ final class BusinessDocumentModelsDecodingTests: XCTestCase {
         XCTAssertEqual(response.events[1].title, "Evento registrado.")
         XCTAssertEqual(response.events[1].message, "Evento visible")
     }
+
+
+    func testDecodesOperationalActionsAndRetrySummaryTolerantly() throws {
+        let json = #"""
+        {
+          "document": {
+            "id": "edoc_1",
+            "documentId": "edoc_1",
+            "organizationId": "org_1",
+            "saleId": "sale_1",
+            "documentType": "electronic_invoice",
+            "displayNumber": "001-001-000000123",
+            "accessKey": "1234567890123456789012345678901234567890123456789",
+            "status": "RETURNED",
+            "sriStatus": "DEVUELTA",
+            "environment": "test",
+            "availableActions": [
+              "download_ride",
+              "download_xml",
+              "retry_reception",
+              "retry_authorization",
+              "resend_email",
+              "regenerate_ride",
+              "future_action"
+            ],
+            "retrySummary": {
+              "canRetryReception": true,
+              "canRetryAuthorization": true,
+              "canResendEmail": true,
+              "canRegenerateRide": false,
+              "receptionRetryCount": 2
+            }
+          }
+        }
+        """#.data(using: .utf8)!
+
+        let response = try JSONDecoder.nexoDefault.decode(BusinessElectronicDocumentDetailEnvelopeResponse.self, from: json)
+
+        XCTAssertTrue(response.document.allows(.downloadRide))
+        XCTAssertTrue(response.document.allows(.retryReception))
+        XCTAssertTrue(response.document.allows(.retryAuthorization))
+        XCTAssertTrue(response.document.allows(.resendEmail))
+        XCTAssertTrue(response.document.allows(.regenerateRide))
+        XCTAssertTrue(response.document.retrySummary.canRetryReception)
+        XCTAssertEqual(response.document.retrySummary.receptionRetryCount, 2)
+        XCTAssertTrue(response.document.availableActions.contains(.unknown("future_action")))
+    }
+
 }

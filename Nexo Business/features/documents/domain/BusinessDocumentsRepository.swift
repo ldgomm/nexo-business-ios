@@ -46,6 +46,24 @@ protocol BusinessDocumentsRepository: Sendable {
         request: RetryBusinessElectronicInvoiceReceptionRequest
     ) async throws -> BusinessElectronicDocumentIssueResponse
 
+    func retryElectronicInvoiceAuthorization(
+        organizationId: String,
+        documentId: String,
+        branchId: String?,
+        activityId: String?,
+        idempotencyKey: IdempotencyKey,
+        request: RetryBusinessElectronicInvoiceAuthorizationRequest
+    ) async throws -> BusinessElectronicDocumentActionResponse
+
+    func regenerateElectronicDocumentRide(
+        organizationId: String,
+        documentId: String,
+        branchId: String?,
+        activityId: String?,
+        idempotencyKey: IdempotencyKey,
+        request: RegenerateBusinessElectronicDocumentRideRequest
+    ) async throws -> BusinessElectronicDocumentActionResponse
+
     func listElectronicDocuments(
         organizationId: String,
         filters: BusinessElectronicDocumentFilters
@@ -76,6 +94,7 @@ protocol BusinessDocumentsRepository: Sendable {
     func resendElectronicDocumentEmail(
         organizationId: String,
         documentId: String,
+        idempotencyKey: IdempotencyKey,
         request: BusinessDocumentEmailResendRequest
     ) async throws -> BusinessDocumentEmailResendResponse
 }

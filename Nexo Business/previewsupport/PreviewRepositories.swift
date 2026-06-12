@@ -300,6 +300,28 @@ final class PreviewBusinessDocumentsRepository: BusinessDocumentsRepository, @un
         )
     }
 
+    func retryElectronicInvoiceAuthorization(
+        organizationId: String,
+        documentId: String,
+        branchId: String?,
+        activityId: String?,
+        idempotencyKey: IdempotencyKey,
+        request: RetryBusinessElectronicInvoiceAuthorizationRequest
+    ) async throws -> BusinessElectronicDocumentActionResponse {
+        BusinessElectronicDocumentActionResponse(documentId: documentId, status: "queued", message: "Reintento de autorización solicitado.", requestedAt: Date())
+    }
+
+    func regenerateElectronicDocumentRide(
+        organizationId: String,
+        documentId: String,
+        branchId: String?,
+        activityId: String?,
+        idempotencyKey: IdempotencyKey,
+        request: RegenerateBusinessElectronicDocumentRideRequest
+    ) async throws -> BusinessElectronicDocumentActionResponse {
+        BusinessElectronicDocumentActionResponse(documentId: documentId, status: "queued", message: "Regeneración de RIDE solicitada.", requestedAt: Date())
+    }
+
     func listElectronicDocuments(
         organizationId: String,
         filters: BusinessElectronicDocumentFilters
@@ -439,7 +461,14 @@ final class PreviewBusinessDocumentsRepository: BusinessDocumentsRepository, @un
               { "id": "evt_1", "type": "AUTHORIZED", "title": "Autorizado", "message": "Comprobante autorizado", "actor": "system", "createdAt": "2026-06-11T14:00:30Z", "severity": "info" }
             ],
             "errors": [],
-            "warnings": []
+            "warnings": [],
+            "availableActions": ["download_ride", "download_xml", "resend_email", "retry_reception", "retry_authorization", "regenerate_ride"],
+            "retrySummary": {
+              "canRetryReception": true,
+              "canRetryAuthorization": true,
+              "canResendEmail": true,
+              "canRegenerateRide": true
+            }
           }
         }
         """.data(using: .utf8)!
@@ -499,6 +528,7 @@ final class PreviewBusinessDocumentsRepository: BusinessDocumentsRepository, @un
     func resendElectronicDocumentEmail(
         organizationId: String,
         documentId: String,
+        idempotencyKey: IdempotencyKey,
         request: BusinessDocumentEmailResendRequest
     ) async throws -> BusinessDocumentEmailResendResponse {
         BusinessDocumentEmailResendResponse(
