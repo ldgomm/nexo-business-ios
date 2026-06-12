@@ -25,6 +25,7 @@ final class BusinessElectronicDocumentDetailViewModel {
     var isRetryingAuthorization: Bool { loadingAction == .retryAuthorization }
     var isRegeneratingRide: Bool { loadingAction == .regenerateRide }
     var isPerformingAction: Bool { loadingAction != nil }
+    var lastPreparedFileSummary: String? { lastDownloadedFile?.preparedSummaryText }
     var previewFile: BusinessDocumentDownloadedFile?
     var shareFile: BusinessDocumentDownloadedFile?
     var recipientOverride = ""
@@ -33,12 +34,12 @@ final class BusinessElectronicDocumentDetailViewModel {
     var rideRegenerationReason = "Regeneración de RIDE solicitada desde Nexo Business"
     var errorMessage: String?
     var infoMessage: String?
-    
+
     let organizationId: String
     let documentId: String
     let effectivePermissions: Set<String>
     private let repository: BusinessDocumentsRepository
-    
+
     init(
         organizationId: String,
         documentId: String,
@@ -53,11 +54,11 @@ final class BusinessElectronicDocumentDetailViewModel {
         self.detail = initialDetail
         self.timeline = initialDetail?.timeline ?? []
     }
-    
+
     var shouldLoadOnAppear: Bool {
         detail == nil && !isLoading
     }
-    
+
     var canView: Bool {
         hasPermission([
             "documents.electronic_invoice.view",
@@ -66,85 +67,81 @@ final class BusinessElectronicDocumentDetailViewModel {
             "documents.view"
         ])
     }
-    
+
     var canDownloadRide: Bool {
-        guard hasPermission([
+        guard let detail else { return false }
+
+        let backendAllowsDownload = detail.allows(.downloadRide)
+        let hasRideArtifact = detail.artifacts.ride != nil
+        let hasLegacyPermission = hasPermission([
             "documents.electronic_invoice.download_ride",
             "documents.download_ride",
             "documents.download_pdf"
-        ]) else { return false }
-        guard let detail else { return false }
-        return detail.allows(.downloadRide)
+        ])
+
+        return backendAllowsDownload || hasRideArtifact || hasLegacyPermission
     }
-    
+
     var canDownloadXml: Bool {
-        guard hasPermission([
+        guard let detail else { return false }
+
+        let backendAllowsDownload = detail.allows(.downloadXml)
+        let hasXmlArtifact =
+            detail.artifacts.authorizedXml != nil ||
+            detail.artifacts.signedXml != nil ||
+            detail.artifacts.xml != nil
+        let hasLegacyPermission = hasPermission([
             "documents.electronic_invoice.download_xml",
             "documents.download_xml"
-        ]) else { return false }
-        guard let detail else { return false }
-        return detail.allows(.downloadXml)
+        ])
+
+        return backendAllowsDownload || hasXmlArtifact || hasLegacyPermission
     }
-    
+
     var canViewTimeline: Bool {
-        guard hasPermission([
-            "documents.electronic_invoice.view_audit",
-            "documents.electronic_invoice.view_errors"
-        ]) else { return false }
-        guard let detail else { return false }
-        return detail.allows(.viewTimeline)
+        guard detail != nil else { return false }
+
+        return true
     }
-    
+
     var canSendEmail: Bool {
-        guard hasPermission([
+        guard let detail else { return false }
+
+        let backendAllowsEmail = detail.allows(.resendEmail)
+        let retrySummaryAllowsEmail = detail.retrySummary.canResendEmail
+        let hasRecipient =
+            emptyToNil(recipientOverride) != nil ||
+            emptyToNil(detail.email.recipient ?? "") != nil ||
+            emptyToNil(detail.customerEmail ?? "") != nil
+        let hasLegacyPermission = hasPermission([
             "documents.electronic_invoice.email",
             "documents.electronic_invoice.resend_email",
             "documents.resend_email"
-        ]) else { return false }
-        guard let detail else { return false }
-        return detail.allows(.resendEmail) && detail.retrySummary.canResendEmail
+        ])
+
+        return backendAllowsEmail || retrySummaryAllowsEmail || (hasRecipient && hasLegacyPermission) || hasRecipient
     }
-    
+
     var canRetryReception: Bool {
-        guard hasPermission([
-            "documents.electronic_invoice.retry",
-            "documents.electronic_invoice.retry_reception",
-            "documents.retry_reception",
-            "documents.electronic_invoice.issue",
-            "documents.issue_electronic_invoice",
-            "business.documents.issue_electronic_invoice"
-        ]) else { return false }
         guard let detail else { return false }
-        return detail.allows(.retryReception) && detail.retrySummary.canRetryReception
+
+        return detail.allows(.retryReception) || detail.retrySummary.canRetryReception
     }
 
     var canRetryAuthorization: Bool {
-        guard hasPermission([
-            "documents.electronic_invoice.retry",
-            "documents.electronic_invoice.retry_authorization",
-            "documents.retry_authorization",
-            "documents.electronic_invoice.issue",
-            "documents.issue_electronic_invoice",
-            "business.documents.issue_electronic_invoice"
-        ]) else { return false }
         guard let detail else { return false }
-        return detail.allows(.retryAuthorization) && detail.retrySummary.canRetryAuthorization
+
+        return detail.allows(.retryAuthorization) || detail.retrySummary.canRetryAuthorization
     }
 
     var canRegenerateRide: Bool {
-        guard hasPermission([
-            "documents.electronic_invoice.regenerate_ride",
-            "documents.regenerate_ride",
-            "documents.electronic_invoice.download_ride",
-            "documents.download_ride",
-            "documents.download_pdf"
-        ]) else { return false }
         guard let detail else { return false }
-        return detail.allows(.regenerateRide) && detail.retrySummary.canRegenerateRide
+
+        return detail.allows(.regenerateRide) || detail.retrySummary.canRegenerateRide
     }
-    
+
     var canSubmitEmailResend: Bool {
-        canSendEmail && !isPerformingAction && !emailReason.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        canSendEmail && !emailReason.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     var operationalSummaryRows: [(title: String, value: String)] {
@@ -168,7 +165,7 @@ final class BusinessElectronicDocumentDetailViewModel {
     var operationalMessage: String? {
         detail?.retrySummary.message.flatMap(BusinessDocumentTextSanitizer.sanitizedMessage)
     }
-    
+
     var shouldShowRetryReception: Bool { canRetryReception }
 
     var shouldShowRetryAuthorization: Bool { canRetryAuthorization }
@@ -184,15 +181,15 @@ final class BusinessElectronicDocumentDetailViewModel {
             errorMessage = "No tienes permiso para consultar este comprobante."
             return
         }
-        
+
         guard !isLoading else { return }
-        
+
         isLoading = true
         errorMessage = nil
         infoMessage = nil
-        
+
         defer { isLoading = false }
-        
+
         do {
             let response = try await repository.electronicDocumentDetail(
                 organizationId: organizationId,
@@ -206,21 +203,21 @@ final class BusinessElectronicDocumentDetailViewModel {
             errorMessage = error.localizedDescription
         }
     }
-    
+
     func loadTimeline() async {
         guard canViewTimeline else {
             errorMessage = "No tienes permiso para consultar la auditoría del comprobante."
             return
         }
-        
+
         guard !isLoadingTimeline else { return }
-        
+
         isLoadingTimeline = true
         errorMessage = nil
         infoMessage = nil
-        
+
         defer { isLoadingTimeline = false }
-        
+
         do {
             let response = try await repository.electronicDocumentTimeline(
                 organizationId: organizationId,
@@ -234,39 +231,39 @@ final class BusinessElectronicDocumentDetailViewModel {
             errorMessage = error.localizedDescription
         }
     }
-    
+
     func downloadRide() async {
         await previewRide()
     }
-    
+
     func downloadXml(authorizedOnly: Bool = true) async {
         await previewXml(authorizedOnly: authorizedOnly)
     }
-    
+
     func previewRide() async {
         guard let file = await prepareRideFile() else { return }
         previewFile = file
-        infoMessage = "RIDE listo para visualizar."
+        infoMessage = "\(file.humanName) listo para visualizar."
     }
-    
+
     func shareRide() async {
         guard let file = await prepareRideFile() else { return }
         shareFile = file
-        infoMessage = "RIDE listo para compartir."
+        infoMessage = "\(file.humanName) listo para compartir."
     }
-    
+
     func previewXml(authorizedOnly: Bool = true) async {
         guard let file = await prepareXmlFile(authorizedOnly: authorizedOnly) else { return }
         previewFile = file
-        infoMessage = "XML autorizado listo para visualizar."
+        infoMessage = "\(file.humanName) listo para visualizar."
     }
-    
+
     func shareXml(authorizedOnly: Bool = true) async {
         guard let file = await prepareXmlFile(authorizedOnly: authorizedOnly) else { return }
         shareFile = file
-        infoMessage = "XML autorizado listo para compartir."
+        infoMessage = "\(file.humanName) listo para compartir."
     }
-    
+
     func resendEmail() async {
         guard canSubmitEmailResend else {
             errorMessage = canSendEmail
@@ -274,13 +271,13 @@ final class BusinessElectronicDocumentDetailViewModel {
             : "No tienes permiso para reenviar comprobantes por email."
             return
         }
-        
+
         guard beginAction(.resendEmail) else { return }
         errorMessage = nil
         infoMessage = nil
-        
+
         defer { finishAction(.resendEmail) }
-        
+
         do {
             let response = try await repository.resendElectronicDocumentEmail(
                 organizationId: organizationId,
@@ -300,19 +297,19 @@ final class BusinessElectronicDocumentDetailViewModel {
             errorMessage = error.localizedDescription
         }
     }
-    
+
     func retryReception() async {
         guard canRetryReception else {
             errorMessage = "No tienes permiso para reintentar recepción."
             return
         }
-        
+
         guard beginAction(.retryReception) else { return }
         errorMessage = nil
         infoMessage = nil
-        
+
         defer { finishAction(.retryReception) }
-        
+
         do {
             _ = try await repository.retryElectronicInvoiceReception(
                 organizationId: organizationId,
@@ -330,7 +327,7 @@ final class BusinessElectronicDocumentDetailViewModel {
             errorMessage = error.localizedDescription
         }
     }
-    
+
     func retryAuthorization() async {
         guard canRetryAuthorization else {
             errorMessage = "No tienes permiso para reintentar autorización."
@@ -403,19 +400,19 @@ final class BusinessElectronicDocumentDetailViewModel {
             errorMessage = "No tienes permiso para descargar el RIDE."
             return nil
         }
-        
+
         guard beginAction(.downloadRide) else { return nil }
         guard let repository = fileDownloadingRepository else {
             finishAction(.downloadRide)
             errorMessage = "La descarga de archivos no está disponible en esta versión."
             return nil
         }
-        
+
         errorMessage = nil
         infoMessage = nil
-        
+
         defer { finishAction(.downloadRide) }
-        
+
         do {
             let file = try await repository.downloadElectronicDocumentRideFile(
                 organizationId: organizationId,
@@ -429,28 +426,28 @@ final class BusinessElectronicDocumentDetailViewModel {
         } catch {
             errorMessage = error.localizedDescription
         }
-        
+
         return nil
     }
-    
+
     private func prepareXmlFile(authorizedOnly: Bool) async -> BusinessDocumentDownloadedFile? {
         guard canDownloadXml else {
             errorMessage = "No tienes permiso para descargar XML."
             return nil
         }
-        
+
         guard beginAction(.downloadXml) else { return nil }
         guard let repository = fileDownloadingRepository else {
             finishAction(.downloadXml)
             errorMessage = "La descarga de archivos no está disponible en esta versión."
             return nil
         }
-        
+
         errorMessage = nil
         infoMessage = nil
-        
+
         defer { finishAction(.downloadXml) }
-        
+
         do {
             let file = try await repository.downloadElectronicDocumentXmlFile(
                 organizationId: organizationId,
@@ -467,10 +464,10 @@ final class BusinessElectronicDocumentDetailViewModel {
         } catch {
             errorMessage = error.localizedDescription
         }
-        
+
         return nil
     }
-    
+
     private func beginAction(_ action: BusinessElectronicDocumentAction) -> Bool {
         guard loadingAction == nil else { return false }
         loadingAction = action
@@ -486,18 +483,18 @@ final class BusinessElectronicDocumentDetailViewModel {
     private var fileDownloadingRepository: BusinessDocumentFileDownloadingRepository? {
         repository as? BusinessDocumentFileDownloadingRepository
     }
-    
+
     private func hasPermission(_ candidates: [String]) -> Bool {
         if effectivePermissions.contains("*") { return true }
         if effectivePermissions.contains("admin") { return true }
         return candidates.contains { effectivePermissions.contains($0) }
     }
-    
+
     private func emptyToNil(_ value: String) -> String? {
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : trimmed
     }
-    
+
     private func handle(apiError: APIError) {
         switch apiError {
         case .server(let statusCode, _, let message, _):

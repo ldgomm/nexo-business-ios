@@ -45,6 +45,18 @@ struct BusinessDocumentDownloadedFile: Identifiable, Equatable, Sendable {
             return kind.displayName
         }
     }
+
+    var safeFileName: String {
+        BusinessDocumentTextSanitizer.sanitizedFileName(fileName, fallback: humanName)
+    }
+
+    var sizeText: String {
+        ByteCountFormatter.string(fromByteCount: Int64(sizeBytes), countStyle: .file)
+    }
+
+    var preparedSummaryText: String {
+        "\(humanName) · \(safeFileName) · \(sizeText)"
+    }
 }
 
 protocol BusinessDocumentFileDownloadingRepository: BusinessDocumentsRepository {

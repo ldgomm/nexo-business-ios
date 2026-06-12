@@ -114,11 +114,11 @@ final class BusinessDocumentsViewModelTests: XCTestCase {
         XCTAssertEqual(repository.timelineCalls, 2)
         XCTAssertEqual(repository.resendEmailCalls, 1)
         XCTAssertEqual(viewModel.lastDownloadedFile?.humanName, "XML autorizado")
+        XCTAssertEqual(viewModel.lastDownloadedFile?.safeFileName, "001-001-000000123_authorized.xml")
+        XCTAssertEqual(viewModel.lastPreparedFileSummary, "XML autorizado · 001-001-000000123_authorized.xml · 15 bytes")
         XCTAssertNotNil(viewModel.previewFile)
         XCTAssertNotNil(viewModel.shareFile)
     }
-
-
 
     func testElectronicDocumentOperationalActionsUseRetrySummaryAndIdempotency() async {
         let repository = MockBusinessDocumentsRepository()

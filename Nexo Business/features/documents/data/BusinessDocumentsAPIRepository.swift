@@ -394,17 +394,36 @@ final class BusinessDocumentsAPIRepository: BusinessDocumentsRepository, Busines
             let lowercased = part.lowercased()
             if lowercased.hasPrefix("filename*=utf-8''") {
                 let encoded = String(part.dropFirst("filename*=utf-8''".count))
-                return encoded.removingPercentEncoding ?? encoded
+                return safeSuggestedFileName(encoded.removingPercentEncoding ?? encoded)
             }
 
             if lowercased.hasPrefix("filename=") {
-                return String(part.dropFirst("filename=".count))
+                let raw = String(part.dropFirst("filename=".count))
                     .trimmingCharacters(in: CharacterSet(charactersIn: "\""))
-                    .trimmedNilIfBlank
+                return safeSuggestedFileName(raw)
             }
         }
 
         return nil
+    }
+
+    private static func safeSuggestedFileName(_ value: String?) -> String? {
+        guard let value = value?.trimmedNilIfBlank else { return nil }
+
+        let lastPathComponent = value
+            .replacingOccurrences(of: "\\", with: "/")
+            .split(separator: "/")
+            .last
+            .map(String.init) ?? value
+
+        let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "._-() "))
+        let sanitized = lastPathComponent.unicodeScalars
+            .map { allowed.contains($0) ? String($0) : "_" }
+            .joined()
+            .replacingOccurrences(of: "..", with: "_")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        return sanitized.isEmpty ? nil : sanitized
     }
 
     private func electronicDocumentHeaders(

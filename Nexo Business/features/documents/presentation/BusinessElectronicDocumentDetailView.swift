@@ -37,7 +37,8 @@ struct BusinessElectronicDocumentDetailView: View {
 
             messagesSection
         }
-        .nexoKeyboardDismissable()
+        .scrollDismissesKeyboard(.interactively)
+        .buttonStyle(.borderless)
         .navigationTitle("Comprobante")
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
@@ -142,7 +143,7 @@ struct BusinessElectronicDocumentDetailView: View {
                         Label("Ver RIDE", systemImage: "doc.richtext")
                     }
                 }
-                .disabled(!viewModel.canDownloadRide || viewModel.isPerformingAction)
+                .disabled(!viewModel.canDownloadRide || viewModel.isDownloadingRide)
 
                 Spacer()
 
@@ -151,7 +152,7 @@ struct BusinessElectronicDocumentDetailView: View {
                 } label: {
                     Label("Compartir", systemImage: "square.and.arrow.up")
                 }
-                .disabled(!viewModel.canDownloadRide || viewModel.isPerformingAction)
+                .disabled(!viewModel.canDownloadRide || viewModel.isDownloadingRide)
             }
 
             HStack {
@@ -164,7 +165,7 @@ struct BusinessElectronicDocumentDetailView: View {
                         Label("Ver XML autorizado", systemImage: "chevron.left.forwardslash.chevron.right")
                     }
                 }
-                .disabled(!viewModel.canDownloadXml || viewModel.isPerformingAction)
+                .disabled(!viewModel.canDownloadXml || viewModel.isDownloadingXml)
 
                 Spacer()
 
@@ -173,15 +174,15 @@ struct BusinessElectronicDocumentDetailView: View {
                 } label: {
                     Label("Compartir", systemImage: "square.and.arrow.up")
                 }
-                .disabled(!viewModel.canDownloadXml || viewModel.isPerformingAction)
+                .disabled(!viewModel.canDownloadXml || viewModel.isDownloadingXml)
             }
 
-            if let file = viewModel.lastDownloadedFile {
+            if let summary = viewModel.lastPreparedFileSummary {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Último archivo preparado")
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                    Text("\(file.humanName) · \(file.sizeBytes) bytes")
+                    Text(summary)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -222,7 +223,7 @@ struct BusinessElectronicDocumentDetailView: View {
                     Label("Reenviar email", systemImage: "envelope.arrow.triangle.branch")
                 }
             }
-            .disabled(!viewModel.canSubmitEmailResend || viewModel.isPerformingAction)
+            .disabled(!viewModel.canSubmitEmailResend || viewModel.isSendingEmail)
         }
     }
 
@@ -252,7 +253,6 @@ struct BusinessElectronicDocumentDetailView: View {
             }
         }
     }
-
 
     @ViewBuilder
     private func operationalSummarySection(_ detail: BusinessElectronicDocumentDetail) -> some View {
@@ -300,7 +300,7 @@ struct BusinessElectronicDocumentDetailView: View {
                     Label("Actualizar timeline", systemImage: "clock.arrow.circlepath")
                 }
             }
-            .disabled(!viewModel.canViewTimeline || viewModel.isLoadingTimeline || viewModel.isPerformingAction)
+            .disabled(!viewModel.canViewTimeline || viewModel.isLoadingTimeline)
         }
     }
 
@@ -364,7 +364,6 @@ struct BusinessElectronicDocumentDetailView: View {
         }
     }
 }
-
 
 private struct FlowTextList: View {
     let values: [String]

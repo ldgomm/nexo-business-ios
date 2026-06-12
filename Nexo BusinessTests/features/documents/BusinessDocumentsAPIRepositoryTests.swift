@@ -147,7 +147,7 @@ final class BusinessDocumentsAPIRepositoryTests: XCTestCase {
             statusCode: 200,
             headers: [
                 "Content-Type": "application/pdf",
-                "Content-Disposition": "attachment; filename=\"001-001-000000123_RIDE.pdf\"",
+                "Content-Disposition": "attachment; filename=\"../private/tmp/001-001-000000123_RIDE.pdf\"",
                 "X-Nexo-Artifact-Kind": "ride",
                 "X-Nexo-Artifact-Sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
             ]
@@ -162,7 +162,7 @@ final class BusinessDocumentsAPIRepositoryTests: XCTestCase {
             statusCode: 200,
             headers: [
                 "Content-Type": "application/xml; charset=UTF-8",
-                "Content-Disposition": "attachment; filename=\"001-001-000000123_authorized.xml\"",
+                "Content-Disposition": "attachment; filename=\"..\\internal\\001-001-000000123_authorized.xml\"",
                 "X-Nexo-Artifact-Kind": "authorizedXml",
                 "X-Nexo-Artifact-Sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
             ]
@@ -181,11 +181,13 @@ final class BusinessDocumentsAPIRepositoryTests: XCTestCase {
         XCTAssertEqual(apiClient.capturedDataRequests[1].queryItems, [URLQueryItem(name: "authorizedOnly", value: "true")])
         XCTAssertEqual(ride.contentType, "application/pdf")
         XCTAssertEqual(ride.fileName, "001-001-000000123_RIDE.pdf")
+        XCTAssertEqual(ride.safeFileName, "001-001-000000123_RIDE.pdf")
         XCTAssertEqual(ride.sha256, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
         XCTAssertTrue(FileManager.default.fileExists(atPath: ride.localURL.path))
         XCTAssertEqual(try Data(contentsOf: ride.localURL), Data("%PDF-1.4 ride".utf8))
         XCTAssertEqual(xml.contentType, "application/xml; charset=UTF-8")
         XCTAssertEqual(xml.fileName, "001-001-000000123_authorized.xml")
+        XCTAssertEqual(xml.preparedSummaryText, "XML autorizado · 001-001-000000123_authorized.xml · 29 bytes")
         XCTAssertTrue(FileManager.default.fileExists(atPath: xml.localURL.path))
         XCTAssertEqual(try Data(contentsOf: xml.localURL), Data("<autorizacion></autorizacion>".utf8))
         XCTAssertFalse(ride.localURL.absoluteString.contains("objectKey"))
