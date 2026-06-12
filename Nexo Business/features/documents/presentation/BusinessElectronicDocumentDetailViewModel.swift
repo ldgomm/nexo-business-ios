@@ -17,12 +17,14 @@ final class BusinessElectronicDocumentDetailViewModel {
     private(set) var lastDownloadedFile: BusinessDocumentDownloadedFile?
     private(set) var isLoading = false
     private(set) var isLoadingTimeline = false
-    private(set) var isDownloadingRide = false
-    private(set) var isDownloadingXml = false
-    private(set) var isSendingEmail = false
-    private(set) var isRetryingReception = false
-    private(set) var isRetryingAuthorization = false
-    private(set) var isRegeneratingRide = false
+    private(set) var loadingAction: BusinessElectronicDocumentAction?
+    var isDownloadingRide: Bool { loadingAction == .downloadRide }
+    var isDownloadingXml: Bool { loadingAction == .downloadXml }
+    var isSendingEmail: Bool { loadingAction == .resendEmail }
+    var isRetryingReception: Bool { loadingAction == .retryReception }
+    var isRetryingAuthorization: Bool { loadingAction == .retryAuthorization }
+    var isRegeneratingRide: Bool { loadingAction == .regenerateRide }
+    var isPerformingAction: Bool { loadingAction != nil }
     var previewFile: BusinessDocumentDownloadedFile?
     var shareFile: BusinessDocumentDownloadedFile?
     var recipientOverride = ""
@@ -71,7 +73,8 @@ final class BusinessElectronicDocumentDetailViewModel {
             "documents.download_ride",
             "documents.download_pdf"
         ]) else { return false }
-        return detail?.allows(.downloadRide) ?? true
+        guard let detail else { return false }
+        return detail.allows(.downloadRide)
     }
     
     var canDownloadXml: Bool {
@@ -79,14 +82,17 @@ final class BusinessElectronicDocumentDetailViewModel {
             "documents.electronic_invoice.download_xml",
             "documents.download_xml"
         ]) else { return false }
-        return detail?.allows(.downloadXml) ?? true
+        guard let detail else { return false }
+        return detail.allows(.downloadXml)
     }
     
     var canViewTimeline: Bool {
-        hasPermission([
+        guard hasPermission([
             "documents.electronic_invoice.view_audit",
             "documents.electronic_invoice.view_errors"
-        ])
+        ]) else { return false }
+        guard let detail else { return false }
+        return detail.allows(.viewTimeline)
     }
     
     var canSendEmail: Bool {
@@ -95,7 +101,8 @@ final class BusinessElectronicDocumentDetailViewModel {
             "documents.electronic_invoice.resend_email",
             "documents.resend_email"
         ]) else { return false }
-        return detail?.allows(.resendEmail) ?? true
+        guard let detail else { return false }
+        return detail.allows(.resendEmail) && detail.retrySummary.canResendEmail
     }
     
     var canRetryReception: Bool {
@@ -137,7 +144,29 @@ final class BusinessElectronicDocumentDetailViewModel {
     }
     
     var canSubmitEmailResend: Bool {
-        canSendEmail && !isSendingEmail && !emailReason.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        canSendEmail && !isPerformingAction && !emailReason.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    var operationalSummaryRows: [(title: String, value: String)] {
+        guard let detail else { return [] }
+        var rows: [(String, String)] = []
+        if detail.retrySummary.receptionRetryCount > 0 {
+            rows.append(("Reintentos recepción", "\(detail.retrySummary.receptionRetryCount)"))
+        }
+        if detail.retrySummary.authorizationRetryCount > 0 {
+            rows.append(("Reintentos autorización", "\(detail.retrySummary.authorizationRetryCount)"))
+        }
+        if detail.retrySummary.emailAttempts > 0 {
+            rows.append(("Intentos email", "\(detail.retrySummary.emailAttempts)"))
+        }
+        if detail.retrySummary.rideRegenerationCount > 0 {
+            rows.append(("Regeneraciones RIDE", "\(detail.retrySummary.rideRegenerationCount)"))
+        }
+        return rows
+    }
+
+    var operationalMessage: String? {
+        detail?.retrySummary.message.flatMap(BusinessDocumentTextSanitizer.sanitizedMessage)
     }
     
     var shouldShowRetryReception: Bool { canRetryReception }
@@ -246,13 +275,11 @@ final class BusinessElectronicDocumentDetailViewModel {
             return
         }
         
-        guard !isSendingEmail else { return }
-        
-        isSendingEmail = true
+        guard beginAction(.resendEmail) else { return }
         errorMessage = nil
         infoMessage = nil
         
-        defer { isSendingEmail = false }
+        defer { finishAction(.resendEmail) }
         
         do {
             let response = try await repository.resendElectronicDocumentEmail(
@@ -280,13 +307,11 @@ final class BusinessElectronicDocumentDetailViewModel {
             return
         }
         
-        guard !isRetryingReception else { return }
-        
-        isRetryingReception = true
+        guard beginAction(.retryReception) else { return }
         errorMessage = nil
         infoMessage = nil
         
-        defer { isRetryingReception = false }
+        defer { finishAction(.retryReception) }
         
         do {
             _ = try await repository.retryElectronicInvoiceReception(
@@ -312,13 +337,11 @@ final class BusinessElectronicDocumentDetailViewModel {
             return
         }
 
-        guard !isRetryingAuthorization else { return }
-
-        isRetryingAuthorization = true
+        guard beginAction(.retryAuthorization) else { return }
         errorMessage = nil
         infoMessage = nil
 
-        defer { isRetryingAuthorization = false }
+        defer { finishAction(.retryAuthorization) }
 
         do {
             let response = try await repository.retryElectronicInvoiceAuthorization(
@@ -344,13 +367,11 @@ final class BusinessElectronicDocumentDetailViewModel {
             return
         }
 
-        guard !isRegeneratingRide else { return }
-
-        isRegeneratingRide = true
+        guard beginAction(.regenerateRide) else { return }
         errorMessage = nil
         infoMessage = nil
 
-        defer { isRegeneratingRide = false }
+        defer { finishAction(.regenerateRide) }
 
         do {
             let response = try await repository.regenerateElectronicDocumentRide(
@@ -383,17 +404,17 @@ final class BusinessElectronicDocumentDetailViewModel {
             return nil
         }
         
-        guard !isDownloadingRide else { return nil }
+        guard beginAction(.downloadRide) else { return nil }
         guard let repository = fileDownloadingRepository else {
+            finishAction(.downloadRide)
             errorMessage = "La descarga de archivos no está disponible en esta versión."
             return nil
         }
         
-        isDownloadingRide = true
         errorMessage = nil
         infoMessage = nil
         
-        defer { isDownloadingRide = false }
+        defer { finishAction(.downloadRide) }
         
         do {
             let file = try await repository.downloadElectronicDocumentRideFile(
@@ -418,17 +439,17 @@ final class BusinessElectronicDocumentDetailViewModel {
             return nil
         }
         
-        guard !isDownloadingXml else { return nil }
+        guard beginAction(.downloadXml) else { return nil }
         guard let repository = fileDownloadingRepository else {
+            finishAction(.downloadXml)
             errorMessage = "La descarga de archivos no está disponible en esta versión."
             return nil
         }
         
-        isDownloadingXml = true
         errorMessage = nil
         infoMessage = nil
         
-        defer { isDownloadingXml = false }
+        defer { finishAction(.downloadXml) }
         
         do {
             let file = try await repository.downloadElectronicDocumentXmlFile(
@@ -450,6 +471,18 @@ final class BusinessElectronicDocumentDetailViewModel {
         return nil
     }
     
+    private func beginAction(_ action: BusinessElectronicDocumentAction) -> Bool {
+        guard loadingAction == nil else { return false }
+        loadingAction = action
+        return true
+    }
+
+    private func finishAction(_ action: BusinessElectronicDocumentAction) {
+        if loadingAction == action {
+            loadingAction = nil
+        }
+    }
+
     private var fileDownloadingRepository: BusinessDocumentFileDownloadingRepository? {
         repository as? BusinessDocumentFileDownloadingRepository
     }

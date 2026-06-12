@@ -462,7 +462,7 @@ final class PreviewBusinessDocumentsRepository: BusinessDocumentsRepository, @un
             ],
             "errors": [],
             "warnings": [],
-            "availableActions": ["download_ride", "download_xml", "resend_email", "retry_reception", "retry_authorization", "regenerate_ride"],
+            "availableActions": ["view_detail", "view_timeline", "download_ride", "download_xml", "resend_email", "retry_reception", "retry_authorization", "regenerate_ride"],
             "retrySummary": {
               "canRetryReception": true,
               "canRetryAuthorization": true,

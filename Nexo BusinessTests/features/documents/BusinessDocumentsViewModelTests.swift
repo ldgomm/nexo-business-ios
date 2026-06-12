@@ -118,6 +118,64 @@ final class BusinessDocumentsViewModelTests: XCTestCase {
         XCTAssertNotNil(viewModel.shareFile)
     }
 
+
+
+    func testElectronicDocumentOperationalActionsUseRetrySummaryAndIdempotency() async {
+        let repository = MockBusinessDocumentsRepository()
+        let viewModel = BusinessElectronicDocumentDetailViewModel(
+            organizationId: "org_1",
+            documentId: "edoc_1",
+            effectivePermissions: [
+                "documents.electronic_invoice.view",
+                "documents.electronic_invoice.retry_reception",
+                "documents.electronic_invoice.retry_authorization",
+                "documents.electronic_invoice.regenerate_ride",
+                "documents.electronic_invoice.download_ride",
+                "documents.electronic_invoice.email",
+                "documents.electronic_invoice.view_audit"
+            ],
+            documentsRepository: repository
+        )
+
+        await viewModel.load()
+        XCTAssertTrue(viewModel.shouldShowRetryReception)
+        XCTAssertTrue(viewModel.shouldShowRetryAuthorization)
+        XCTAssertTrue(viewModel.shouldShowRegenerateRide)
+
+        await viewModel.retryReception()
+        await viewModel.retryAuthorization()
+        await viewModel.regenerateRide()
+
+        XCTAssertEqual(repository.retryElectronicInvoiceReceptionCalls, 1)
+        XCTAssertEqual(repository.retryElectronicInvoiceAuthorizationCalls, 1)
+        XCTAssertEqual(repository.regenerateRideCalls, 1)
+        XCTAssertEqual(repository.lastRetryReceptionIdempotencyKey?.hasPrefix("document-retry-reception-"), true)
+        XCTAssertEqual(repository.lastRetryAuthorizationIdempotencyKey?.hasPrefix("document-retry-authorization-"), true)
+        XCTAssertEqual(repository.lastRegenerateRideIdempotencyKey?.hasPrefix("document-regenerate-ride-"), true)
+        XCTAssertFalse(viewModel.isPerformingAction)
+    }
+
+    func testElectronicDocumentResendEmailRequiresRetrySummaryFlag() async {
+        let repository = MockBusinessDocumentsRepository()
+        repository.canResendEmail = false
+        let viewModel = BusinessElectronicDocumentDetailViewModel(
+            organizationId: "org_1",
+            documentId: "edoc_1",
+            effectivePermissions: [
+                "documents.electronic_invoice.view",
+                "documents.electronic_invoice.email"
+            ],
+            documentsRepository: repository
+        )
+
+        await viewModel.load()
+        await viewModel.resendEmail()
+
+        XCTAssertEqual(repository.resendEmailCalls, 0)
+        XCTAssertEqual(viewModel.errorMessage, "No tienes permiso para reenviar comprobantes por email.")
+    }
+
+
     private func makeViewModel(
         permissions: Set<String> = [
             "documents.view",
@@ -160,6 +218,7 @@ final class MockBusinessDocumentsRepository: BusinessDocumentFileDownloadingRepo
     var lastResendEmailIdempotencyKey: String?
     var lastPhysicalNumber: String?
     var error: Error?
+    var canResendEmail = true
 
     func list(organizationId: String, saleId: String) async throws -> BusinessDocumentsResponse {
         if let error { throw error }
@@ -341,11 +400,11 @@ final class MockBusinessDocumentsRepository: BusinessDocumentFileDownloadingRepo
             "timeline": [],
             "errors": [],
             "warnings": [],
-            "availableActions": ["download_ride", "download_xml", "resend_email", "retry_reception", "retry_authorization", "regenerate_ride"],
+            "availableActions": ["view_detail", "view_timeline", "download_ride", "download_xml", "resend_email", "retry_reception", "retry_authorization", "regenerate_ride"],
             "retrySummary": {
               "canRetryReception": true,
               "canRetryAuthorization": true,
-              "canResendEmail": true,
+              "canResendEmail": \#(canResendEmail),
               "canRegenerateRide": true
             }
           }

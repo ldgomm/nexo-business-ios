@@ -28,6 +28,7 @@ struct BusinessElectronicDocumentDetailView: View {
                 artifactsSection(detail)
                 emailSection(detail)
                 errorsSection(detail)
+                operationalSummarySection(detail)
                 timelineSection
                 if viewModel.hasOperationalActions {
                     actionsSection
@@ -141,7 +142,7 @@ struct BusinessElectronicDocumentDetailView: View {
                         Label("Ver RIDE", systemImage: "doc.richtext")
                     }
                 }
-                .disabled(!viewModel.canDownloadRide || viewModel.isDownloadingRide)
+                .disabled(!viewModel.canDownloadRide || viewModel.isPerformingAction)
 
                 Spacer()
 
@@ -150,7 +151,7 @@ struct BusinessElectronicDocumentDetailView: View {
                 } label: {
                     Label("Compartir", systemImage: "square.and.arrow.up")
                 }
-                .disabled(!viewModel.canDownloadRide || viewModel.isDownloadingRide)
+                .disabled(!viewModel.canDownloadRide || viewModel.isPerformingAction)
             }
 
             HStack {
@@ -163,7 +164,7 @@ struct BusinessElectronicDocumentDetailView: View {
                         Label("Ver XML autorizado", systemImage: "chevron.left.forwardslash.chevron.right")
                     }
                 }
-                .disabled(!viewModel.canDownloadXml || viewModel.isDownloadingXml)
+                .disabled(!viewModel.canDownloadXml || viewModel.isPerformingAction)
 
                 Spacer()
 
@@ -172,7 +173,7 @@ struct BusinessElectronicDocumentDetailView: View {
                 } label: {
                     Label("Compartir", systemImage: "square.and.arrow.up")
                 }
-                .disabled(!viewModel.canDownloadXml || viewModel.isDownloadingXml)
+                .disabled(!viewModel.canDownloadXml || viewModel.isPerformingAction)
             }
 
             if let file = viewModel.lastDownloadedFile {
@@ -221,7 +222,7 @@ struct BusinessElectronicDocumentDetailView: View {
                     Label("Reenviar email", systemImage: "envelope.arrow.triangle.branch")
                 }
             }
-            .disabled(!viewModel.canSubmitEmailResend)
+            .disabled(!viewModel.canSubmitEmailResend || viewModel.isPerformingAction)
         }
     }
 
@@ -252,6 +253,33 @@ struct BusinessElectronicDocumentDetailView: View {
         }
     }
 
+
+    @ViewBuilder
+    private func operationalSummarySection(_ detail: BusinessElectronicDocumentDetail) -> some View {
+        if !detail.availableActions.isEmpty || viewModel.operationalMessage != nil || !viewModel.operationalSummaryRows.isEmpty {
+            Section("Operación") {
+                if !detail.availableActions.isEmpty {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Acciones habilitadas por backend")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        FlowTextList(values: detail.availableActions.map(\.displayName))
+                    }
+                }
+
+                ForEach(viewModel.operationalSummaryRows, id: \.title) { row in
+                    LabeledContent(row.title, value: row.value)
+                }
+
+                if let message = viewModel.operationalMessage {
+                    Label(message, systemImage: "info.circle")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+    }
+
     private var timelineSection: some View {
         Section("Timeline") {
             if viewModel.timeline.isEmpty {
@@ -272,7 +300,7 @@ struct BusinessElectronicDocumentDetailView: View {
                     Label("Actualizar timeline", systemImage: "clock.arrow.circlepath")
                 }
             }
-            .disabled(!viewModel.canViewTimeline || viewModel.isLoadingTimeline)
+            .disabled(!viewModel.canViewTimeline || viewModel.isLoadingTimeline || viewModel.isPerformingAction)
         }
     }
 
@@ -288,7 +316,7 @@ struct BusinessElectronicDocumentDetailView: View {
                         Label("Reintentar recepción SRI", systemImage: "arrow.up.doc")
                     }
                 }
-                .disabled(viewModel.isRetryingReception)
+                .disabled(viewModel.isPerformingAction)
             }
 
             if viewModel.shouldShowRetryAuthorization {
@@ -301,7 +329,7 @@ struct BusinessElectronicDocumentDetailView: View {
                         Label("Reintentar autorización SRI", systemImage: "arrow.triangle.2.circlepath")
                     }
                 }
-                .disabled(viewModel.isRetryingAuthorization)
+                .disabled(viewModel.isPerformingAction)
             }
 
             if viewModel.shouldShowRegenerateRide {
@@ -314,7 +342,7 @@ struct BusinessElectronicDocumentDetailView: View {
                         Label("Regenerar RIDE", systemImage: "doc.badge.gearshape")
                     }
                 }
-                .disabled(viewModel.isRegeneratingRide)
+                .disabled(viewModel.isPerformingAction)
             }
         }
     }
@@ -334,6 +362,18 @@ struct BusinessElectronicDocumentDetailView: View {
                     .foregroundStyle(.green)
             }
         }
+    }
+}
+
+
+private struct FlowTextList: View {
+    let values: [String]
+
+    var body: some View {
+        Text(values.joined(separator: " · "))
+            .font(.footnote)
+            .foregroundStyle(.secondary)
+            .lineLimit(3)
     }
 }
 

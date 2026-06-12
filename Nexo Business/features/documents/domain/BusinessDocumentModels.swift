@@ -1049,15 +1049,11 @@ struct BusinessElectronicDocumentActionResponse: Decodable, Equatable, Sendable 
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
-
         documentId = try c.decodeFirstStringIfPresent(for: [.documentId, .id]) ?? ""
         accepted = try c.decodeIfPresent(Bool.self, forKey: .accepted) ?? true
         status = try c.decodeFirstStringIfPresent(for: [.status])
-        message = BusinessDocumentTextSanitizer.sanitizedMessage(
-            try c.decodeFirstStringIfPresent(for: [.message])
-        ) ?? "Acción solicitada correctamente."
+        message = BusinessDocumentTextSanitizer.sanitizedMessage(try c.decodeFirstStringIfPresent(for: [.message])) ?? "Acción solicitada correctamente."
         requestedAt = try c.decodeFirstDateIfPresent(for: [.requestedAt])
-
         let replayedValue = try c.decodeIfPresent(Bool.self, forKey: .replayed)
         let idempotencyReplayedValue = try c.decodeIfPresent(Bool.self, forKey: .idempotencyReplayed)
         replayed = replayedValue ?? idempotencyReplayedValue ?? false
