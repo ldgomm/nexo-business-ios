@@ -103,15 +103,19 @@ final class BusinessDocumentsViewModelTests: XCTestCase {
         await viewModel.load()
         await viewModel.downloadRide()
         await viewModel.downloadXml()
+        await viewModel.shareRide()
+        await viewModel.shareXml()
         await viewModel.loadTimeline()
         await viewModel.resendEmail()
 
         XCTAssertEqual(repository.detailCalls, 2)
-        XCTAssertEqual(repository.rideCalls, 1)
-        XCTAssertEqual(repository.xmlCalls, 1)
+        XCTAssertEqual(repository.rideFileDownloadCalls, 2)
+        XCTAssertEqual(repository.xmlFileDownloadCalls, 2)
         XCTAssertEqual(repository.timelineCalls, 1)
         XCTAssertEqual(repository.resendEmailCalls, 1)
-        XCTAssertEqual(viewModel.lastArtifact?.fileName, "001-001-000000123-authorized.xml")
+        XCTAssertEqual(viewModel.lastDownloadedFile?.humanName, "XML autorizado")
+        XCTAssertNotNil(viewModel.previewFile)
+        XCTAssertNotNil(viewModel.shareFile)
     }
 
     private func makeViewModel(
@@ -131,7 +135,7 @@ final class BusinessDocumentsViewModelTests: XCTestCase {
     }
 }
 
-final class MockBusinessDocumentsRepository: BusinessDocumentsRepository, @unchecked Sendable {
+final class MockBusinessDocumentsRepository: BusinessDocumentFileDownloadingRepository, @unchecked Sendable {
     var listCalls = 0
     var generateCalls = 0
     var registerPhysicalCalls = 0
@@ -143,6 +147,8 @@ final class MockBusinessDocumentsRepository: BusinessDocumentsRepository, @unche
     var xmlCalls = 0
     var timelineCalls = 0
     var resendEmailCalls = 0
+    var rideFileDownloadCalls = 0
+    var xmlFileDownloadCalls = 0
     var lastGenerateIdempotencyKey: String?
     var lastPhysicalIdempotencyKey: String?
     var lastElectronicInvoiceIdempotencyKey: String?
@@ -318,8 +324,38 @@ final class MockBusinessDocumentsRepository: BusinessDocumentsRepository, @unche
     func electronicDocumentXml(organizationId: String, documentId: String, authorizedOnly: Bool) async throws -> BusinessDocumentArtifactEnvelopeResponse {
         if let error { throw error }
         xmlCalls += 1
-        let artifact = BusinessDocumentArtifact(kind: "authorized_xml", fileName: "001-001-000000123-authorized.xml", contentType: "application/xml")
+        let artifact = BusinessDocumentArtifact(kind: "authorizedXml", fileName: "001-001-000000123-authorized.xml", contentType: "application/xml")
         return BusinessDocumentArtifactEnvelopeResponse(artifact: artifact, ride: nil, xml: artifact)
+    }
+
+    func downloadElectronicDocumentRideFile(organizationId: String, documentId: String) async throws -> BusinessDocumentDownloadedFile {
+        if let error { throw error }
+        rideFileDownloadCalls += 1
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("001-001-000000123_RIDE.pdf")
+        try Data("%PDF-1.4 ride".utf8).write(to: url, options: [.atomic])
+        return BusinessDocumentDownloadedFile(
+            localURL: url,
+            fileName: "001-001-000000123_RIDE.pdf",
+            contentType: "application/pdf",
+            sizeBytes: 13,
+            sha256: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            kind: .ride
+        )
+    }
+
+    func downloadElectronicDocumentXmlFile(organizationId: String, documentId: String, authorizedOnly: Bool) async throws -> BusinessDocumentDownloadedFile {
+        if let error { throw error }
+        xmlFileDownloadCalls += 1
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("001-001-000000123_authorized.xml")
+        try Data("<autorizacion/>".utf8).write(to: url, options: [.atomic])
+        return BusinessDocumentDownloadedFile(
+            localURL: url,
+            fileName: "001-001-000000123_authorized.xml",
+            contentType: "application/xml; charset=UTF-8",
+            sizeBytes: 15,
+            sha256: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            kind: authorizedOnly ? .authorizedXml : .signedXml
+        )
     }
 
     func electronicDocumentTimeline(organizationId: String, documentId: String, limit: Int) async throws -> BusinessElectronicDocumentTimelineResponse {

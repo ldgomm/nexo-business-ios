@@ -97,6 +97,69 @@ final class BusinessDocumentsAPIRepositoryTests: XCTestCase {
         XCTAssertNotNil(apiClient.capturedRequests[5].body)
     }
 
+
+
+    func testBusinessVaultDownloadsUseCanonicalFileRoutesAndWriteTempFiles() async throws {
+        let tempDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("nexo-business-documents-api-tests-\(UUID().uuidString)", isDirectory: true)
+        let apiClient = CapturingDocumentsAPIClient(responseJSON: Self.artifactEnvelopeJSON)
+        let repository = BusinessDocumentsAPIRepository(
+            apiClient: apiClient,
+            temporaryFileStore: BusinessDocumentTemporaryFileStore(baseDirectory: tempDirectory)
+        )
+
+        apiClient.dataResponse = APIDataResponse(
+            data: Data("%PDF-1.4 ride".utf8),
+            statusCode: 200,
+            headers: [
+                "Content-Type": "application/pdf",
+                "Content-Disposition": "attachment; filename=\"001-001-000000123_RIDE.pdf\"",
+                "X-Nexo-Artifact-Kind": "ride",
+                "X-Nexo-Artifact-Sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            ]
+        )
+        let ride = try await repository.downloadElectronicDocumentRideFile(
+            organizationId: "org_1",
+            documentId: "edoc_1"
+        )
+
+        apiClient.dataResponse = APIDataResponse(
+            data: Data("<autorizacion></autorizacion>".utf8),
+            statusCode: 200,
+            headers: [
+                "Content-Type": "application/xml; charset=UTF-8",
+                "Content-Disposition": "attachment; filename=\"001-001-000000123_authorized.xml\"",
+                "X-Nexo-Artifact-Kind": "authorizedXml",
+                "X-Nexo-Artifact-Sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+            ]
+        )
+        let xml = try await repository.downloadElectronicDocumentXmlFile(
+            organizationId: "org_1",
+            documentId: "edoc_1",
+            authorizedOnly: true
+        )
+
+        XCTAssertEqual(apiClient.capturedDataRequests.map(\.path), [
+            "/api/v1/business/electronic-documents/edoc_1/ride/download",
+            "/api/v1/business/electronic-documents/edoc_1/xml/download"
+        ])
+        XCTAssertEqual(apiClient.capturedDataRequests[0].headers[BusinessHeaders.organizationId], "org_1")
+        XCTAssertEqual(apiClient.capturedDataRequests[1].queryItems, [URLQueryItem(name: "authorizedOnly", value: "true")])
+        XCTAssertEqual(ride.contentType, "application/pdf")
+        XCTAssertEqual(ride.fileName, "001-001-000000123_RIDE.pdf")
+        XCTAssertEqual(ride.sha256, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: ride.localURL.path))
+        XCTAssertEqual(try Data(contentsOf: ride.localURL), Data("%PDF-1.4 ride".utf8))
+        XCTAssertEqual(xml.contentType, "application/xml; charset=UTF-8")
+        XCTAssertEqual(xml.fileName, "001-001-000000123_authorized.xml")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: xml.localURL.path))
+        XCTAssertEqual(try Data(contentsOf: xml.localURL), Data("<autorizacion></autorizacion>".utf8))
+        XCTAssertFalse(ride.localURL.absoluteString.contains("objectKey"))
+        XCTAssertFalse(xml.localURL.absoluteString.contains("bucket"))
+
+        try? FileManager.default.removeItem(at: tempDirectory)
+    }
+
     private static let electronicIssueResponseJSON = #"""
     {
       "document": {
@@ -253,9 +316,11 @@ private struct CapturedDocumentsAPIRequest: Equatable {
     let body: Data?
 }
 
-private final class CapturingDocumentsAPIClient: APIClient, @unchecked Sendable {
+private final class CapturingDocumentsAPIClient: APIDataClient, @unchecked Sendable {
     var responseData: Data
+    var dataResponse = APIDataResponse(data: Data(), statusCode: 200, headers: [:])
     private(set) var capturedRequests: [CapturedDocumentsAPIRequest] = []
+    private(set) var capturedDataRequests: [CapturedDocumentsAPIRequest] = []
 
     init(responseJSON: String) {
         self.responseData = Data(responseJSON.utf8)
@@ -277,5 +342,18 @@ private final class CapturingDocumentsAPIClient: APIClient, @unchecked Sendable 
         }
 
         return try JSONDecoder.nexoDefault.decode(Response.self, from: responseData)
+    }
+
+    func sendData(_ request: APIRequest<EmptyResponse>) async throws -> APIDataResponse {
+        capturedDataRequests.append(
+            CapturedDocumentsAPIRequest(
+                method: request.method,
+                path: request.path,
+                headers: request.headers,
+                queryItems: request.queryItems,
+                body: request.body
+            )
+        )
+        return dataResponse
     }
 }

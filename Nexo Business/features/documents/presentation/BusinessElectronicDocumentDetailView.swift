@@ -1,3 +1,10 @@
+//
+//  BusinessElectronicDocumentDetailView.swift
+//  Nexo Business
+//
+//  Created by José Ruiz on 11/6/26.
+//
+
 import SwiftUI
 
 struct BusinessElectronicDocumentDetailView: View {
@@ -22,7 +29,9 @@ struct BusinessElectronicDocumentDetailView: View {
                 emailSection(detail)
                 errorsSection(detail)
                 timelineSection
-                actionsSection
+                if viewModel.shouldShowRetryReception {
+                    actionsSection
+                }
             }
 
             messagesSection
@@ -39,6 +48,12 @@ struct BusinessElectronicDocumentDetailView: View {
                 }
                 .disabled(viewModel.isLoading)
             }
+        }
+        .sheet(item: $viewModel.previewFile) { file in
+            BusinessDocumentQuickLookPreview(fileURL: file.localURL)
+        }
+        .sheet(item: $viewModel.shareFile) { file in
+            BusinessDocumentShareSheet(items: [file.localURL])
         }
         .task {
             if viewModel.shouldLoadOnAppear {
@@ -116,41 +131,58 @@ struct BusinessElectronicDocumentDetailView: View {
             ArtifactAvailabilityRow(title: "XML autorizado", artifact: detail.artifacts.authorizedXml ?? detail.artifacts.xml)
             ArtifactAvailabilityRow(title: "XML firmado", artifact: detail.artifacts.signedXml)
 
-            Button {
-                Task { await viewModel.downloadRide() }
-            } label: {
-                if viewModel.isDownloadingRide {
-                    ProgressView()
-                } else {
-                    Label("Consultar RIDE", systemImage: "doc.richtext")
+            HStack {
+                Button {
+                    Task { await viewModel.previewRide() }
+                } label: {
+                    if viewModel.isDownloadingRide {
+                        ProgressView()
+                    } else {
+                        Label("Ver RIDE", systemImage: "doc.richtext")
+                    }
                 }
-            }
-            .disabled(!viewModel.canDownloadRide || viewModel.isDownloadingRide)
+                .disabled(!viewModel.canDownloadRide || viewModel.isDownloadingRide)
 
-            Button {
-                Task { await viewModel.downloadXml(authorizedOnly: true) }
-            } label: {
-                if viewModel.isDownloadingXml {
-                    ProgressView()
-                } else {
-                    Label("Consultar XML autorizado", systemImage: "chevron.left.forwardslash.chevron.right")
+                Spacer()
+
+                Button {
+                    Task { await viewModel.shareRide() }
+                } label: {
+                    Label("Compartir", systemImage: "square.and.arrow.up")
                 }
+                .disabled(!viewModel.canDownloadRide || viewModel.isDownloadingRide)
             }
-            .disabled(!viewModel.canDownloadXml || viewModel.isDownloadingXml)
 
-            if let artifact = viewModel.lastArtifact {
+            HStack {
+                Button {
+                    Task { await viewModel.previewXml(authorizedOnly: true) }
+                } label: {
+                    if viewModel.isDownloadingXml {
+                        ProgressView()
+                    } else {
+                        Label("Ver XML autorizado", systemImage: "chevron.left.forwardslash.chevron.right")
+                    }
+                }
+                .disabled(!viewModel.canDownloadXml || viewModel.isDownloadingXml)
+
+                Spacer()
+
+                Button {
+                    Task { await viewModel.shareXml(authorizedOnly: true) }
+                } label: {
+                    Label("Compartir", systemImage: "square.and.arrow.up")
+                }
+                .disabled(!viewModel.canDownloadXml || viewModel.isDownloadingXml)
+            }
+
+            if let file = viewModel.lastDownloadedFile {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Último archivo consultado")
+                    Text("Último archivo preparado")
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                    Text(artifact.fileName)
-                        .font(.caption.monospaced())
-                    if let sha256 = artifact.sha256, !sha256.isEmpty {
-                        Text(sha256)
-                            .font(.caption2.monospaced())
-                            .foregroundStyle(.secondary)
-                            .lineLimit(2)
-                    }
+                    Text("\(file.humanName) · \(file.sizeBytes) bytes")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
             }
         }
@@ -165,7 +197,7 @@ struct BusinessElectronicDocumentDetailView: View {
                 LabeledContent("Enviado", value: sentAt.formatted(date: .abbreviated, time: .shortened))
             }
 
-            if let lastError = detail.email.lastError, !lastError.isEmpty {
+            if let lastError = BusinessDocumentTextSanitizer.sanitizedMessage(detail.email.lastError) {
                 Text(lastError)
                     .font(.footnote)
                     .foregroundStyle(.red)
@@ -199,11 +231,11 @@ struct BusinessElectronicDocumentDetailView: View {
             Section("Errores y advertencias") {
                 ForEach(detail.errors) { error in
                     VStack(alignment: .leading, spacing: 4) {
-                        Text(error.userMessage ?? error.message ?? error.rawMessage ?? "Error SRI")
+                        Text(error.safeDisplayMessage)
                             .font(.footnote.weight(.semibold))
                             .foregroundStyle(.red)
 
-                        if let code = error.code, !code.isEmpty {
+                        if let code = error.safeCode, !code.isEmpty {
                             Text(code)
                                 .font(.caption.monospaced())
                                 .foregroundStyle(.secondary)
@@ -211,7 +243,7 @@ struct BusinessElectronicDocumentDetailView: View {
                     }
                 }
 
-                ForEach(detail.warnings, id: \.self) { warning in
+                ForEach(detail.warnings.compactMap(BusinessDocumentTextSanitizer.sanitizedMessage), id: \.self) { warning in
                     Label(warning, systemImage: "exclamationmark.circle")
                         .font(.footnote)
                         .foregroundStyle(.orange)
@@ -255,29 +287,23 @@ struct BusinessElectronicDocumentDetailView: View {
                     Label("Reintentar recepción SRI", systemImage: "arrow.triangle.2.circlepath")
                 }
             }
-            .disabled(!viewModel.canRetryReception || viewModel.isRetryingReception)
-
-            Text("Estas acciones usan el backend Business canónico. No activan producción ni generan una nueva factura.")
-                .font(.footnote)
-                .foregroundStyle(.secondary)
+            .disabled(!viewModel.shouldShowRetryReception || viewModel.isRetryingReception)
         }
     }
 
     @ViewBuilder
     private var messagesSection: some View {
-        if let message = viewModel.errorMessage {
+        if let errorMessage = BusinessDocumentTextSanitizer.sanitizedMessage(viewModel.errorMessage) {
             Section {
-                Label(message, systemImage: "exclamationmark.triangle")
-                    .font(.footnote)
+                Label(errorMessage, systemImage: "exclamationmark.triangle")
                     .foregroundStyle(.red)
             }
         }
 
-        if let message = viewModel.infoMessage {
+        if let infoMessage = BusinessDocumentTextSanitizer.sanitizedMessage(viewModel.infoMessage) {
             Section {
-                Label(message, systemImage: "info.circle")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
+                Label(infoMessage, systemImage: "checkmark.circle")
+                    .foregroundStyle(.green)
             }
         }
     }
@@ -288,14 +314,33 @@ private struct ArtifactAvailabilityRow: View {
     let artifact: BusinessDocumentArtifact?
 
     var body: some View {
-        HStack {
-            Label(title, systemImage: artifact == nil ? "minus.circle" : "checkmark.circle")
-                .foregroundStyle(artifact == nil ? .secondary : .primary)
+        HStack(alignment: .top) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.body)
+                if let artifact {
+                    Text(artifact.safeFileName)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                } else {
+                    Text("No disponible")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
             Spacer()
-            Text(artifact?.fileName ?? "No disponible")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
+
+            if artifact == nil {
+                Text("Pendiente")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+            } else {
+                Text("Disponible")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.green)
+            }
         }
     }
 }
@@ -305,49 +350,27 @@ private struct TimelineEventRow: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            HStack {
-                Label(event.title, systemImage: systemImage)
-                    .font(.footnote.weight(.semibold))
-                Spacer()
-                if let createdAt = event.createdAt {
-                    Text(createdAt.formatted(date: .abbreviated, time: .shortened))
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                }
-            }
+            Text(event.title)
+                .font(.footnote.weight(.semibold))
 
-            if let message = event.message, !message.isEmpty {
+            if let message = event.message {
                 Text(message)
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
 
-            if let actor = event.actor, !actor.isEmpty {
-                Text(actor)
-                    .font(.caption2.monospaced())
-                    .foregroundStyle(.tertiary)
+            HStack(spacing: 8) {
+                if let createdAt = event.createdAt {
+                    Text(createdAt.formatted(date: .abbreviated, time: .shortened))
+                }
+
+                if let actor = event.actor, !actor.isEmpty {
+                    Text(actor)
+                }
             }
+            .font(.caption2)
+            .foregroundStyle(.secondary)
         }
-        .padding(.vertical, 3)
-    }
-
-    private var systemImage: String {
-        if event.severity?.localizedCaseInsensitiveContains("error") == true {
-            return "exclamationmark.triangle"
-        }
-        return "clock"
-    }
-}
-
-#Preview {
-    NavigationStack {
-        BusinessElectronicDocumentDetailView(
-            viewModel: BusinessElectronicDocumentDetailViewModel(
-                organizationId: PreviewData.businessContext.organization.id,
-                documentId: "edoc_preview_invoice",
-                effectivePermissions: PreviewData.businessContext.effectivePermissions,
-                documentsRepository: PreviewBusinessDocumentsRepository()
-            )
-        )
+        .padding(.vertical, 2)
     }
 }

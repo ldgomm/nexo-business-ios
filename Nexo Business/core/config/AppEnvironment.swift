@@ -18,7 +18,8 @@ struct AppEnvironment: Equatable, Sendable {
 
     static let staging = AppEnvironment(
         name: "staging",
-        baseURL: URL(string: "https://api-staging.premierdarkcoffee.com")!
+//        baseURL: URL(string: "https://api-staging.premierdarkcoffee.com")!
+        baseURL: URL(string: "http://localhost:8080")!
     )
 
     static let local = AppEnvironment(

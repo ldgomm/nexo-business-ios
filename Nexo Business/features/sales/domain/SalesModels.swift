@@ -1,3 +1,10 @@
+//
+//  SalesModels.swift
+//  Nexo Business
+//
+//  Created by José Ruiz on 11/6/26.
+//
+
 import Foundation
 
 struct SaleDraftItem: Codable, Equatable, Identifiable, Sendable {
@@ -593,11 +600,13 @@ struct BusinessSale: Decodable, Equatable, Identifiable, Sendable {
         case confirmedAt
         case closedAt
         case updatedAt
+        
+        case mongoId = "_id"
     }
     
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        id = try container.decode(String.self, forKey: .id)
+        id = try container.decodeIfPresent(String.self, forKey: .id) ?? container.decodeIfPresent(String.self, forKey: .mongoId) ?? ""
         number = (try? container.decodeIfPresent(String.self, forKey: .number))
         ?? (try? container.decodeIfPresent(String.self, forKey: .saleNumber))
         organizationId = try? container.decodeIfPresent(String.self, forKey: .organizationId)

@@ -1,56 +1,76 @@
+//
+//  BusinessDocumentsAPIRepository.swift
+//  Nexo Business
+//
+//  Created by José Ruiz on 11/6/26.
+//
+
 import Foundation
 
 enum BusinessDocumentsRoutes {
     static let electronicDocuments = "/api/v1/business/electronic-documents"
-    
+
     static func list(saleId: String) -> String {
         "/api/v1/business/sales/\(saleId)/documents"
     }
-    
+
     static func internalTicket(saleId: String) -> String {
         "/api/v1/business/sales/\(saleId)/documents/internal-ticket"
     }
-    
+
     static func physicalSaleNote(saleId: String) -> String {
         "/api/v1/business/sales/\(saleId)/documents/physical-sale-note"
     }
-    
+
     static func issueElectronicInvoice(saleId: String) -> String {
         "/api/v1/business/sales/\(saleId)/electronic-documents/invoice"
     }
-    
+
     static func electronicDocumentDetail(documentId: String) -> String {
         "/api/v1/business/electronic-documents/\(documentId)"
     }
-    
+
     static func electronicDocumentRide(documentId: String) -> String {
         "/api/v1/business/electronic-documents/\(documentId)/ride"
     }
-    
+
+    static func electronicDocumentRideDownload(documentId: String) -> String {
+        "/api/v1/business/electronic-documents/\(documentId)/ride/download"
+    }
+
     static func electronicDocumentXml(documentId: String) -> String {
         "/api/v1/business/electronic-documents/\(documentId)/xml"
     }
-    
+
+    static func electronicDocumentXmlDownload(documentId: String) -> String {
+        "/api/v1/business/electronic-documents/\(documentId)/xml/download"
+    }
+
     static func electronicDocumentTimeline(documentId: String) -> String {
         "/api/v1/business/electronic-documents/\(documentId)/timeline"
     }
-    
+
     static func electronicDocumentResendEmail(documentId: String) -> String {
         "/api/v1/business/electronic-documents/\(documentId)/resend-email"
     }
-    
+
     static func retryElectronicInvoiceReception(documentId: String) -> String {
         "/api/v1/business/electronic-documents/\(documentId)/retry-reception"
     }
 }
 
-final class BusinessDocumentsAPIRepository: BusinessDocumentsRepository, @unchecked Sendable {
+final class BusinessDocumentsAPIRepository: BusinessDocumentsRepository, BusinessDocumentFileDownloadingRepository, @unchecked Sendable {
     private let apiClient: APIClient
-    
-    init(apiClient: APIClient) {
+    private let temporaryFileStore: BusinessDocumentTemporaryFileStore
+
+    init(
+        apiClient: APIClient,
+        temporaryFileStore: BusinessDocumentTemporaryFileStore = BusinessDocumentTemporaryFileStore()
+    ) {
         self.apiClient = apiClient
+        self.temporaryFileStore = temporaryFileStore
     }
-    
+
     func list(
         organizationId: String,
         saleId: String
@@ -63,7 +83,7 @@ final class BusinessDocumentsAPIRepository: BusinessDocumentsRepository, @unchec
             )
         )
     }
-    
+
     func generateInternalTicket(
         organizationId: String,
         saleId: String,
@@ -82,7 +102,7 @@ final class BusinessDocumentsAPIRepository: BusinessDocumentsRepository, @unchec
             )
         )
     }
-    
+
     func registerPhysicalSaleNote(
         organizationId: String,
         saleId: String,
@@ -101,7 +121,7 @@ final class BusinessDocumentsAPIRepository: BusinessDocumentsRepository, @unchec
             )
         )
     }
-    
+
     func issueElectronicInvoice(
         organizationId: String,
         saleId: String,
@@ -126,7 +146,7 @@ final class BusinessDocumentsAPIRepository: BusinessDocumentsRepository, @unchec
             )
         )
     }
-    
+
     func retryElectronicInvoiceReception(
         organizationId: String,
         documentId: String,
@@ -150,7 +170,7 @@ final class BusinessDocumentsAPIRepository: BusinessDocumentsRepository, @unchec
             )
         )
     }
-    
+
     func listElectronicDocuments(
         organizationId: String,
         filters: BusinessElectronicDocumentFilters = BusinessElectronicDocumentFilters()
@@ -164,7 +184,7 @@ final class BusinessDocumentsAPIRepository: BusinessDocumentsRepository, @unchec
             )
         )
     }
-    
+
     func electronicDocumentDetail(
         organizationId: String,
         documentId: String
@@ -177,7 +197,7 @@ final class BusinessDocumentsAPIRepository: BusinessDocumentsRepository, @unchec
             )
         )
     }
-    
+
     func electronicDocumentRide(
         organizationId: String,
         documentId: String
@@ -190,7 +210,7 @@ final class BusinessDocumentsAPIRepository: BusinessDocumentsRepository, @unchec
             )
         )
     }
-    
+
     func electronicDocumentXml(
         organizationId: String,
         documentId: String,
@@ -205,7 +225,36 @@ final class BusinessDocumentsAPIRepository: BusinessDocumentsRepository, @unchec
             )
         )
     }
-    
+
+    func downloadElectronicDocumentRideFile(
+        organizationId: String,
+        documentId: String
+    ) async throws -> BusinessDocumentDownloadedFile {
+        try await downloadElectronicDocumentFile(
+            organizationId: organizationId,
+            path: BusinessDocumentsRoutes.electronicDocumentRideDownload(documentId: documentId),
+            queryItems: [],
+            kind: .ride,
+            fallbackFileName: "\(documentId)_RIDE.pdf",
+            fallbackContentType: "application/pdf"
+        )
+    }
+
+    func downloadElectronicDocumentXmlFile(
+        organizationId: String,
+        documentId: String,
+        authorizedOnly: Bool = true
+    ) async throws -> BusinessDocumentDownloadedFile {
+        try await downloadElectronicDocumentFile(
+            organizationId: organizationId,
+            path: BusinessDocumentsRoutes.electronicDocumentXmlDownload(documentId: documentId),
+            queryItems: [URLQueryItem(name: "authorizedOnly", value: authorizedOnly ? "true" : "false")],
+            kind: authorizedOnly ? .authorizedXml : .signedXml,
+            fallbackFileName: authorizedOnly ? "\(documentId)_authorized.xml" : "\(documentId)_signed.xml",
+            fallbackContentType: "application/xml; charset=UTF-8"
+        )
+    }
+
     func electronicDocumentTimeline(
         organizationId: String,
         documentId: String,
@@ -220,7 +269,7 @@ final class BusinessDocumentsAPIRepository: BusinessDocumentsRepository, @unchec
             )
         )
     }
-    
+
     func resendElectronicDocumentEmail(
         organizationId: String,
         documentId: String,
@@ -235,7 +284,66 @@ final class BusinessDocumentsAPIRepository: BusinessDocumentsRepository, @unchec
             )
         )
     }
-    
+
+    private func downloadElectronicDocumentFile(
+        organizationId: String,
+        path: String,
+        queryItems: [URLQueryItem],
+        kind: BusinessDocumentArtifactKind,
+        fallbackFileName: String,
+        fallbackContentType: String
+    ) async throws -> BusinessDocumentDownloadedFile {
+        guard let dataClient = apiClient as? APIDataClient else {
+            throw APIError.transport("El cliente HTTP no soporta descarga de archivos.")
+        }
+
+        let response = try await dataClient.sendData(
+            APIRequest<EmptyResponse>(
+                method: .get,
+                path: path,
+                queryItems: queryItems,
+                headers: [BusinessHeaders.organizationId: organizationId]
+            )
+        )
+
+        let contentType = response.headerValue("Content-Type")?.trimmedNilIfBlank ?? fallbackContentType
+        let fileName = Self.fileName(fromContentDisposition: response.headerValue("Content-Disposition"))
+        let sha256 = response.headerValue("X-Nexo-Artifact-Sha256")?.trimmedNilIfBlank
+
+        return try temporaryFileStore.write(
+            data: response.data,
+            preferredFileName: fileName,
+            fallbackFileName: fallbackFileName,
+            contentType: contentType,
+            sha256: sha256,
+            kind: kind
+        )
+    }
+
+    private static func fileName(fromContentDisposition contentDisposition: String?) -> String? {
+        guard let contentDisposition else { return nil }
+
+        let parts = contentDisposition.split(separator: ";").map {
+            $0.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+
+        for part in parts {
+            let lowercased = part.lowercased()
+            if lowercased.hasPrefix("filename*=utf-8''") {
+                let encoded = String(part.dropFirst("filename*=utf-8''".count))
+                return encoded.removingPercentEncoding ?? encoded
+            }
+
+            if lowercased.hasPrefix("filename=") {
+                return String(part.dropFirst("filename=".count))
+                    .trimmingCharacters(in: CharacterSet(charactersIn: "\""))
+                    .trimmedNilIfBlank
+            }
+        }
+
+        return nil
+    }
+
     private func electronicDocumentHeaders(
         organizationId: String,
         branchId: String?,
@@ -247,23 +355,34 @@ final class BusinessDocumentsAPIRepository: BusinessDocumentsRepository, @unchec
             BusinessHeaders.organizationId: organizationId,
             BusinessHeaders.idempotencyKey: idempotencyKey.rawValue
         ]
-        
+
         if let branchId = branchId?.trimmingCharacters(in: .whitespacesAndNewlines), !branchId.isEmpty {
             headers[BusinessHeaders.branchId] = branchId
         }
-        
+
         if let activityId = activityId?.trimmingCharacters(in: .whitespacesAndNewlines), !activityId.isEmpty {
             headers[BusinessHeaders.activityId] = activityId
         }
-        
+
         if let catalogRevision = revisions?.catalogRevision.trimmingCharacters(in: .whitespacesAndNewlines), !catalogRevision.isEmpty {
             headers[BusinessHeaders.catalogRevision] = catalogRevision
         }
-        
+
         if let taxConfigurationRevision = revisions?.taxConfigurationRevision.trimmingCharacters(in: .whitespacesAndNewlines), !taxConfigurationRevision.isEmpty {
             headers[BusinessHeaders.taxConfigurationRevision] = taxConfigurationRevision
         }
-        
+
         return headers
+    }
+}
+
+private extension String {
+    var trimmedNilIfBlank: String? {
+        let value = trimmingCharacters(in: .whitespacesAndNewlines)
+        return value.isEmpty ? nil : value
+    }
+
+    var nilIfBlank: String? {
+        isEmpty ? nil : self
     }
 }

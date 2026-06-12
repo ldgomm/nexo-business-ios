@@ -1,3 +1,10 @@
+//
+//  BusinessTeamModels.swift
+//  Nexo Business
+//
+//  Created by José Ruiz on 11/6/26.
+//
+
 import Foundation
 
 struct BusinessTeamUser: Identifiable, Equatable, Decodable, Sendable {

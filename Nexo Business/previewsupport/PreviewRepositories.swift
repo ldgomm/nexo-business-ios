@@ -1,3 +1,10 @@
+//
+//  PreviewRepositories.swift
+//  Nexo Business
+//
+//  Created by José Ruiz on 11/6/26.
+//
+
 import Foundation
 
 final class PreviewAuthRepository: AuthRepository, @unchecked Sendable {
@@ -418,8 +425,8 @@ final class PreviewBusinessDocumentsRepository: BusinessDocumentsRepository, @un
             },
             "artifacts": {
               "ride": { "kind": "ride", "fileName": "001-001-000000123.pdf", "contentType": "application/pdf", "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" },
-              "authorizedXml": { "kind": "authorized_xml", "fileName": "001-001-000000123-authorized.xml", "contentType": "application/xml", "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" },
-              "xml": { "kind": "authorized_xml", "fileName": "001-001-000000123-authorized.xml", "contentType": "application/xml", "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" }
+              "authorizedXml": { "kind": "authorizedXml", "fileName": "001-001-000000123-authorized.xml", "contentType": "application/xml", "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" },
+              "xml": { "kind": "authorizedXml", "fileName": "001-001-000000123-authorized.xml", "contentType": "application/xml", "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" }
             },
             "email": {
               "recipient": "cliente@nexo.test",
@@ -459,7 +466,7 @@ final class PreviewBusinessDocumentsRepository: BusinessDocumentsRepository, @un
         authorizedOnly: Bool
     ) async throws -> BusinessDocumentArtifactEnvelopeResponse {
         let artifact = BusinessDocumentArtifact(
-            kind: authorizedOnly ? "authorized_xml" : "signed_xml",
+            kind: authorizedOnly ? "authorizedXml" : "signedXml",
             fileName: authorizedOnly ? "001-001-000000123-authorized.xml" : "001-001-000000123-signed.xml",
             contentType: "application/xml",
             sizeBytes: 4096,

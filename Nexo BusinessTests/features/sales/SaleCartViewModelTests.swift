@@ -1,3 +1,10 @@
+//
+//  SaleCartViewModelTests.swift
+//  Nexo Business
+//
+//  Created by José Ruiz on 11/6/26.
+//
+
 import XCTest
 @testable import Nexo_Business
 
@@ -73,7 +80,7 @@ final class SaleCartViewModelTests: XCTestCase {
         XCTAssertEqual(sales.lastQuickSaleRequest?.catalogRevision, "cat_rev_test")
         XCTAssertEqual(sales.lastQuickSaleRequest?.taxConfigurationRevision, "tax_rev_test")
         XCTAssertTrue(sales.lastIdempotencyKey?.rawValue.hasPrefix("quick-sale-") == true)
-        XCTAssertEqual(viewModel.infoMessage, "Venta creada. Revísala y confírmala para continuar.")
+        XCTAssertEqual(viewModel.infoMessage, "Venta registrada. Ahora puedes cobrarla o iniciar una nueva venta.")
     }
 
     func testRevisionErrorShowsRefreshMessage() async {

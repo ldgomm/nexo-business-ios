@@ -1,3 +1,10 @@
+//
+//  CashDashboardView.swift
+//  Nexo Business
+//
+//  Created by José Ruiz on 11/6/26.
+//
+
 import SwiftUI
 
 struct CashDashboardView: View {

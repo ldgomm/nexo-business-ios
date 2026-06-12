@@ -46,7 +46,7 @@ final class ReceivableCollectionViewModelTests: XCTestCase {
 
         await viewModel.collect()
 
-        XCTAssertEqual(receivables.lastCollectRequest?.method, "transfer")
+        XCTAssertEqual(receivables.lastCollectRequest?.method, "BANK_TRANSFER")
         XCTAssertNil(receivables.lastCollectRequest?.cashSessionId)
         XCTAssertEqual(receivables.lastCollectRequest?.reference, "TRX-002")
         XCTAssertTrue(receivables.lastCollectIdempotencyKey?.rawValue.hasPrefix("receivable-collect-") ?? false)

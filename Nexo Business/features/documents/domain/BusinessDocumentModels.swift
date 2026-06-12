@@ -1,3 +1,10 @@
+//
+//  BusinessDocumentModels.swift
+//  Nexo Business
+//
+//  Created by José Ruiz on 11/6/26.
+//
+
 import Foundation
 
 struct BusinessDocument: Decodable, Equatable, Identifiable, Sendable {
@@ -357,8 +364,8 @@ struct BusinessElectronicDocumentDetail: Decodable, Equatable, Identifiable, Sen
         artifacts = try c.decodeIfPresent(BusinessElectronicDocumentArtifacts.self, forKey: .artifacts) ?? BusinessElectronicDocumentArtifacts(
             ride: summary.hasRide ? BusinessDocumentArtifact(kind: "ride", fileName: "\(displayNumber).pdf", contentType: "application/pdf") : nil,
             signedXml: nil,
-            authorizedXml: summary.hasXml ? BusinessDocumentArtifact(kind: "authorized_xml", fileName: "\(displayNumber)-authorized.xml", contentType: "application/xml") : nil,
-            xml: summary.hasXml ? BusinessDocumentArtifact(kind: "authorized_xml", fileName: "\(displayNumber)-authorized.xml", contentType: "application/xml") : nil
+            authorizedXml: summary.hasXml ? BusinessDocumentArtifact(kind: "authorizedXml", fileName: "\(displayNumber)-authorized.xml", contentType: "application/xml") : nil,
+            xml: summary.hasXml ? BusinessDocumentArtifact(kind: "authorizedXml", fileName: "\(displayNumber)-authorized.xml", contentType: "application/xml") : nil
         )
         email = try c.decodeIfPresent(BusinessElectronicDocumentEmailState.self, forKey: .email) ?? BusinessElectronicDocumentEmailState(
             recipient: summary.customerEmail,
@@ -410,6 +417,156 @@ struct BusinessElectronicDocumentSriState: Decodable, Equatable, Sendable {
     }
 }
 
+enum BusinessDocumentArtifactKind: Equatable, Hashable, Codable, Sendable {
+    case ride
+    case ridePdf
+    case signedXml
+    case authorizedXml
+    case generatedXml
+    case sriRequest
+    case sriResponse
+    case xml
+    case unknown(String)
+
+    init(rawValue: String) {
+        switch rawValue.trimmingCharacters(in: .whitespacesAndNewlines) {
+        case "ride":
+            self = .ride
+        case "ridePdf", "ride_pdf":
+            self = .ridePdf
+        case "signedXml", "signed_xml":
+            self = .signedXml
+        case "authorizedXml", "authorized_xml":
+            self = .authorizedXml
+        case "generatedXml", "generated_xml":
+            self = .generatedXml
+        case "sriRequest", "sri_request":
+            self = .sriRequest
+        case "sriResponse", "sri_response":
+            self = .sriResponse
+        case "xml":
+            self = .xml
+        case let value where value.isEmpty:
+            self = .unknown("artifact")
+        case let value:
+            self = .unknown(value)
+        }
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        let rawValue = try container.decode(String.self)
+        self.init(rawValue: rawValue)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(publicRawValue)
+    }
+
+    var publicRawValue: String {
+        switch self {
+        case .ride:
+            return "ride"
+        case .ridePdf:
+            return "ridePdf"
+        case .signedXml:
+            return "signedXml"
+        case .authorizedXml:
+            return "authorizedXml"
+        case .generatedXml:
+            return "generatedXml"
+        case .sriRequest:
+            return "sriRequest"
+        case .sriResponse:
+            return "sriResponse"
+        case .xml:
+            return "xml"
+        case .unknown(let rawValue):
+            return rawValue
+        }
+    }
+
+    var displayName: String {
+        switch self {
+        case .ride, .ridePdf:
+            return "RIDE PDF"
+        case .signedXml:
+            return "XML firmado"
+        case .authorizedXml, .xml:
+            return "XML autorizado"
+        case .generatedXml:
+            return "XML generado"
+        case .sriRequest:
+            return "Solicitud SRI"
+        case .sriResponse:
+            return "Respuesta SRI"
+        case .unknown:
+            return "Archivo"
+        }
+    }
+
+    var isRide: Bool {
+        switch self {
+        case .ride, .ridePdf:
+            return true
+        default:
+            return false
+        }
+    }
+
+    var isXml: Bool {
+        switch self {
+        case .signedXml, .authorizedXml, .generatedXml, .xml:
+            return true
+        default:
+            return false
+        }
+    }
+}
+
+enum BusinessDocumentTextSanitizer {
+    static func sanitizedMessage(_ message: String?) -> String? {
+        guard let message else { return nil }
+
+        let trimmed = message.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+
+        let lowercased = trimmed.lowercased()
+
+        let forbiddenFragments = [
+            "electronic-invoicing/",
+            "ride_pdf/",
+            "signed_xml",
+            "authorized_xml",
+            "generated_xml",
+            "sri_request",
+            "sri_response",
+            "bucket",
+            "objectkey",
+            "storagekey",
+            "/var/",
+            "/tmp/",
+            ".p12",
+            ".pfx",
+            "secret",
+            "password",
+            "privatekey",
+            "token"
+        ]
+
+        guard forbiddenFragments.allSatisfy({ !lowercased.contains($0) }) else {
+            return nil
+        }
+
+        return trimmed
+    }
+
+    static func sanitizedFileName(_ fileName: String?, fallback: String = "Archivo") -> String {
+        sanitizedMessage(fileName) ?? fallback
+    }
+}
+
 struct BusinessElectronicDocumentArtifacts: Decodable, Equatable, Sendable {
     let ride: BusinessDocumentArtifact?
     let signedXml: BusinessDocumentArtifact?
@@ -420,7 +577,7 @@ struct BusinessElectronicDocumentArtifacts: Decodable, Equatable, Sendable {
 struct BusinessDocumentArtifact: Decodable, Equatable, Identifiable, Sendable {
     let id: String?
     let artifactId: String?
-    let kind: String
+    let kind: BusinessDocumentArtifactKind
     let fileName: String
     let contentType: String
     let sizeBytes: Int64?
@@ -439,7 +596,31 @@ struct BusinessDocumentArtifact: Decodable, Equatable, Identifiable, Sendable {
         expiresAt: Date? = nil,
         sha256: String? = nil
     ) {
-        self.id = id ?? artifactId ?? sha256 ?? "\(kind)-\(fileName)"
+        self.init(
+            id: id,
+            artifactId: artifactId,
+            kind: BusinessDocumentArtifactKind(rawValue: kind),
+            fileName: fileName,
+            contentType: contentType,
+            sizeBytes: sizeBytes,
+            downloadUrl: downloadUrl,
+            expiresAt: expiresAt,
+            sha256: sha256
+        )
+    }
+
+    init(
+        id: String? = nil,
+        artifactId: String? = nil,
+        kind: BusinessDocumentArtifactKind,
+        fileName: String,
+        contentType: String,
+        sizeBytes: Int64? = nil,
+        downloadUrl: String? = nil,
+        expiresAt: Date? = nil,
+        sha256: String? = nil
+    ) {
+        self.id = id ?? artifactId ?? sha256 ?? "\(kind.publicRawValue)-\(fileName)"
         self.artifactId = artifactId ?? id
         self.kind = kind
         self.fileName = fileName
@@ -450,6 +631,14 @@ struct BusinessDocumentArtifact: Decodable, Equatable, Identifiable, Sendable {
         self.sha256 = sha256
     }
 
+    var displayName: String {
+        kind.displayName
+    }
+
+    var safeFileName: String {
+        BusinessDocumentTextSanitizer.sanitizedFileName(fileName, fallback: kind.displayName)
+    }
+
     private enum CodingKeys: String, CodingKey {
         case id, artifactId, kind, artifactType, fileName, filename, contentType, sizeBytes, downloadUrl, downloadURL, url, expiresAt, sha256
     }
@@ -457,15 +646,21 @@ struct BusinessDocumentArtifact: Decodable, Equatable, Identifiable, Sendable {
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         let decodedId = try c.decodeFirstStringIfPresent(for: [.id, .artifactId, .sha256])
-        kind = try c.decodeFirstStringIfPresent(for: [.kind, .artifactType]) ?? "artifact"
-        fileName = try c.decodeFirstStringIfPresent(for: [.fileName, .filename]) ?? "documento"
+        let decodedKind = BusinessDocumentArtifactKind(
+            rawValue: try c.decodeFirstStringIfPresent(for: [.kind, .artifactType]) ?? "artifact"
+        )
+        let decodedFileName = try c.decodeFirstStringIfPresent(for: [.fileName, .filename]) ?? "documento"
+        let decodedSha256 = try c.decodeFirstStringIfPresent(for: [.sha256])
+
+        kind = decodedKind
+        fileName = decodedFileName
         contentType = try c.decodeFirstStringIfPresent(for: [.contentType]) ?? "application/octet-stream"
         sizeBytes = try c.decodeIfPresent(Int64.self, forKey: .sizeBytes)
         downloadUrl = try c.decodeFirstStringIfPresent(for: [.downloadUrl, .downloadURL, .url])
         expiresAt = try c.decodeFirstDateIfPresent(for: [.expiresAt])
-        sha256 = try c.decodeFirstStringIfPresent(for: [.sha256])
+        sha256 = decodedSha256
         artifactId = try c.decodeFirstStringIfPresent(for: [.artifactId]) ?? decodedId
-        id = decodedId ?? sha256 ?? "\(kind)-\(fileName)"
+        id = decodedId ?? decodedSha256 ?? "\(decodedKind.publicRawValue)-\(decodedFileName)"
     }
 }
 
@@ -499,6 +694,19 @@ struct BusinessSriDocumentError: Decodable, Equatable, Identifiable, Sendable {
     let severity: String?
 }
 
+extension BusinessSriDocumentError {
+    var safeDisplayMessage: String {
+        BusinessDocumentTextSanitizer.sanitizedMessage(userMessage)
+            ?? BusinessDocumentTextSanitizer.sanitizedMessage(message)
+            ?? BusinessDocumentTextSanitizer.sanitizedMessage(rawMessage)
+            ?? "Error SRI"
+    }
+
+    var safeCode: String? {
+        BusinessDocumentTextSanitizer.sanitizedMessage(code)
+    }
+}
+
 struct BusinessElectronicDocumentTimelineResponse: Decodable, Equatable, Sendable {
     let documentId: String
     let events: [BusinessElectronicDocumentTimelineEvent]
@@ -517,29 +725,84 @@ struct BusinessElectronicDocumentTimelineEvent: Decodable, Equatable, Identifiab
         case id, type, action, title, message, actor, actorUserId, createdAt, occurredAt, severity, status
     }
 
-    init(id: String, type: String, title: String? = nil, message: String? = nil, actor: String? = nil, createdAt: Date? = nil, severity: String? = nil) {
+    init(
+        id: String,
+        type: String,
+        title: String? = nil,
+        message: String? = nil,
+        actor: String? = nil,
+        createdAt: Date? = nil,
+        severity: String? = nil
+    ) {
         self.id = id
         self.type = type
-        self.title = title ?? Self.title(from: type)
-        self.message = message
-        self.actor = actor
+        self.title = Self.title(from: type)
+        self.message = BusinessDocumentTextSanitizer.sanitizedMessage(message)
+        self.actor = BusinessDocumentTextSanitizer.sanitizedMessage(actor)
         self.createdAt = createdAt
-        self.severity = severity
+        self.severity = BusinessDocumentTextSanitizer.sanitizedMessage(severity)
     }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         type = try c.decodeFirstStringIfPresent(for: [.type, .action]) ?? "event"
         id = try c.decodeFirstStringIfPresent(for: [.id]) ?? UUID().uuidString
-        title = try c.decodeFirstStringIfPresent(for: [.title]) ?? Self.title(from: type)
-        message = try c.decodeFirstStringIfPresent(for: [.message])
-        actor = try c.decodeFirstStringIfPresent(for: [.actor, .actorUserId])
+        title = Self.title(from: type)
+        message = BusinessDocumentTextSanitizer.sanitizedMessage(
+            try c.decodeFirstStringIfPresent(for: [.message])
+        )
+        actor = BusinessDocumentTextSanitizer.sanitizedMessage(
+            try c.decodeFirstStringIfPresent(for: [.actor, .actorUserId])
+        )
         createdAt = try c.decodeFirstDateIfPresent(for: [.createdAt, .occurredAt])
-        severity = try c.decodeFirstStringIfPresent(for: [.severity, .status])
+        severity = BusinessDocumentTextSanitizer.sanitizedMessage(
+            try c.decodeFirstStringIfPresent(for: [.severity, .status])
+        )
     }
 
     private static func title(from raw: String) -> String {
-        raw.lowercased().replacingOccurrences(of: "_", with: " ").split(separator: " ").map { $0.capitalized }.joined(separator: " ")
+        switch raw.uppercased() {
+        case "SRI_ACCESS_KEY_GENERATED":
+            return "Clave de acceso generada."
+        case "ELECTRONIC_XML_GENERATED":
+            return "XML generado."
+        case "ELECTRONIC_XML_XSD_VALIDATED":
+            return "XML validado."
+        case "ELECTRONIC_XML_XSD_INVALID":
+            return "XML inválido."
+        case "ELECTRONIC_XML_SIGNED":
+            return "XML firmado."
+        case "ELECTRONIC_XML_SIGNATURE_FAILED":
+            return "No se pudo firmar el XML."
+        case "SRI_RECEPTION_SUBMITTED":
+            return "Enviado al SRI."
+        case "SRI_RECEPTION_RECEIVED":
+            return "Recibido por el SRI."
+        case "SRI_RECEPTION_RETURNED":
+            return "Devuelto por el SRI."
+        case "SRI_RECEPTION_TRANSPORT_FAILED":
+            return "No se pudo conectar con recepción SRI."
+        case "SRI_AUTHORIZATION_QUERIED":
+            return "Autorización consultada."
+        case "SRI_AUTHORIZED", "AUTHORIZED", "AUTORIZADO":
+            return "Autorizado por el SRI."
+        case "SRI_NOT_AUTHORIZED":
+            return "No autorizado por el SRI."
+        case "SRI_AUTHORIZATION_PROCESSING":
+            return "Autorización en proceso."
+        case "SRI_AUTHORIZATION_TRANSPORT_FAILED":
+            return "No se pudo consultar autorización SRI."
+        case "ELECTRONIC_RIDE_GENERATED":
+            return "RIDE generado correctamente."
+        case "ELECTRONIC_RIDE_REUSED":
+            return "RIDE reutilizado correctamente."
+        case "ELECTRONIC_INVOICE_EMAIL_SENT":
+            return "Correo enviado correctamente."
+        case "ELECTRONIC_INVOICE_EMAIL_FAILED":
+            return "No se pudo enviar el correo."
+        default:
+            return "Evento registrado."
+        }
     }
 }
 

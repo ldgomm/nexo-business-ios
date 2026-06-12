@@ -1,3 +1,10 @@
+//
+//  PreviewBusinessTeamRepository.swift
+//  Nexo Business
+//
+//  Created by José Ruiz on 11/6/26.
+//
+
 import Foundation
 
 final class PreviewBusinessTeamRepository: BusinessTeamRepository, @unchecked Sendable {

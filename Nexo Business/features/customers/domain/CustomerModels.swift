@@ -73,11 +73,14 @@ struct BusinessCustomer: Decodable, Equatable, Identifiable, Sendable {
 
     private enum CodingKeys: String, CodingKey {
         case id
+        case mongoId = "_id"
         case displayName
         case name
         case identificationType
+        case idType
         case identificationNumber
         case identification
+        case taxId
         case email
         case phone
         case address
@@ -88,15 +91,24 @@ struct BusinessCustomer: Decodable, Equatable, Identifiable, Sendable {
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        id = try container.decode(String.self, forKey: .id)
+
+        id = try container.decodeIfPresent(String.self, forKey: .id)
+            ?? container.decodeIfPresent(String.self, forKey: .mongoId)
+            ?? ""
+
         displayName = try container.decodeIfPresent(String.self, forKey: .displayName)
             ?? container.decodeIfPresent(String.self, forKey: .name)
             ?? "Cliente"
+
         identificationType = try container.decodeIfPresent(BusinessCustomerIdentificationType.self, forKey: .identificationType)
+            ?? container.decodeIfPresent(BusinessCustomerIdentificationType.self, forKey: .idType)
             ?? .unknown
+
         identificationNumber = try container.decodeIfPresent(String.self, forKey: .identificationNumber)
             ?? container.decodeIfPresent(String.self, forKey: .identification)
+            ?? container.decodeIfPresent(String.self, forKey: .taxId)
             ?? ""
+
         email = try container.decodeIfPresent(String.self, forKey: .email)
         phone = try container.decodeIfPresent(String.self, forKey: .phone)
         address = try container.decodeIfPresent(String.self, forKey: .address)
@@ -160,6 +172,21 @@ struct CustomersSearchResponse: Decodable, Equatable, Sendable {
 
     init(customers: [BusinessCustomer]) {
         self.customers = customers
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case customers
+        case items
+        case data
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+
+        customers = try container.decodeIfPresent([BusinessCustomer].self, forKey: .customers)
+            ?? container.decodeIfPresent([BusinessCustomer].self, forKey: .items)
+            ?? container.decodeIfPresent([BusinessCustomer].self, forKey: .data)
+            ?? []
     }
 }
 

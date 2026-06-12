@@ -1,3 +1,10 @@
+//
+//  PaymentRegisterViewModelTests.swift
+//  Nexo Business
+//
+//  Created by José Ruiz on 11/6/26.
+//
+
 import XCTest
 @testable import Nexo_Business
 
@@ -47,7 +54,7 @@ final class PaymentRegisterViewModelTests: XCTestCase {
 
         XCTAssertEqual(payments.lastRequest?.saleId, PreviewData.confirmedSaleResponse.sale.id)
         XCTAssertEqual(payments.lastRequest?.cashSessionId, "cash_open")
-        XCTAssertEqual(payments.lastRequest?.method, "cash")
+        XCTAssertEqual(payments.lastRequest?.method, "CASH")
         XCTAssertEqual(payments.lastRequest?.amount, "11.50")
         XCTAssertTrue(payments.lastIdempotencyKey?.rawValue.hasPrefix("payment-register-") ?? false)
         XCTAssertEqual(viewModel.infoMessage, "Cobro registrado. La caja fue actualizada automáticamente.")
@@ -71,7 +78,7 @@ final class PaymentRegisterViewModelTests: XCTestCase {
 
         XCTAssertEqual(cash.currentCalls, 0)
         XCTAssertNil(payments.lastRequest?.cashSessionId)
-        XCTAssertEqual(payments.lastRequest?.method, "transfer")
+        XCTAssertEqual(payments.lastRequest?.method, "BANK_TRANSFER")
         XCTAssertEqual(payments.lastRequest?.reference, "TRX-001")
     }
 
