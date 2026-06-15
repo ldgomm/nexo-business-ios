@@ -63,11 +63,24 @@ enum SaleLineTaxTreatmentOption: String, CaseIterable, Identifiable, Sendable {
     }
 
     static func defaultForNewLine() -> SaleLineTaxTreatmentOption {
-        .operationalNoTax
+        .ivaCurrent
     }
 
     static func defaultForCatalogItem(_ item: BusinessCatalogItem) -> SaleLineTaxTreatmentOption {
         fromTaxProfileCode(item.taxProfileCode) ?? .defaultForNewLine()
+    }
+
+    var isElectronicInvoiceCompatible: Bool {
+        switch self {
+        case .operationalNoTax:
+            return false
+        case .ivaCurrent, .ivaTourism8, .ivaZero, .notSubject, .exempt:
+            return true
+        }
+    }
+
+    var electronicInvoiceWarningText: String? {
+        isElectronicInvoiceCompatible ? nil : "Solo registro: esta línea no podrá usarse para factura electrónica."
     }
 
     static func fromTaxProfileCode(_ code: String?) -> SaleLineTaxTreatmentOption? {
@@ -236,6 +249,29 @@ final class SaleCartViewModel {
     var canCreateSale: Bool {
         canEditCart && !cartItems.isEmpty
     }
+
+    var cartElectronicInvoiceReadiness: ElectronicInvoiceReadiness {
+        ElectronicInvoiceReadiness(
+            blockers: cartItems.compactMap { item in
+                guard !item.taxTreatment.isElectronicInvoiceCompatible else { return nil }
+                return ElectronicInvoiceReadinessBlocker(
+                    code: "invalid_tax_profile",
+                    message: "No se podrá emitir factura electrónica. \(item.catalogItem.name) está configurado como Solo registro.",
+                    itemId: item.id,
+                    itemName: item.catalogItem.name,
+                    technicalValue: "taxProfileCode=\(item.taxTreatment.taxProfileCode)"
+                )
+            }
+        )
+    }
+
+    var cartElectronicInvoiceWarningMessage: String? {
+        cartElectronicInvoiceReadiness.primaryMessage
+    }
+
+    var cartElectronicInvoiceDetailedWarning: String? {
+        cartElectronicInvoiceReadiness.detailedMessage
+    }
     
     var canClearCart: Bool {
         canEditCart && !cartItems.isEmpty
@@ -286,9 +322,30 @@ final class SaleCartViewModel {
         return !sale.needsCollection &&
         !sale.hasElectronicDocumentRegistered &&
         BusinessDocumentStatusPresentation.isMissingElectronicDocument(sale.effectiveDocumentStatus) &&
+        sale.electronicInvoiceReadiness.canIssue &&
         hasPermission(electronicInvoiceIssuePermissions) &&
         !branchId.isEmpty &&
         !activityId.isEmpty
+    }
+
+    var createdSaleElectronicInvoiceBlockedReason: String? {
+        guard let sale = createdSale else { return nil }
+        guard !sale.hasElectronicDocumentRegistered,
+              BusinessDocumentStatusPresentation.isMissingElectronicDocument(sale.effectiveDocumentStatus) else { return nil }
+
+        if !sale.electronicInvoiceReadiness.canIssue {
+            return sale.electronicInvoiceReadiness.primaryMessage
+        }
+
+        if !hasPermission(electronicInvoiceIssuePermissions) {
+            return "Tu usuario puede ver comprobantes, pero no emitir factura electrónica."
+        }
+
+        if branchId.isEmpty || activityId.isEmpty {
+            return "Falta contexto para emitir factura electrónica."
+        }
+
+        return nil
     }
 
     var createdSaleDocumentActionTitle: String {
@@ -418,7 +475,11 @@ final class SaleCartViewModel {
         cartItems[index].taxTreatment = taxTreatment
         preview = nil
         errorMessage = nil
-        infoMessage = "Calcula nuevamente el total para validar el tratamiento tributario seleccionado."
+        if taxTreatment.isElectronicInvoiceCompatible {
+            infoMessage = "Calcula nuevamente el total para validar el tratamiento tributario seleccionado."
+        } else {
+            infoMessage = "Este ítem quedó como Solo registro. Podrás guardar la venta, pero no emitir factura electrónica con esta línea."
+        }
     }
 
     func taxTreatment(for cartItemId: String) -> SaleLineTaxTreatmentOption {
@@ -599,13 +660,18 @@ final class SaleCartViewModel {
             return
         }
         
+        let taxTreatment = SaleLineTaxTreatmentOption.defaultForCatalogItem(item)
         cartItems.append(
             SaleCartItem(
                 catalogItem: item,
                 quantity: "1",
-                taxTreatment: .defaultForCatalogItem(item)
+                taxTreatment: taxTreatment
             )
         )
+
+        if !taxTreatment.isElectronicInvoiceCompatible {
+            infoMessage = "\(item.name) está como Solo registro. Esta venta no podrá facturarse electrónicamente hasta cambiar el impuesto de esa línea."
+        }
     }
     
     func updateQuantity(cartItemId: String, quantity: String) {

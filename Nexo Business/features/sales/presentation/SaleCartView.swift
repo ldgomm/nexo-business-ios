@@ -1,10 +1,3 @@
-//
-//  SaleCartView.swift
-//  Nexo Business
-//
-//  Created by José Ruiz on 11/6/26.
-//
-
 import SwiftUI
 
 struct SaleCartView: View {
@@ -15,7 +8,7 @@ struct SaleCartView: View {
     private let receivablesRepository: ReceivablesRepository
     private let documentsRepository: BusinessDocumentsRepository
     @State private var showStartNewOrderConfirmation = false
-
+    
     init(
         viewModel: SaleCartViewModel,
         customersRepository: CustomersRepository = UnavailableCustomersRepository(),
@@ -31,23 +24,24 @@ struct SaleCartView: View {
         self.receivablesRepository = receivablesRepository
         self.documentsRepository = documentsRepository
     }
-
+    
     var body: some View {
         Form {
             orderStateSection
             cashSection
             customerSection
-
+            
             if viewModel.createdSale == nil {
                 searchSection
                 resultsSection
                 cartSection
+                invoiceCompatibilitySection
                 discountSection
                 previewSection
             } else {
                 lockedCartSection
             }
-
+            
             saleSection
             messagesSection
             actionsSection
@@ -72,21 +66,21 @@ struct SaleCartView: View {
             Text(viewModel.startNewOrderConfirmationMessage)
         }
     }
-
+    
     private var orderStateSection: some View {
         Section {
             HStack(alignment: .center, spacing: 12) {
                 VStack(alignment: .leading, spacing: 6) {
                     Text(orderStateTitle)
                         .font(.headline)
-
+                    
                     Text(orderStateDescription)
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
-
+                
                 Spacer()
-
+                
                 NexoStatusBadge(
                     viewModel.orderState.displayName,
                     systemImage: orderStateIcon,
@@ -95,7 +89,7 @@ struct SaleCartView: View {
             }
         }
     }
-
+    
     private var cashSection: some View {
         Section("Caja") {
             SaleCartCashCard(
@@ -119,12 +113,12 @@ struct SaleCartView: View {
             )
         }
     }
-
+    
     private var customerSection: some View {
         Section("Cliente") {
             if let customer = viewModel.selectedCustomer {
                 CustomerRowView(customer: customer)
-
+                
                 Button(role: .destructive) {
                     viewModel.clearCustomer()
                 } label: {
@@ -135,7 +129,7 @@ struct SaleCartView: View {
                 Label("Consumidor final", systemImage: "person.crop.circle")
                     .foregroundStyle(.secondary)
             }
-
+            
             NavigationLink {
                 CustomerPickerView(
                     viewModel: CustomerPickerViewModel(
@@ -153,13 +147,13 @@ struct SaleCartView: View {
             .disabled(!viewModel.canEditCart)
         }
     }
-
+    
     private var searchSection: some View {
         Section("Agregar producto") {
             HStack(spacing: 10) {
                 Image(systemName: "magnifyingglass")
                     .foregroundStyle(.secondary)
-
+                
                 TextField("Buscar producto, SKU o código", text: $viewModel.searchQuery)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
@@ -169,7 +163,7 @@ struct SaleCartView: View {
                         NexoKeyboard.dismiss()
                         Task { await viewModel.searchCatalog() }
                     }
-
+                
                 if !viewModel.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                     Button {
                         viewModel.clearSearch()
@@ -182,7 +176,7 @@ struct SaleCartView: View {
                     .accessibilityLabel("Limpiar búsqueda")
                 }
             }
-
+            
             Button {
                 NexoKeyboard.dismiss()
                 Task { await viewModel.searchCatalog() }
@@ -196,7 +190,7 @@ struct SaleCartView: View {
             .disabled(!viewModel.canSearchCatalog)
         }
     }
-
+    
     @ViewBuilder
     private var resultsSection: some View {
         if !viewModel.searchResults.isEmpty {
@@ -214,7 +208,7 @@ struct SaleCartView: View {
             }
         }
     }
-
+    
     private var cartSection: some View {
         Section("Carrito") {
             if viewModel.cartItems.isEmpty {
@@ -241,7 +235,7 @@ struct SaleCartView: View {
             }
         }
     }
-
+    
     private var lockedCartSection: some View {
         Section("Carrito registrado") {
             ForEach(viewModel.cartItems) { item in
@@ -258,7 +252,7 @@ struct SaleCartView: View {
             }
         }
     }
-
+    
     @ViewBuilder
     private var discountSection: some View {
         if !viewModel.cartItems.isEmpty {
@@ -267,14 +261,14 @@ struct SaleCartView: View {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("¿Aplicar descuento?")
                             .font(.subheadline.weight(.semibold))
-
+                        
                         Text("Actívalo solo si esta venta tendrá descuento.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
                 }
                 .disabled(!viewModel.canEditCart)
-
+                
                 if discountEditorBinding.wrappedValue {
                     Picker("Aplicar a", selection: $viewModel.discountTarget) {
                         ForEach(SaleDiscountTarget.allCases) { target in
@@ -283,7 +277,7 @@ struct SaleCartView: View {
                     }
                     .pickerStyle(.segmented)
                     .disabled(!viewModel.canEditCart)
-
+                    
                     Picker("Tipo", selection: $viewModel.discountType) {
                         ForEach(SaleDiscountInputType.allCases) { type in
                             Text(type.displayName).tag(type)
@@ -294,7 +288,7 @@ struct SaleCartView: View {
                     .onChange(of: viewModel.discountType) { _, _ in
                         normalizeDiscountValueForCurrentType()
                     }
-
+                    
                     Stepper(value: discountStepperBinding, in: discountRange, step: discountStep) {
                         HStack {
                             Text(viewModel.discountType == .percentage ? "Porcentaje" : "Valor")
@@ -306,21 +300,21 @@ struct SaleCartView: View {
                         }
                     }
                     .disabled(!viewModel.canEditCart)
-
+                    
                     TextField("Motivo opcional", text: $viewModel.discountReason)
                         .textInputAutocapitalization(.sentences)
                         .disabled(!viewModel.canEditCart)
-
+                    
                     if viewModel.discountTarget == .selectedItems {
                         Text("Marca los ítems del carrito a los que se aplicará el descuento.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
-
+                    
                     Button {
                         viewModel.applyDiscountDraft()
                         NexoKeyboard.dismiss()
-
+                        
                         Task {
                             await viewModel.loadPreview()
                         }
@@ -331,12 +325,12 @@ struct SaleCartView: View {
                         )
                     }
                     .disabled(!viewModel.canApplyDiscount)
-
+                    
                     if viewModel.canClearDiscounts || !viewModel.discountValue.trimmed.isEmpty {
                         Button(role: .destructive) {
                             viewModel.clearDiscounts()
                             NexoKeyboard.dismiss()
-
+                            
                             Task {
                                 await viewModel.loadPreview()
                             }
@@ -355,7 +349,28 @@ struct SaleCartView: View {
             }
         }
     }
-
+    
+    @ViewBuilder
+    private var invoiceCompatibilitySection: some View {
+        if let message = viewModel.cartElectronicInvoiceWarningMessage {
+            Section("Factura electrónica") {
+                Label(message, systemImage: "exclamationmark.triangle")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(.orange)
+                
+                if let detail = viewModel.cartElectronicInvoiceDetailedWarning {
+                    Text(detail)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+                
+                Text("La venta sí puede guardarse como registro interno. Para emitir factura electrónica, cambia el tratamiento tributario de esas líneas antes de cobrar y emitir.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+    
     @ViewBuilder
     private var previewSection: some View {
         if let preview = viewModel.preview {
@@ -364,11 +379,11 @@ struct SaleCartView: View {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(item.name)
                             .font(.subheadline.weight(.semibold))
-
+                        
                         Text("Cantidad: \(item.quantity.cleanQuantityText)")
                             .font(.caption)
                             .foregroundStyle(.secondary)
-
+                        
                         LabeledContent(
                             "Total línea",
                             value: money(item.total ?? item.subtotal ?? MoneyAmount(amount: "0.00"))
@@ -376,14 +391,14 @@ struct SaleCartView: View {
                     }
                     .padding(.vertical, 4)
                 }
-
+                
                 NexoMoneyTotalView(title: "Subtotal", amount: preview.totals.subtotalWithoutTaxes)
                 NexoMoneyTotalView(title: "Impuestos", amount: preview.totals.taxTotal)
                 NexoMoneyTotalView(title: "Total", amount: preview.totals.grandTotal, isProminent: true)
             }
         }
     }
-
+    
     @ViewBuilder
     private var saleSection: some View {
         if let sale = viewModel.createdSale {
@@ -392,7 +407,7 @@ struct SaleCartView: View {
             }
         }
     }
-
+    
     @ViewBuilder
     private var messagesSection: some View {
         if let message = viewModel.errorMessage {
@@ -400,14 +415,14 @@ struct SaleCartView: View {
                 NexoMessageBanner(message, style: .error)
             }
         }
-
+        
         if let message = viewModel.infoMessage {
             Section {
                 NexoMessageBanner(message, style: viewModel.createdSale == nil ? .info : viewModel.createdSaleMessageStyle)
             }
         }
     }
-
+    
     @ViewBuilder
     private var actionsSection: some View {
         if let sale = viewModel.createdSale {
@@ -440,7 +455,7 @@ struct SaleCartView: View {
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
-
+                
                 Button {
                     requestStartNewOrder()
                 } label: {
@@ -449,7 +464,7 @@ struct SaleCartView: View {
                         systemImage: "plus.circle"
                     )
                 }
-
+                
                 NavigationLink {
                     SaleDetailView(
                         viewModel: viewModel.makeSaleDetailViewModel(for: sale),
@@ -461,6 +476,12 @@ struct SaleCartView: View {
                     )
                 } label: {
                     Label("Ver detalle", systemImage: "doc.text.magnifyingglass")
+                }
+                
+                if let reason = viewModel.createdSaleElectronicInvoiceBlockedReason {
+                    Label(reason, systemImage: "info.circle")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
                 }
             }
         } else if !viewModel.cartItems.isEmpty {
@@ -478,7 +499,19 @@ struct SaleCartView: View {
                     }
                     .disabled(!viewModel.canPreview)
                 }
-
+                
+                Button {
+                    NexoKeyboard.dismiss()
+                    Task { await viewModel.createQuickSale() }
+                } label: {
+                    if viewModel.isCreatingSale {
+                        ProgressView()
+                    } else {
+                        Label(viewModel.preview == nil ? "Registrar venta sin recalcular" : "Registrar venta", systemImage: "checkmark.seal.fill")
+                    }
+                }
+                .disabled(!viewModel.canCreateSale)
+                
                 if viewModel.canClearCart {
                     Button(role: .destructive) {
                         viewModel.clearCart()
@@ -506,7 +539,7 @@ struct SaleCartView: View {
                 } else {
                     viewModel.clearDiscounts()
                     NexoKeyboard.dismiss()
-
+                    
                     Task {
                         await viewModel.loadPreview()
                     }
@@ -514,7 +547,7 @@ struct SaleCartView: View {
             }
         )
     }
-
+    
     private var discountStepperBinding: Binding<Double> {
         Binding(
             get: {
@@ -529,7 +562,7 @@ struct SaleCartView: View {
             }
         )
     }
-
+    
     private var discountRange: ClosedRange<Double> {
         switch viewModel.discountType {
         case .percentage:
@@ -538,7 +571,7 @@ struct SaleCartView: View {
             return 0...9_999
         }
     }
-
+    
     private var discountStep: Double {
         switch viewModel.discountType {
         case .percentage:
@@ -547,10 +580,10 @@ struct SaleCartView: View {
             return 0.50
         }
     }
-
+    
     private var discountDisplayValue: String {
         let value = Double(viewModel.discountValue.replacingOccurrences(of: ",", with: ".")) ?? 0
-
+        
         switch viewModel.discountType {
         case .percentage:
             return "\(Int(value.rounded()))%"
@@ -558,10 +591,10 @@ struct SaleCartView: View {
             return String(format: "$%.2f", value)
         }
     }
-
+    
     private func normalizeDiscountValueForCurrentType() {
         let value = Double(viewModel.discountValue.replacingOccurrences(of: ",", with: ".")) ?? 0
-
+        
         switch viewModel.discountType {
         case .percentage:
             viewModel.discountValue = String(Int(min(max(value, 0), 100).rounded()))
@@ -569,35 +602,35 @@ struct SaleCartView: View {
             viewModel.discountValue = String(format: "%.2f", max(value, 0))
         }
     }
-
+    
     private func quantityBinding(for item: SaleCartItem) -> Binding<String> {
         Binding(
             get: { viewModel.quantity(for: item.id) },
             set: { viewModel.updateQuantity(cartItemId: item.id, quantity: $0) }
         )
     }
-
+    
     private func taxTreatmentBinding(for item: SaleCartItem) -> Binding<SaleLineTaxTreatmentOption> {
         Binding(
             get: { viewModel.taxTreatment(for: item.id) },
             set: { viewModel.updateTaxTreatment(cartItemId: item.id, taxTreatment: $0) }
         )
     }
-
+    
     private func lineDiscountBinding(for item: SaleCartItem) -> Binding<String> {
         Binding(
             get: { viewModel.lineDiscount(for: item.id) },
             set: { viewModel.updateLineDiscount(cartItemId: item.id, discount: $0) }
         )
     }
-
+    
     private func lineNoteBinding(for item: SaleCartItem) -> Binding<String> {
         Binding(
             get: { viewModel.lineNote(for: item.id) },
             set: { viewModel.updateLineNote(cartItemId: item.id, note: $0) }
         )
     }
-
+    
     private var orderStateDescription: String {
         switch viewModel.orderState {
         case .editing:
@@ -608,31 +641,31 @@ struct SaleCartView: View {
             return "Registrando venta. No cierres esta pantalla."
         case .created:
             return viewModel.createdSaleNeedsCollection
-                ? "La venta quedó registrada, pero todavía falta cobrarla."
-                : "Esta venta ya quedó registrada y el carrito está bloqueado."
+            ? "La venta quedó registrada, pero todavía falta cobrarla."
+            : "Esta venta ya quedó registrada y el carrito está bloqueado."
         }
     }
-
+    
     private var orderStateTitle: String {
         if viewModel.createdSaleNeedsCollection {
             return "Venta pendiente de cobro"
         }
-
+        
         if viewModel.createdSale != nil {
             return "Venta registrada"
         }
-
+        
         return "Venta en curso"
     }
-
+    
     private var navigationTitle: String {
         if viewModel.createdSaleNeedsCollection {
             return "Pendiente de cobro"
         }
-
+        
         return viewModel.createdSale == nil ? "Nueva venta" : "Venta registrada"
     }
-
+    
     private var orderStateIcon: String {
         switch viewModel.orderState {
         case .editing:
@@ -645,7 +678,7 @@ struct SaleCartView: View {
             return viewModel.createdSaleNeedsCollection ? "exclamationmark.triangle" : "checkmark"
         }
     }
-
+    
     private var orderStateStyle: NexoMessageStyle {
         switch viewModel.orderState {
         case .editing:
@@ -664,7 +697,7 @@ struct SaleCartView: View {
             viewModel.startNewOrder()
         }
     }
-
+    
     private func money(_ value: MoneyAmount) -> String {
         value.displayText
     }
@@ -674,7 +707,7 @@ private struct SaleCartCashCard<DashboardDestination: View>: View {
     @State private var viewModel: CashDashboardViewModel
     private let onSessionChanged: (CashSession?) -> Void
     private let dashboardDestination: () -> DashboardDestination
-
+    
     init(
         organizationId: String,
         branchId: String,
@@ -694,7 +727,7 @@ private struct SaleCartCashCard<DashboardDestination: View>: View {
         self.onSessionChanged = onSessionChanged
         self.dashboardDestination = dashboardDestination
     }
-
+    
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             if viewModel.isLoading {
@@ -705,16 +738,16 @@ private struct SaleCartCashCard<DashboardDestination: View>: View {
                         Label("Caja abierta", systemImage: "checkmark.circle.fill")
                             .font(.subheadline.weight(.semibold))
                             .foregroundStyle(.green)
-
+                        
                         if let expected = session.expectedAmount {
                             Text("Efectivo esperado: \(expected.displayText)")
                                 .font(.footnote)
                                 .foregroundStyle(.secondary)
                         }
                     }
-
+                    
                     Spacer()
-
+                    
                     NavigationLink("Ver caja") {
                         dashboardDestination()
                     }
@@ -725,11 +758,11 @@ private struct SaleCartCashCard<DashboardDestination: View>: View {
                     Label("Caja cerrada", systemImage: "lock")
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(.orange)
-
+                    
                     Text("Puedes registrar ventas pendientes, pero para cobrar en efectivo necesitas abrir caja.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
-
+                    
                     HStack {
                         Button {
                             Task {
@@ -745,14 +778,14 @@ private struct SaleCartCashCard<DashboardDestination: View>: View {
                             }
                         }
                         .disabled(!viewModel.canOpen || viewModel.isMutating)
-
+                        
                         NavigationLink("Ver caja") {
                             dashboardDestination()
                         }
                     }
                 }
             }
-
+            
             if let message = viewModel.errorMessage {
                 NexoMessageBanner(message, style: .error)
             }
@@ -768,24 +801,24 @@ private struct SaleCartCashCard<DashboardDestination: View>: View {
 
 private struct CatalogResultRow: View {
     let item: BusinessCatalogItem
-
+    
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
             Image(systemName: iconName)
                 .foregroundStyle(.secondary)
                 .frame(width: 28)
-
+            
             VStack(alignment: .leading, spacing: 4) {
                 Text(item.name)
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.primary)
-
+                
                 if let sku = item.sku, !sku.isEmpty {
                     Text("SKU: \(sku)")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
-
+                
                 if let description = item.itemDescription, !description.isEmpty {
                     Text(description)
                         .font(.caption)
@@ -793,23 +826,23 @@ private struct CatalogResultRow: View {
                         .lineLimit(2)
                 }
             }
-
+            
             Spacer()
-
+            
             VStack(alignment: .trailing, spacing: 4) {
                 if let price = item.price {
                     Text(price.displayText)
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.primary)
                 }
-
+                
                 Image(systemName: "plus.circle.fill")
                     .foregroundStyle(.tint)
             }
         }
         .padding(.vertical, 4)
     }
-
+    
     private var iconName: String {
         switch item.type {
         case "service":
@@ -833,30 +866,30 @@ private struct SaleCartRow: View {
     @Binding var lineNote: String
     let isEditable: Bool
     let removeAction: () -> Void
-
+    
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .center, spacing: 12) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(item.catalogItem.name)
                         .font(.subheadline.weight(.semibold))
-
+                    
                     if let price = item.catalogItem.price {
                         Text(price.displayText)
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
                 }
-
+                
                 Spacer()
-
+                
                 TextField("Cant.", text: $quantity)
                     .keyboardType(.decimalPad)
                     .multilineTextAlignment(.trailing)
                     .frame(width: 72)
                     .textFieldStyle(.roundedBorder)
                     .disabled(!isEditable)
-
+                
                 if isEditable {
                     Button(role: .destructive, action: removeAction) {
                         Image(systemName: "minus.circle")
@@ -864,14 +897,14 @@ private struct SaleCartRow: View {
                     .buttonStyle(.borderless)
                 }
             }
-
+            
             HStack(alignment: .firstTextBaseline, spacing: 10) {
                 Label("Tratamiento", systemImage: "percent")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-
+                
                 Spacer()
-
+                
                 if isEditable {
                     Picker("Tratamiento tributario", selection: $taxTreatment) {
                         ForEach(SaleLineTaxTreatmentOption.allCases) { option in
@@ -885,17 +918,17 @@ private struct SaleCartRow: View {
                         .foregroundStyle(.secondary)
                 }
             }
-
+            
             Text(taxTreatment.detailText)
                 .font(.caption2)
                 .foregroundStyle(.secondary)
-
+            
             if taxTreatment == .ivaTourism8 {
                 Label("Verifica que el negocio y la fecha estén habilitados antes de emitir comprobante.", systemImage: "exclamationmark.triangle")
                     .font(.caption2)
                     .foregroundStyle(.orange)
             }
-
+            
             if isEditable {
                 Button {
                     toggleDiscountSelection()
@@ -908,7 +941,7 @@ private struct SaleCartRow: View {
                 }
                 .buttonStyle(.borderless)
             }
-
+            
             TextField("Nota de línea opcional", text: $lineNote)
                 .textInputAutocapitalization(.sentences)
                 .disabled(!isEditable)

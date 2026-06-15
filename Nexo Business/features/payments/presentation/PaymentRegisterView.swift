@@ -1,10 +1,3 @@
-//
-//  PaymentRegisterView.swift
-//  Nexo Business
-//
-//  Created by José Ruiz on 11/6/26.
-//
-
 import SwiftUI
 
 struct PaymentRegisterView: View {
@@ -367,6 +360,12 @@ struct PaymentRegisterView: View {
                         Label(reason, systemImage: "info.circle")
                             .font(.footnote)
                             .foregroundStyle(.secondary)
+
+                        if let detail = viewModel.sale.electronicInvoiceReadiness.detailedMessage {
+                            Text(detail)
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                        }
                     }
                 }
 

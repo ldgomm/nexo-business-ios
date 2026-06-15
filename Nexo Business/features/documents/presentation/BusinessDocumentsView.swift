@@ -84,6 +84,12 @@ struct BusinessDocumentsView: View {
                 Label(reason, systemImage: viewModel.hasElectronicInvoiceIssuePermission ? "info.circle" : "lock")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
+
+                if let detail = viewModel.sale.electronicInvoiceReadiness.detailedMessage {
+                    Text(detail)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
             }
         }
     }

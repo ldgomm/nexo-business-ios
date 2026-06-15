@@ -188,6 +188,12 @@ struct SaleDetailView: View {
                     Label(reason, systemImage: "lock")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
+
+                    if let detail = sale.electronicInvoiceReadiness.detailedMessage {
+                        Text(detail)
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
                 } else if viewModel.canIssueElectronicInvoice(for: sale) {
                     Label("Puedes emitir factura electrónica desde Comprobantes.", systemImage: "doc.badge.plus")
                         .font(.footnote)

@@ -189,7 +189,8 @@ final class PaymentRegisterViewModel {
         activityId?.isEmpty == false &&
         revisions != nil &&
         !sale.hasElectronicDocumentRegistered &&
-        BusinessDocumentStatusPresentation.isMissingElectronicDocument(sale.effectiveDocumentStatus)
+        BusinessDocumentStatusPresentation.isMissingElectronicDocument(sale.effectiveDocumentStatus) &&
+        sale.electronicInvoiceReadiness.canIssue
     }
 
     var electronicDocumentAfterPaymentBlockedReason: String? {
@@ -197,6 +198,9 @@ final class PaymentRegisterViewModel {
         guard !sale.hasElectronicDocumentRegistered,
               BusinessDocumentStatusPresentation.isMissingElectronicDocument(sale.effectiveDocumentStatus) else { return nil }
 
+        if !sale.electronicInvoiceReadiness.canIssue {
+            return sale.electronicInvoiceReadiness.primaryMessage
+        }
         if !hasElectronicInvoiceIssuePermission {
             return "Tu usuario puede cobrar, pero no emitir factura electrónica."
         }

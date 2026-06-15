@@ -78,6 +78,10 @@ final class SaleDetailViewModel {
             return "Tu usuario puede consultar comprobantes, pero no emitir factura electrónica. Pide al administrador activar Emitir factura electrónica."
         }
 
+        if !sale.electronicInvoiceReadiness.canIssue {
+            return sale.electronicInvoiceReadiness.primaryMessage
+        }
+
         if !hasValidEmissionContext(for: sale) {
             return "Actualiza el contexto del negocio antes de emitir factura electrónica."
         }
@@ -171,6 +175,7 @@ final class SaleDetailViewModel {
     func canIssueElectronicInvoice(for sale: BusinessSale) -> Bool {
         !sale.hasElectronicDocumentRegistered &&
         BusinessDocumentStatusPresentation.isMissingElectronicDocument(sale.effectiveDocumentStatus) &&
+        sale.electronicInvoiceReadiness.canIssue &&
         hasElectronicInvoiceIssuePermission &&
         hasValidEmissionContext(for: sale)
     }

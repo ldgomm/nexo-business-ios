@@ -492,6 +492,154 @@ struct BusinessSaleItem: Decodable, Equatable, Identifiable, Sendable {
     }
 }
 
+struct ElectronicInvoiceReadinessBlocker: Equatable, Identifiable, Sendable {
+    let id: String
+    let code: String
+    let message: String
+    let itemId: String?
+    let itemName: String?
+    let technicalValue: String?
+
+    init(
+        id: String = UUID().uuidString,
+        code: String,
+        message: String,
+        itemId: String? = nil,
+        itemName: String? = nil,
+        technicalValue: String? = nil
+    ) {
+        self.id = id
+        self.code = code
+        self.message = message
+        self.itemId = itemId
+        self.itemName = itemName
+        self.technicalValue = technicalValue
+    }
+}
+
+struct ElectronicInvoiceReadiness: Equatable, Sendable {
+    let blockers: [ElectronicInvoiceReadinessBlocker]
+
+    init(blockers: [ElectronicInvoiceReadinessBlocker] = []) {
+        self.blockers = blockers
+    }
+
+    var canIssue: Bool {
+        blockers.isEmpty
+    }
+
+    var primaryMessage: String? {
+        guard let first = blockers.first else { return nil }
+
+        if blockers.count == 1 {
+            return first.message
+        }
+
+        return "No se puede emitir factura electrónica. Hay \(blockers.count) ítems con configuración tributaria no válida para SRI."
+    }
+
+    var detailedMessage: String? {
+        guard !blockers.isEmpty else { return nil }
+
+        let names = blockers
+            .prefix(3)
+            .map { blocker in blocker.itemName?.nilIfBlankForReadiness ?? "Ítem sin nombre" }
+            .joined(separator: ", ")
+
+        if blockers.count <= 3 {
+            return "Corrige el tratamiento tributario antes de emitir: \(names)."
+        }
+
+        return "Corrige el tratamiento tributario antes de emitir: \(names) y \(blockers.count - 3) más."
+    }
+}
+
+enum ElectronicInvoiceReadinessEvaluator {
+    static func invalidTaxProfileBlocker(
+        itemId: String?,
+        itemName: String?,
+        taxProfileCode: String?,
+        taxTreatment: String?,
+        sriTaxCode: String?,
+        sriRateCode: String?
+    ) -> ElectronicInvoiceReadinessBlocker? {
+        let checks: [(value: String?, label: String)] = [
+            (sriTaxCode, "sriTaxCode"),
+            (sriRateCode, "sriRateCode"),
+            (taxProfileCode, "taxProfileCode"),
+            (taxTreatment, "taxTreatment")
+        ]
+
+        guard let failed = checks.first(where: { isInvalidForElectronicInvoice($0.value) }) else {
+            return nil
+        }
+
+        let name = itemName?.nilIfBlankForReadiness ?? "ítem"
+        return ElectronicInvoiceReadinessBlocker(
+            code: "invalid_tax_profile",
+            message: "No se puede emitir factura electrónica. \(name) usa un impuesto de solo registro o sin código SRI válido.",
+            itemId: itemId,
+            itemName: itemName,
+            technicalValue: "\(failed.label)=\(failed.value ?? "")"
+        )
+    }
+
+    static func isInvalidForElectronicInvoice(_ value: String?) -> Bool {
+        guard let normalized = normalized(value), !normalized.isEmpty else { return false }
+
+        let compact = normalized
+            .replacingOccurrences(of: "-", with: "_")
+            .replacingOccurrences(of: " ", with: "_")
+
+        let invalidValues: Set<String> = [
+            "no_sri_tax_code",
+            "no_sri_code",
+            "no_tax_internal",
+            "internal_no_tax",
+            "altos_staging_no_tax_internal",
+            "operational_no_tax",
+            "operationalnotax",
+            "solo_registro",
+            "solo_registro_interno"
+        ]
+
+        return invalidValues.contains(compact) || compact.contains("no_sri_tax_code")
+    }
+
+    private static func normalized(_ value: String?) -> String? {
+        value?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+    }
+}
+
+extension BusinessSaleItem {
+    var electronicInvoiceReadinessBlocker: ElectronicInvoiceReadinessBlocker? {
+        ElectronicInvoiceReadinessEvaluator.invalidTaxProfileBlocker(
+            itemId: id,
+            itemName: name,
+            taxProfileCode: taxProfileCode,
+            taxTreatment: taxTreatment,
+            sriTaxCode: sriTaxCode,
+            sriRateCode: sriRateCode
+        )
+    }
+}
+
+extension BusinessSale {
+    var electronicInvoiceReadiness: ElectronicInvoiceReadiness {
+        ElectronicInvoiceReadiness(
+            blockers: items.compactMap { $0.electronicInvoiceReadinessBlocker }
+        )
+    }
+}
+
+private extension String {
+    var nilIfBlankForReadiness: String? {
+        let trimmed = trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+}
 
 private extension KeyedDecodingContainer {
     func decodeFlexibleStringIfPresent(forKey key: Key) throws -> String? {

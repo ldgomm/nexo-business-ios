@@ -13,6 +13,7 @@ final class BusinessDocumentsViewModel {
     var note = ""
     var errorMessage: String?
     var infoMessage: String?
+    private(set) var serverInvoiceBlockerMessage: String?
 
     let organizationId: String
     private(set) var sale: BusinessSale
@@ -115,7 +116,9 @@ final class BusinessDocumentsViewModel {
         branchId?.isEmpty == false &&
         activityId?.isEmpty == false &&
         revisions != nil &&
-        hasElectronicInvoiceIssuePermission
+        hasElectronicInvoiceIssuePermission &&
+        serverInvoiceBlockerMessage == nil &&
+        sale.electronicInvoiceReadiness.canIssue
     }
 
     var hasElectronicInvoiceIssuePermission: Bool {
@@ -135,6 +138,14 @@ final class BusinessDocumentsViewModel {
 
         if !BusinessDocumentStatusPresentation.isMissingElectronicDocument(sale.effectiveDocumentStatus) {
             return nil
+        }
+
+        if let serverInvoiceBlockerMessage {
+            return serverInvoiceBlockerMessage
+        }
+
+        if !sale.electronicInvoiceReadiness.canIssue {
+            return sale.electronicInvoiceReadiness.primaryMessage
         }
 
         if !hasElectronicInvoiceIssuePermission {
@@ -353,6 +364,7 @@ final class BusinessDocumentsViewModel {
                 idempotencyKey: .generate(prefix: "electronic-invoice-issue"),
                 request: IssueBusinessElectronicDocumentRequest()
             )
+            serverInvoiceBlockerMessage = nil
             upsert(response.document)
             sale = sale.replacingElectronicDocument(response.document)
 
@@ -459,11 +471,27 @@ final class BusinessDocumentsViewModel {
     }
 
     private func handle(apiError: APIError) {
-        errorMessage = apiError.userMessage
+        let message = apiError.userMessage
+
+        if isInvalidTaxProfileError(message) {
+            serverInvoiceBlockerMessage = "No se puede emitir factura electrónica. La venta tiene productos configurados como Solo registro o sin código SRI válido."
+            errorMessage = serverInvoiceBlockerMessage
+            infoMessage = "Corrige el impuesto del producto en catálogo o registra una nueva venta con un tratamiento tributario válido para SRI."
+            return
+        }
+
+        errorMessage = message
 
         if apiError.statusCode == 409 || apiError.statusCode == 428 {
             infoMessage = "Actualiza el contexto del negocio antes de continuar."
         }
+    }
+
+    private func isInvalidTaxProfileError(_ message: String) -> Bool {
+        message.localizedCaseInsensitiveContains("tax profile") ||
+        message.localizedCaseInsensitiveContains("NO_SRI_TAX_CODE") ||
+        message.localizedCaseInsensitiveContains("not valid for electronic invoicing") ||
+        message.localizedCaseInsensitiveContains("no es válido para facturación electrónica")
     }
 
     private func hasPermission(_ candidates: [String]) -> Bool {
