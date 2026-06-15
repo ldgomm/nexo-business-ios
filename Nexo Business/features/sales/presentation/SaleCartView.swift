@@ -479,18 +479,6 @@ struct SaleCartView: View {
                     .disabled(!viewModel.canPreview)
                 }
 
-                Button {
-                    NexoKeyboard.dismiss()
-                    Task { await viewModel.createQuickSale() }
-                } label: {
-                    if viewModel.isCreatingSale {
-                        ProgressView()
-                    } else {
-                        Label(viewModel.preview == nil ? "Registrar venta sin recalcular" : "Registrar venta", systemImage: "checkmark.seal.fill")
-                    }
-                }
-                .disabled(!viewModel.canCreateSale)
-
                 if viewModel.canClearCart {
                     Button(role: .destructive) {
                         viewModel.clearCart()
