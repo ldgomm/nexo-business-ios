@@ -9,6 +9,7 @@ import SwiftUI
 
 struct SaleBuilderView: View {
     @Bindable private var viewModel: SaleBuilderViewModel
+    @State private var showStartNewOrderConfirmation = false
 
     init(viewModel: SaleBuilderViewModel) {
         self.viewModel = viewModel
@@ -19,14 +20,18 @@ struct SaleBuilderView: View {
             Section {
                 HStack {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text(viewModel.createdSale == nil ? "Venta en curso" : "Venta cerrada")
+                        Text(orderStateTitle)
                             .font(.headline)
-                        Text(viewModel.isOrderLocked ? "Esta venta ya fue registrada." : "Registra una sola venta por orden.")
+                        Text(orderStateDescription)
                             .font(.footnote)
                             .foregroundStyle(.secondary)
                     }
                     Spacer()
-                    NexoStatusBadge(viewModel.orderState.displayName)
+                    NexoStatusBadge(
+                        viewModel.orderState.displayName,
+                        systemImage: viewModel.createdSaleNeedsCollection ? "exclamationmark.triangle" : "circle.fill",
+                        style: viewModel.createdSale == nil ? .info : viewModel.createdSaleMessageStyle
+                    )
                 }
             }
 
@@ -63,7 +68,7 @@ struct SaleBuilderView: View {
 
             if let message = viewModel.infoMessage {
                 Section {
-                    NexoMessageBanner(message, style: .success)
+                    NexoMessageBanner(message, style: viewModel.createdSale == nil ? .success : viewModel.createdSaleMessageStyle)
                 }
             }
 
@@ -95,14 +100,57 @@ struct SaleBuilderView: View {
                 }
 
                 Button {
-                    viewModel.startNewOrder()
+                    requestStartNewOrder()
                 } label: {
-                    Label("Nueva venta", systemImage: "plus.circle")
+                    Label(
+                        viewModel.createdSaleNeedsCollection ? "Guardar pendiente y crear otra" : "Nueva venta",
+                        systemImage: "plus.circle"
+                    )
                 }
             }
         }
         .nexoKeyboardDismissable()
-        .navigationTitle(viewModel.createdSale == nil ? "Nueva venta" : "Venta registrada")
+        .navigationTitle(navigationTitle)
+        .alert(viewModel.startNewOrderConfirmationTitle, isPresented: $showStartNewOrderConfirmation) {
+            Button("Cancelar", role: .cancel) {}
+            Button("Sí, dejar pendiente", role: .destructive) {
+                viewModel.startNewOrder()
+            }
+        } message: {
+            Text(viewModel.startNewOrderConfirmationMessage)
+        }
+    }
+
+    private var orderStateTitle: String {
+        if viewModel.createdSaleNeedsCollection {
+            return "Venta pendiente de cobro"
+        }
+
+        return viewModel.createdSale == nil ? "Venta en curso" : "Venta registrada"
+    }
+
+    private var orderStateDescription: String {
+        if viewModel.createdSaleNeedsCollection {
+            return "La venta fue registrada, pero todavía falta cobrarla."
+        }
+
+        return viewModel.isOrderLocked ? "Esta venta ya fue registrada." : "Registra una sola venta por orden."
+    }
+
+    private var navigationTitle: String {
+        if viewModel.createdSaleNeedsCollection {
+            return "Pendiente de cobro"
+        }
+
+        return viewModel.createdSale == nil ? "Nueva venta" : "Venta registrada"
+    }
+
+    private func requestStartNewOrder() {
+        if viewModel.createdSaleNeedsCollection {
+            showStartNewOrderConfirmation = true
+        } else {
+            viewModel.startNewOrder()
+        }
     }
 }
 

@@ -43,7 +43,8 @@ struct SaleDetailView: View {
                 summarySection(sale)
                 itemsSection(sale)
                 totalsSection(sale)
-                documentAndPaymentSection(sale)
+                paymentSection(sale)
+                electronicDocumentSection(sale)
                 messagesSection
                 actionsSection
             } else if !viewModel.isLoading {
@@ -134,14 +135,52 @@ struct SaleDetailView: View {
         }
     }
 
-    private func documentAndPaymentSection(_ sale: BusinessSale) -> some View {
-        Section("Pago y documento") {
-            LabeledContent("Pago", value: PaymentStatusPresentation.displayName(sale.paymentStatus))
+    private func paymentSection(_ sale: BusinessSale) -> some View {
+        Section("Cobro") {
+            Label(
+                PaymentStatusPresentation.displayName(sale.paymentStatus),
+                systemImage: PaymentStatusPresentation.systemImage(sale.paymentStatus)
+            )
+            .font(.subheadline.weight(.semibold))
 
-            if let documentStatus = sale.documentStatus {
-                LabeledContent("Documento", value: documentStatus)
+            if sale.needsCollection {
+                Text("Registrada no significa cobrada. Esta venta todavía debe cobrarse o dejarse claramente como cuenta por cobrar.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
             } else {
-                LabeledContent("Documento", value: "Sin estado")
+                Text("El estado de cobro indica que esta venta ya no está pendiente de cobro operativo.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private func electronicDocumentSection(_ sale: BusinessSale) -> some View {
+        Section("Comprobante electrónico") {
+            Label(
+                BusinessDocumentStatusPresentation.displayName(sale.documentStatus ?? "not_required"),
+                systemImage: BusinessDocumentStatusPresentation.systemImage(sale.documentStatus ?? "not_required")
+            )
+            .font(.subheadline.weight(.semibold))
+
+            if BusinessDocumentStatusPresentation.isMissingElectronicDocument(sale.documentStatus) {
+                Text("Sin factura electrónica emitida. Esta venta puede estar cobrada y seguir como registro interno hasta que alguien con permiso emita el comprobante.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+
+                if let reason = viewModel.electronicInvoiceBlockedReason {
+                    Label(reason, systemImage: "lock")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                } else if viewModel.canIssueElectronicInvoice(for: sale) {
+                    Label("Puedes emitir factura electrónica desde Comprobantes.", systemImage: "doc.badge.plus")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+            } else {
+                Text("Revisa el comprobante para ver autorización, RIDE, XML, correo y errores si existieran.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
             }
         }
     }
@@ -186,18 +225,24 @@ struct SaleDetailView: View {
                 }
             }
 
-            if let sale = viewModel.sale, viewModel.canManageDocuments {
+            if let sale = viewModel.sale, viewModel.canViewDocuments {
                 NavigationLink {
                     BusinessDocumentsView(
                         viewModel: BusinessDocumentsViewModel(
                             organizationId: viewModel.organizationId,
                             sale: sale,
                             effectivePermissions: viewModel.effectivePermissions,
+                            branchId: sale.branchId,
+                            activityId: sale.activityId,
+                            revisions: viewModel.revisions,
                             documentsRepository: documentsRepository
                         )
                     )
                 } label: {
-                    Label("Comprobantes", systemImage: "doc.text")
+                    Label(
+                        viewModel.documentActionTitle(for: sale),
+                        systemImage: viewModel.documentActionSystemImage(for: sale)
+                    )
                 }
             }
 

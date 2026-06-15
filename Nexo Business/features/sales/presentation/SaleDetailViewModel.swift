@@ -44,58 +44,143 @@ final class SaleDetailViewModel {
 
     var canConfirm: Bool {
         guard let sale else { return false }
-        return !isLoading &&
-        !isConfirming &&
-        !isCanceling &&
+        return !isBusy &&
         hasPermission(["business.sales.confirm", "sales.confirm"]) &&
         SaleStatusPresentation.canConfirm(status: sale.status)
     }
 
     var canCancel: Bool {
         guard let sale else { return false }
-        return !isLoading &&
-        !isConfirming &&
-        !isCanceling &&
+        return !isBusy &&
         hasPermission(["business.sales.cancel", "sales.cancel"]) &&
         SaleStatusPresentation.canCancel(status: sale.status)
     }
 
     var canCollect: Bool {
         guard let sale else { return false }
-        return !isLoading &&
-        !isConfirming &&
-        !isCanceling &&
+        return !isBusy &&
         SaleStatusPresentation.canCollect(status: sale.status) &&
         PaymentStatusPresentation.canCollect(status: sale.paymentStatus) &&
-        hasPermission([
-            "business.payments.collect",
-            "payments.collect",
-            "business.payments.register",
-            "payments.register",
-            "business.receivables.create",
-            "receivables.create",
-            "business.payments.mark_as_credit",
-            "payments.mark_as_credit"
-        ])
+        hasAnyPaymentCapability
     }
 
-
-    var canManageDocuments: Bool {
+    var canViewDocuments: Bool {
         guard sale != nil else { return false }
-        return hasPermission([
-            "business.documents.view",
-            "documents.view",
-            "business.documents.issue_internal_ticket",
-            "documents.issue_internal_ticket",
-            "business.documents.register_physical_sale_note",
-            "documents.register_physical_sale_note",
-            "business.documents.issue_electronic_invoice",
-            "documents.issue_electronic_invoice"
-        ])
+        return hasPermission(documentViewPermissions + documentIssuePermissions)
+    }
+
+    var canIssueElectronicInvoice: Bool {
+        guard let sale else { return false }
+        return !isBusy &&
+        canIssueElectronicInvoice(for: sale)
+    }
+
+    var electronicInvoiceBlockedReason: String? {
+        guard let sale else { return "No se encontró la venta." }
+
+        if !BusinessDocumentStatusPresentation.isMissingElectronicDocument(sale.documentStatus) {
+            return nil
+        }
+
+        if !hasElectronicInvoiceIssuePermission {
+            return "Tu usuario puede consultar comprobantes, pero no emitir factura electrónica. Pide al administrador activar Emitir factura electrónica."
+        }
+
+        if sale.branchId.isEmpty || ((sale.activityId?.isEmpty) != nil) {
+            return "Actualiza el contexto del negocio antes de emitir factura electrónica."
+        }
+
+        return nil
     }
 
     var shouldLoadOnAppear: Bool {
         sale == nil && !isLoading
+    }
+
+    private var isBusy: Bool {
+        isLoading || isConfirming || isCanceling
+    }
+
+    private var hasAnyPaymentCapability: Bool {
+        hasPermission(paymentPermissions + receivablePermissions)
+    }
+
+    private var hasElectronicInvoiceIssuePermission: Bool {
+        hasPermission(electronicInvoiceIssuePermissions)
+    }
+
+    private var documentViewPermissions: [String] {
+        [
+            "business.documents.view",
+            "documents.view",
+            "business.electronic_documents.view",
+            "electronic_documents.view",
+            "documents.electronic_invoice.view"
+        ]
+    }
+
+    private var documentIssuePermissions: [String] {
+        [
+            "business.documents.issue_internal_ticket",
+            "documents.issue_internal_ticket",
+            "business.documents.register_physical_sale_note",
+            "documents.register_physical_sale_note"
+        ] + electronicInvoiceIssuePermissions
+    }
+
+    private var electronicInvoiceIssuePermissions: [String] {
+        [
+            "business.documents.issue_electronic_invoice",
+            "documents.issue_electronic_invoice",
+            "documents.electronic_invoice.issue",
+            "electronic_documents.issue",
+            "business.electronic_documents.issue"
+        ]
+    }
+
+    private var paymentPermissions: [String] {
+        [
+            "business.payments.collect",
+            "payments.collect",
+            "business.payments.register",
+            "payments.register"
+        ]
+    }
+
+    private var receivablePermissions: [String] {
+        [
+            "business.receivables.create",
+            "receivables.create",
+            "business.payments.mark_as_credit",
+            "payments.mark_as_credit"
+        ]
+    }
+
+    func documentActionTitle(for sale: BusinessSale) -> String {
+        guard BusinessDocumentStatusPresentation.isMissingElectronicDocument(sale.documentStatus) else {
+            return "Ver comprobantes"
+        }
+
+        return canIssueElectronicInvoice(for: sale)
+            ? "Emitir factura electrónica"
+            : "Ver comprobantes"
+    }
+
+    func documentActionSystemImage(for sale: BusinessSale) -> String {
+        guard BusinessDocumentStatusPresentation.isMissingElectronicDocument(sale.documentStatus) else {
+            return "doc.text.magnifyingglass"
+        }
+
+        return canIssueElectronicInvoice(for: sale)
+            ? "doc.badge.plus"
+            : "doc.text"
+    }
+
+    func canIssueElectronicInvoice(for sale: BusinessSale) -> Bool {
+        BusinessDocumentStatusPresentation.isMissingElectronicDocument(sale.documentStatus) &&
+        hasElectronicInvoiceIssuePermission &&
+        !sale.branchId.isEmpty &&
+        ((sale.activityId?.isEmpty) == nil)
     }
 
     func load() async {

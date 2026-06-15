@@ -80,7 +80,7 @@ final class SaleCartViewModelTests: XCTestCase {
         XCTAssertEqual(sales.lastQuickSaleRequest?.catalogRevision, "cat_rev_test")
         XCTAssertEqual(sales.lastQuickSaleRequest?.taxConfigurationRevision, "tax_rev_test")
         XCTAssertTrue(sales.lastIdempotencyKey?.rawValue.hasPrefix("quick-sale-") == true)
-        XCTAssertEqual(viewModel.infoMessage, "Venta registrada. Ahora puedes cobrarla o iniciar una nueva venta.")
+        XCTAssertEqual(viewModel.infoMessage, "Venta pendiente de cobro. La venta fue registrada, pero todavía no se ha cobrado.")
     }
 
     func testRevisionErrorShowsRefreshMessage() async {

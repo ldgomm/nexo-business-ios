@@ -55,6 +55,22 @@ final class SaleBuilderViewModel {
         !catalogItemId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !isLoading && !isOrderLocked
     }
 
+    var createdSaleNeedsCollection: Bool {
+        createdSale?.needsCollection == true
+    }
+
+    var createdSaleMessageStyle: NexoMessageStyle {
+        createdSaleNeedsCollection ? .warning : .success
+    }
+
+    var startNewOrderConfirmationTitle: String {
+        "Esta venta quedará pendiente de cobro"
+    }
+
+    var startNewOrderConfirmationMessage: String {
+        "La venta fue registrada, pero todavía no se ha cobrado. Si continúas, aparecerá como pendiente y tendrás que cobrarla después."
+    }
+
     func loadPreview() async {
         guard !isOrderLocked else {
             errorMessage = "Esta venta ya fue registrada. Inicia una nueva venta para continuar."
@@ -136,9 +152,10 @@ final class SaleBuilderViewModel {
             createdSale = response.sale
             preview = nil
             orderState = .created
-            infoMessage = response.idempotencyReplayed == true
-                ? "Venta recuperada sin duplicar la operación."
-                : "Venta registrada. Ahora puedes cobrarla o iniciar una nueva venta."
+            infoMessage = createdSaleSummaryMessage(
+                for: response.sale,
+                replayed: response.idempotencyReplayed == true
+            )
         } catch let error as APIError {
             orderState = .editing
             errorMessage = error.userMessage
@@ -146,6 +163,24 @@ final class SaleBuilderViewModel {
             orderState = .editing
             errorMessage = error.localizedDescription
         }
+    }
+
+    private func createdSaleSummaryMessage(for sale: BusinessSale, replayed: Bool) -> String {
+        if replayed {
+            return sale.needsCollection
+                ? "Venta pendiente recuperada de un intento anterior. No se duplicó la operación."
+                : "Venta recuperada sin duplicar la operación."
+        }
+
+        if sale.needsCollection {
+            return "Venta pendiente de cobro. La venta fue registrada, pero todavía no se ha cobrado."
+        }
+
+        if PaymentStatusPresentation.isCollected(sale.paymentStatus) {
+            return "Venta cobrada correctamente."
+        }
+
+        return "Venta registrada. Revisa el detalle antes de continuar."
     }
 
     func startNewOrder() {

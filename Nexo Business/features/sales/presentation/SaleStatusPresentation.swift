@@ -10,11 +10,11 @@ import SwiftUI
 
 enum SaleStatusPresentation {
     static func title(for status: String) -> String {
-        switch status.lowercased() {
+        switch normalized(status) {
         case "draft":
             return "Borrador"
         case "pending":
-            return "Pendiente"
+            return "Registrada"
         case "confirmed":
             return "Confirmada"
         case "in_progress":
@@ -25,22 +25,22 @@ enum SaleStatusPresentation {
             return "Entregada"
         case "closed":
             return "Cerrada"
-        case "canceled", "cancelled":
+        case "canceled", "cancelled", "voided":
             return "Cancelada"
         default:
-            return status
+            return humanized(status)
         }
     }
 
     static func systemImage(for status: String) -> String {
-        switch status.lowercased() {
-        case "confirmed", "closed", "delivered":
+        switch normalized(status) {
+        case "confirmed", "closed", "delivered", "ready":
             return "checkmark.circle.fill"
-        case "canceled", "cancelled":
+        case "canceled", "cancelled", "voided":
             return "xmark.circle.fill"
         case "pending", "draft":
             return "clock"
-        case "in_progress", "ready":
+        case "in_progress":
             return "bolt.circle.fill"
         default:
             return "circle"
@@ -48,24 +48,41 @@ enum SaleStatusPresentation {
     }
 
     static func canConfirm(status: String) -> Bool {
-        !["confirmed", "closed", "canceled", "cancelled"].contains(status.lowercased())
+        !["confirmed", "closed", "canceled", "cancelled", "voided"].contains(normalized(status))
     }
 
     static func canCancel(status: String) -> Bool {
-        !["closed", "canceled", "cancelled"].contains(status.lowercased())
+        !["closed", "canceled", "cancelled", "voided"].contains(normalized(status))
     }
 
     static func canCollect(status: String) -> Bool {
-        switch status.lowercased() {
+        switch normalized(status) {
         case "confirmed", "closed", "delivered", "ready", "in_progress", "pending":
             return true
-        case "canceled", "cancelled":
+        case "canceled", "cancelled", "voided":
             return false
         default:
-            return status.lowercased() != "canceled"
+            return normalized(status) != "canceled"
         }
     }
 
+    private static func normalized(_ status: String) -> String {
+        status
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+            .replacingOccurrences(of: "-", with: "_")
+    }
+
+    private static func humanized(_ value: String) -> String {
+        let cleaned = value
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: "_", with: " ")
+            .replacingOccurrences(of: "-", with: " ")
+            .lowercased()
+
+        guard !cleaned.isEmpty else { return "Sin estado" }
+        return cleaned.prefix(1).uppercased() + cleaned.dropFirst()
+    }
 }
 
 struct SaleStatusLabel: View {

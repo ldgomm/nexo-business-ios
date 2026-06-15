@@ -28,19 +28,22 @@ final class SalesHistoryViewModel {
     let effectivePermissions: Set<String>
 
     private let repository: SalesHistoryRepository
+    private let documentsRepository: BusinessDocumentsRepository?
 
     init(
         organizationId: String,
         branchId: String,
         revisions: BusinessRevisions,
         effectivePermissions: Set<String>,
-        historyRepository: SalesHistoryRepository
+        historyRepository: SalesHistoryRepository,
+        documentsRepository: BusinessDocumentsRepository? = nil
     ) {
         self.organizationId = organizationId
         self.branchId = branchId
         self.revisions = revisions
         self.effectivePermissions = effectivePermissions
         self.repository = historyRepository
+        self.documentsRepository = documentsRepository
     }
 
     var canSearch: Bool {
@@ -113,7 +116,8 @@ final class SalesHistoryViewModel {
                 )
             )
 
-            sales = response.sales.sorted(by: sortSales)
+            let sortedSales = response.sales.sorted(by: sortSales)
+            sales = await hydrateDocumentStatusIfNeeded(sortedSales)
             total = response.total
             hasMore = response.hasMore
             infoMessage = sales.isEmpty ? "No encontramos ventas con estos filtros." : nil
@@ -147,6 +151,65 @@ final class SalesHistoryViewModel {
         )
     }
 
+
+    private func hydrateDocumentStatusIfNeeded(_ sales: [BusinessSale]) async -> [BusinessSale] {
+        guard let documentsRepository else { return sales }
+        guard canViewDocuments else { return sales }
+
+        var hydrated: [BusinessSale] = []
+        hydrated.reserveCapacity(sales.count)
+
+        for sale in sales {
+            guard BusinessDocumentStatusPresentation.isMissingElectronicDocument(sale.documentStatus) else {
+                hydrated.append(sale)
+                continue
+            }
+
+            do {
+                let response = try await documentsRepository.list(
+                    organizationId: organizationId,
+                    saleId: sale.id
+                )
+
+                if let latestElectronicDocument = response.documents
+                    .filter({ $0.isElectronicInvoiceForHistory })
+                    .sorted(by: sortDocuments)
+                    .first {
+                    hydrated.append(sale.replacingDocumentStatus(latestElectronicDocument.effectiveStatus))
+                } else {
+                    hydrated.append(sale)
+                }
+            } catch {
+                hydrated.append(sale)
+            }
+        }
+
+        return hydrated
+    }
+
+    private var canViewDocuments: Bool {
+        hasPermission([
+            "business.documents.view",
+            "documents.view",
+            "business.electronic_documents.view",
+            "electronic_documents.view",
+            "documents.electronic_invoice.view"
+        ])
+    }
+
+    private func sortDocuments(_ lhs: BusinessDocument, _ rhs: BusinessDocument) -> Bool {
+        switch (lhs.createdAt, rhs.createdAt) {
+        case let (left?, right?):
+            return left > right
+        case (_?, nil):
+            return true
+        case (nil, _?):
+            return false
+        case (nil, nil):
+            return lhs.id > rhs.id
+        }
+    }
+
     private func sortSales(_ lhs: BusinessSale, _ rhs: BusinessSale) -> Bool {
         switch (lhs.createdAt, rhs.createdAt) {
         case let (left?, right?):
@@ -169,7 +232,7 @@ final class SalesHistoryViewModel {
     }
 
     private func hasPermission(_ candidates: [String]) -> Bool {
-        candidates.contains { effectivePermissions.contains($0) }
+        effectivePermissions.contains("*") || candidates.contains { effectivePermissions.contains($0) }
     }
 
     private func normalized(_ value: String) -> String {
@@ -179,5 +242,37 @@ final class SalesHistoryViewModel {
     private func emptyToNil(_ value: String) -> String? {
         let trimmed = normalized(value)
         return trimmed.isEmpty ? nil : trimmed
+    }
+}
+
+
+private extension BusinessDocument {
+    var isElectronicInvoiceForHistory: Bool {
+        let normalizedType = type.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return normalizedType.contains("electronic_invoice") || normalizedType.contains("factura") || normalizedType.contains("invoice")
+    }
+}
+
+private extension BusinessSale {
+    func replacingDocumentStatus(_ documentStatus: String?) -> BusinessSale {
+        BusinessSale(
+            id: id,
+            number: number,
+            organizationId: organizationId,
+            branchId: branchId,
+            activityId: activityId,
+            customerId: customerId,
+            customerName: customerName,
+            customer: customer,
+            status: status,
+            paymentStatus: paymentStatus,
+            documentStatus: documentStatus,
+            totals: totals,
+            items: items,
+            createdAt: createdAt,
+            confirmedAt: confirmedAt,
+            closedAt: closedAt,
+            updatedAt: updatedAt
+        )
     }
 }

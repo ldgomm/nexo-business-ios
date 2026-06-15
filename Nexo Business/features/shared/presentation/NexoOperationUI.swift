@@ -123,15 +123,18 @@ struct NexoSaleSuccessCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .top, spacing: 12) {
-                Image(systemName: "checkmark.seal.fill")
+                Image(systemName: iconName)
                     .font(.title2)
-                    .foregroundStyle(.green)
+                    .foregroundStyle(style.foregroundStyle)
 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Venta registrada")
+                    Text(title)
                         .font(.headline)
+                    Text(subtitle)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
                     Text(sale.displayNumber)
-                        .font(.subheadline.weight(.semibold))
+                        .font(.caption.weight(.semibold))
                         .foregroundStyle(.secondary)
                 }
 
@@ -146,7 +149,8 @@ struct NexoSaleSuccessCard: View {
 
             VStack(alignment: .leading, spacing: 6) {
                 Label(sale.displayCustomerName, systemImage: "person.crop.circle")
-                Label(PaymentStatusPresentation.displayName(sale.paymentStatus), systemImage: "dollarsign.circle")
+                Label(PaymentStatusPresentation.displayName(sale.paymentStatus), systemImage: PaymentStatusPresentation.systemImage(sale.paymentStatus))
+                Label(BusinessDocumentStatusPresentation.displayName(sale.documentStatus ?? "not_required"), systemImage: BusinessDocumentStatusPresentation.systemImage(sale.documentStatus ?? "not_required"))
                 if !sale.displayItemsSummary.isEmpty {
                     Label(sale.displayItemsSummary, systemImage: "cart")
                 }
@@ -155,6 +159,38 @@ struct NexoSaleSuccessCard: View {
             .foregroundStyle(.secondary)
         }
         .padding(.vertical, 8)
+    }
+
+    private var title: String {
+        if sale.needsCollection {
+            return "Venta pendiente de cobro"
+        }
+
+        if PaymentStatusPresentation.isCollected(sale.paymentStatus) {
+            return "Venta cobrada"
+        }
+
+        return "Venta registrada"
+    }
+
+    private var subtitle: String {
+        if sale.needsCollection {
+            return "La venta fue registrada, pero todavía falta cobrar."
+        }
+
+        if PaymentStatusPresentation.isCollected(sale.paymentStatus) {
+            return "Cobro registrado correctamente."
+        }
+
+        return "Revisa el detalle antes de continuar."
+    }
+
+    private var iconName: String {
+        sale.needsCollection ? "exclamationmark.triangle.fill" : "checkmark.seal.fill"
+    }
+
+    private var style: NexoMessageStyle {
+        sale.needsCollection ? .warning : .success
     }
 }
 

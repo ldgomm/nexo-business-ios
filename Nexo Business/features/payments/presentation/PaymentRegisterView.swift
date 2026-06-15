@@ -27,7 +27,10 @@ struct PaymentRegisterView: View {
         Form {
             saleSection
 
-            if viewModel.canAccessPaymentScreen {
+            if !viewModel.saleNeedsCollection && !viewModel.hasCompletedSubmission {
+                collectionClosedSection
+                messagesSection
+            } else if viewModel.canAccessPaymentScreen {
                 if !viewModel.hasCompletedSubmission {
                     methodSection
                     amountSection
@@ -77,8 +80,25 @@ struct PaymentRegisterView: View {
         Section("Venta") {
             LabeledContent("Venta", value: viewModel.sale.displayNumber)
             SaleStatusLabel(status: viewModel.sale.status)
-            LabeledContent("Estado pago", value: PaymentStatusPresentation.displayName(viewModel.sale.paymentStatus))
+            LabeledContent("Estado de cobro", value: viewModel.salePaymentStatusText)
+            LabeledContent("Comprobante", value: viewModel.saleDocumentStatusText)
             LabeledContent("Total", value: viewModel.sale.totals.grandTotal.displayText)
+        }
+    }
+
+    private var collectionClosedSection: some View {
+        Section("Cobro") {
+            Label(viewModel.collectionClosedMessage, systemImage: "checkmark.seal")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+
+            Button {
+                NexoKeyboard.dismiss()
+                Task { await viewModel.load() }
+            } label: {
+                Label("Actualizar caja", systemImage: "arrow.clockwise")
+            }
+            .disabled(viewModel.isLoadingCash)
         }
     }
 
@@ -111,6 +131,12 @@ struct PaymentRegisterView: View {
                 TextField("Referencia", text: $viewModel.reference)
                     .textInputAutocapitalization(.characters)
                     .autocorrectionDisabled()
+
+                if let helpText = viewModel.referenceHelpText {
+                    Text(helpText)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
             }
 
             TextField("Nota opcional", text: $viewModel.note, axis: .vertical)
@@ -209,7 +235,7 @@ struct PaymentRegisterView: View {
                     .foregroundStyle(.green)
                 LabeledContent("ID", value: payment.id)
                 LabeledContent("Método", value: viewModel.paymentMethodDisplayName(payment.method))
-                LabeledContent("Estado", value: payment.status)
+                LabeledContent("Estado", value: PaymentStatusPresentation.displayName(payment.status))
                 LabeledContent("Monto", value: money(payment.amount))
 
                 if viewModel.registeredPaymentWasCash {
@@ -330,7 +356,9 @@ struct PaymentRegisterInlineView: View {
 
     var body: some View {
         Group {
-            if !viewModel.canAccessPaymentScreen {
+            if !viewModel.saleNeedsCollection && !viewModel.hasCompletedSubmission {
+                paymentCollectionClosedSection
+            } else if !viewModel.canAccessPaymentScreen {
                 paymentAccessDeniedSection
             } else if !viewModel.hasCompletedSubmission {
                 paymentMethodSection
@@ -372,6 +400,14 @@ struct PaymentRegisterInlineView: View {
         }
     }
 
+    private var paymentCollectionClosedSection: some View {
+        Section("Cobro") {
+            Label(viewModel.collectionClosedMessage, systemImage: "checkmark.seal")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+        }
+    }
+
     private var paymentAccessDeniedSection: some View {
         Section("Cobro no habilitado") {
             Label(viewModel.accessDeniedMessage, systemImage: "lock")
@@ -405,6 +441,12 @@ struct PaymentRegisterInlineView: View {
                 TextField("Referencia", text: $viewModel.reference)
                     .textInputAutocapitalization(.characters)
                     .autocorrectionDisabled()
+
+                if let helpText = viewModel.referenceHelpText {
+                    Text(helpText)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
             }
 
             TextField("Nota opcional", text: $viewModel.note, axis: .vertical)

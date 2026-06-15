@@ -14,6 +14,7 @@ struct SaleCartView: View {
     private let paymentsRepository: PaymentsRepository
     private let receivablesRepository: ReceivablesRepository
     private let documentsRepository: BusinessDocumentsRepository
+    @State private var showStartNewOrderConfirmation = false
 
     init(
         viewModel: SaleCartViewModel,
@@ -52,15 +53,23 @@ struct SaleCartView: View {
             actionsSection
         }
         .nexoKeyboardDismissable()
-        .navigationTitle(viewModel.createdSale == nil ? "Nueva venta" : "Venta registrada")
+        .navigationTitle(navigationTitle)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 if viewModel.canStartNewOrder {
                     Button("Nueva") {
-                        viewModel.startNewOrder()
+                        requestStartNewOrder()
                     }
                 }
             }
+        }
+        .alert(viewModel.startNewOrderConfirmationTitle, isPresented: $showStartNewOrderConfirmation) {
+            Button("Cancelar", role: .cancel) {}
+            Button("Sí, dejar pendiente", role: .destructive) {
+                viewModel.startNewOrder()
+            }
+        } message: {
+            Text(viewModel.startNewOrderConfirmationMessage)
         }
     }
 
@@ -68,7 +77,7 @@ struct SaleCartView: View {
         Section {
             HStack(alignment: .center, spacing: 12) {
                 VStack(alignment: .leading, spacing: 6) {
-                    Text(viewModel.createdSale == nil ? "Venta en curso" : "Venta cerrada")
+                    Text(orderStateTitle)
                         .font(.headline)
 
                     Text(orderStateDescription)
@@ -394,7 +403,7 @@ struct SaleCartView: View {
 
         if let message = viewModel.infoMessage {
             Section {
-                NexoMessageBanner(message, style: viewModel.createdSale == nil ? .info : .success)
+                NexoMessageBanner(message, style: viewModel.createdSale == nil ? .info : viewModel.createdSaleMessageStyle)
             }
         }
     }
@@ -415,21 +424,48 @@ struct SaleCartView: View {
                                 paymentsRepository: paymentsRepository,
                                 receivablesRepository: receivablesRepository
                             ),
-                            customersRepository: customersRepository
+                            customersRepository: customersRepository,
+                            onSaleUpdated: { updatedSale in
+                                viewModel.updateCreatedSale(updatedSale)
+                            }
                         )
                     } label: {
                         Label("Cobrar ahora", systemImage: "dollarsign.circle.fill")
                     }
-                } else {
-                    Label("Este usuario puede registrar ventas, pero no cobrar.", systemImage: "lock")
+                } else if viewModel.shouldShowCollectLockForCreatedSale {
+                    Label("Esta venta está pendiente, pero tu usuario no puede cobrarla.", systemImage: "lock")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
 
+                if viewModel.canOpenCreatedSaleDocuments {
+                    NavigationLink {
+                        BusinessDocumentsView(
+                            viewModel: BusinessDocumentsViewModel(
+                                organizationId: viewModel.organizationId,
+                                sale: sale,
+                                effectivePermissions: viewModel.effectivePermissions,
+                                branchId: sale.branchId,
+                                activityId: sale.activityId,
+                                revisions: viewModel.revisions,
+                                documentsRepository: documentsRepository
+                            )
+                        )
+                    } label: {
+                        Label(
+                            viewModel.createdSaleDocumentActionTitle,
+                            systemImage: viewModel.createdSaleDocumentActionSystemImage
+                        )
+                    }
+                }
+
                 Button {
-                    viewModel.startNewOrder()
+                    requestStartNewOrder()
                 } label: {
-                    Label("Nueva venta", systemImage: "plus.circle")
+                    Label(
+                        viewModel.createdSaleNeedsCollection ? "Guardar pendiente y crear otra" : "Nueva venta",
+                        systemImage: "plus.circle"
+                    )
                 }
 
                 NavigationLink {
@@ -601,8 +637,30 @@ struct SaleCartView: View {
         case .creating:
             return "Registrando venta. No cierres esta pantalla."
         case .created:
-            return "Esta venta ya quedó registrada y el carrito está bloqueado."
+            return viewModel.createdSaleNeedsCollection
+                ? "La venta quedó registrada, pero todavía falta cobrarla."
+                : "Esta venta ya quedó registrada y el carrito está bloqueado."
         }
+    }
+
+    private var orderStateTitle: String {
+        if viewModel.createdSaleNeedsCollection {
+            return "Venta pendiente de cobro"
+        }
+
+        if viewModel.createdSale != nil {
+            return "Venta registrada"
+        }
+
+        return "Venta en curso"
+    }
+
+    private var navigationTitle: String {
+        if viewModel.createdSaleNeedsCollection {
+            return "Pendiente de cobro"
+        }
+
+        return viewModel.createdSale == nil ? "Nueva venta" : "Venta registrada"
     }
 
     private var orderStateIcon: String {
@@ -614,7 +672,7 @@ struct SaleCartView: View {
         case .creating:
             return "arrow.triangle.2.circlepath"
         case .created:
-            return "checkmark"
+            return viewModel.createdSaleNeedsCollection ? "exclamationmark.triangle" : "checkmark"
         }
     }
 
@@ -625,10 +683,18 @@ struct SaleCartView: View {
         case .previewing, .creating:
             return .warning
         case .created:
-            return .success
+            return viewModel.createdSaleMessageStyle
         }
     }
     
+    private func requestStartNewOrder() {
+        if viewModel.createdSaleNeedsCollection {
+            showStartNewOrderConfirmation = true
+        } else {
+            viewModel.startNewOrder()
+        }
+    }
+
     private func money(_ value: MoneyAmount) -> String {
         value.displayText
     }

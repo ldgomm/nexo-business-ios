@@ -112,6 +112,19 @@ final class PaymentRegisterViewModel {
         paymentResult != nil || receivableResult != nil
     }
 
+    var saleNeedsCollection: Bool {
+        SaleStatusPresentation.canCollect(status: sale.status) &&
+        PaymentStatusPresentation.canCollect(status: sale.paymentStatus)
+    }
+
+    var collectionClosedMessage: String {
+        if PaymentStatusPresentation.isCollected(sale.paymentStatus) {
+            return "Esta venta ya está cobrada. Si acabas de confirmar el cobro desde otro intento, vuelve al detalle o al historial y actualiza."
+        }
+
+        return "Esta venta ya no está disponible para cobro con el estado actual."
+    }
+
     var registeredPaymentWasCash: Bool {
         lastSubmittedMode == .cash || paymentResult?.method == BusinessPaymentMethod.cash.rawValue
     }
@@ -135,7 +148,7 @@ final class PaymentRegisterViewModel {
     }
 
     var accessDeniedMessage: String {
-        "Este usuario puede registrar o consultar ventas, pero no tiene permiso para cobrar ni crear cuentas por cobrar."
+        "No puedes cobrar con tu usuario actual. Pide al administrador que active el permiso Registrar cobros para este rol."
     }
 
     var canSubmitPayment: Bool {
@@ -144,6 +157,7 @@ final class PaymentRegisterViewModel {
         guard SaleStatusPresentation.canCollect(status: sale.status) else { return false }
         guard PaymentStatusPresentation.canCollect(status: sale.paymentStatus) else { return false }
         guard isValidAmount(amount) else { return false }
+        guard !requiresReference || !normalized(reference).isEmpty else { return false }
 
         if selectedMode == .cash {
             return currentCashSession?.isOpen == true
@@ -165,13 +179,37 @@ final class PaymentRegisterViewModel {
         selectedMode == .cash && currentCashSession?.isOpen != true
     }
 
+    var requiresReference: Bool {
+        selectedMode == .transfer || selectedMode == .card
+    }
+
+    var referenceHelpText: String? {
+        switch selectedMode {
+        case .transfer:
+            return "Ingresa el número, comprobante o referencia de la transferencia antes de confirmar."
+        case .card:
+            return "Ingresa el voucher, lote o referencia de la tarjeta antes de confirmar."
+        default:
+            return nil
+        }
+    }
+
+    var salePaymentStatusText: String {
+        PaymentStatusPresentation.displayName(sale.paymentStatus)
+    }
+
+    var saleDocumentStatusText: String {
+        BusinessDocumentStatusPresentation.displayName(sale.documentStatus ?? "not_required")
+    }
+
     var hasPaymentPermission: Bool {
         hasPermission([
             "business.payments.collect",
             "payments.collect",
             "business.payments.register",
-            "payments.register"
-        ])
+            "payments.register",
+            "sales.payments.register",
+            "business.sales.payments.register"        ])
     }
 
     var hasReceivablePermission: Bool {
@@ -202,6 +240,9 @@ final class PaymentRegisterViewModel {
         }
 
         var message = "Vas a registrar un cobro por \(amountMoney).\n\nMétodo: \(selectedMode.title)"
+        if requiresReference {
+            message += "\nReferencia: \(normalized(reference))"
+        }
         if selectedMode == .cash {
             message += "\n\nEsto actualizará la caja automáticamente. No registres este valor como movimiento manual."
         }
@@ -424,9 +465,11 @@ final class PaymentRegisterViewModel {
         hasPermission([
             "cash.view",
             "cash.session.view_current",
+            "cash.sessions.view_current",
+            "cash.session.current",
+            "cash.session.view",
             "cash.view_current",
-            "business.cash.view_current"
-        ])
+            "business.cash.view_current"        ])
     }
 
     private func paymentValidationMessage() -> String {
@@ -440,6 +483,12 @@ final class PaymentRegisterViewModel {
 
         if !isValidAmount(amount) {
             return "Ingresa un monto válido mayor a cero."
+        }
+
+        if requiresReference && normalized(reference).isEmpty {
+            return selectedMode == .transfer
+                ? "Ingresa la referencia de la transferencia antes de confirmar el cobro."
+                : "Ingresa la referencia de la tarjeta antes de confirmar el cobro."
         }
 
         if selectedMode == .cash && currentCashSession?.isOpen != true {
@@ -476,11 +525,11 @@ final class PaymentRegisterViewModel {
     private func humanMessage(for error: APIError) -> String {
         if isMissingPermission(error) {
             if selectedMode == .cash {
-                return "No tienes permiso para consultar caja o registrar cobros en efectivo. Pide a un cajero o administrador que registre el cobro."
+                return "No puedes cobrar en efectivo con tu usuario actual. Pide que activen Ver caja actual y Registrar cobros."
             }
             return selectedMode == .credit
-                ? "No tienes permiso para crear cuentas por cobrar."
-                : "No tienes permiso para registrar cobros."
+                ? "No puedes crear cuentas por cobrar con tu usuario actual. Pide que activen Cuentas por cobrar."
+                : "No puedes cobrar con tu usuario actual. Pide que activen Registrar cobros."
         }
 
         return error.userMessage
@@ -537,8 +586,9 @@ final class PaymentRegisterViewModel {
             "business.payments.collect",
             "payments.collect",
             "business.payments.register",
-            "payments.register"
-        ].contains { effectivePermissions.contains($0) }
+            "payments.register",
+            "sales.payments.register",
+            "business.sales.payments.register"        ].contains { effectivePermissions.contains($0) }
 
         if hasPayments {
             return .cash

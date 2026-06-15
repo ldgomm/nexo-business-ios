@@ -175,7 +175,8 @@ struct BusinessHomeView: View {
                         branchId: branchId,
                         revisions: revisions,
                         effectivePermissions: permissions,
-                        historyRepository: container.salesHistoryRepository
+                        historyRepository: container.salesHistoryRepository,
+                        documentsRepository: container.documentsRepository
                     ),
                     salesRepository: container.salesRepository,
                     cashRepository: container.cashRepository,

@@ -235,7 +235,8 @@ private struct SalesHistoryRow: View {
                 branchId: PreviewData.businessContext.branches[0].id,
                 revisions: PreviewData.businessContext.revisions,
                 effectivePermissions: PreviewData.businessContext.effectivePermissions,
-                historyRepository: PreviewSalesHistoryRepository()
+                historyRepository: PreviewSalesHistoryRepository(),
+                documentsRepository: PreviewBusinessDocumentsRepository()
             ),
             salesRepository: PreviewSalesRepository(),
             cashRepository: PreviewCashRepository(),

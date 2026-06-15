@@ -15,6 +15,7 @@ final class BusinessDocumentsViewModel {
     private(set) var isLoading = false
     private(set) var isGeneratingInternalTicket = false
     private(set) var isRegisteringPhysicalSaleNote = false
+    private(set) var isIssuingElectronicInvoice = false
     var physicalSaleNoteNumber = ""
     var note = ""
     var errorMessage: String?
@@ -23,6 +24,9 @@ final class BusinessDocumentsViewModel {
     let organizationId: String
     let sale: BusinessSale
     let effectivePermissions: Set<String>
+    let branchId: String?
+    let activityId: String?
+    let revisions: BusinessRevisions?
 
     private let repository: BusinessDocumentsRepository
 
@@ -30,11 +34,17 @@ final class BusinessDocumentsViewModel {
         organizationId: String,
         sale: BusinessSale,
         effectivePermissions: Set<String>,
+        branchId: String? = nil,
+        activityId: String? = nil,
+        revisions: BusinessRevisions? = nil,
         documentsRepository: BusinessDocumentsRepository
     ) {
         self.organizationId = organizationId
         self.sale = sale
         self.effectivePermissions = effectivePermissions
+        self.branchId = branchId ?? sale.branchId
+        self.activityId = activityId ?? sale.activityId
+        self.revisions = revisions
         self.repository = documentsRepository
     }
 
@@ -42,54 +52,154 @@ final class BusinessDocumentsViewModel {
         documents.isEmpty && !isLoading
     }
 
+    var electronicInvoiceDocuments: [BusinessDocument] {
+        documents.filter(Self.isElectronicInvoice)
+    }
+
+    var latestElectronicInvoice: BusinessDocument? {
+        electronicInvoiceDocuments.sorted(by: sortDocuments).first
+    }
+
+    var hasElectronicInvoiceRegistered: Bool {
+        latestElectronicInvoice != nil
+    }
+
+    var electronicInvoiceStatusText: String {
+        guard let document = latestElectronicInvoice else {
+            return BusinessDocumentStatusPresentation.displayName(sale.documentStatus ?? "not_required")
+        }
+
+        return BusinessDocumentStatusPresentation.displayName(document.effectiveStatus)
+    }
+
+    var electronicInvoiceDescription: String {
+        guard let document = latestElectronicInvoice else {
+            return "Sin factura electrónica emitida. Esta venta puede estar cobrada y quedar como registro interno hasta que alguien con permiso emita el comprobante."
+        }
+
+        if BusinessDocumentStatusPresentation.isAuthorized(document.effectiveStatus) {
+            return document.hasRide
+                ? "Factura autorizada. Ya puedes ver o compartir RIDE y XML autorizado."
+                : "Factura autorizada por el SRI, pero todavía falta generar el RIDE."
+        }
+
+        if let error = BusinessDocumentTextSanitizer.sanitizedMessage(document.lastErrorMessage) {
+            return "Factura emitida, pero requiere revisión: \(error)"
+        }
+
+        if BusinessDocumentStatusPresentation.isError(document.effectiveStatus) {
+            return "Factura emitida, pero no autorizada. Abre el detalle para revisar el motivo y el XML firmado."
+        }
+
+        return "Factura electrónica emitida. Abre el detalle para revisar estado SRI, RIDE, XML, correo y timeline."
+    }
+
     var canViewDocuments: Bool {
-        hasPermission([
-            "business.documents.view",
-            "documents.view",
-            "business.documents.issue_internal_ticket",
-            "documents.issue_internal_ticket",
-            "business.documents.register_physical_sale_note",
-            "documents.register_physical_sale_note"
-        ])
+        hasPermission(documentViewPermissions + documentActionPermissions)
     }
 
     var canGenerateInternalTicket: Bool {
         !sale.id.isEmpty &&
         !isBusy &&
-        hasPermission([
-            "business.documents.issue_internal_ticket",
-            "documents.issue_internal_ticket"
-        ])
+        hasPermission(internalTicketPermissions)
     }
 
     var canRegisterPhysicalSaleNote: Bool {
         !sale.id.isEmpty &&
         !isBusy &&
-        hasPermission([
-            "business.documents.register_physical_sale_note",
-            "documents.register_physical_sale_note"
-        ]) &&
+        hasPermission(physicalSaleNotePermissions) &&
         !normalized(physicalSaleNoteNumber).isEmpty
     }
 
+    var canIssueElectronicInvoice: Bool {
+        !sale.id.isEmpty &&
+        !isBusy &&
+        !hasElectronicInvoiceRegistered &&
+        BusinessDocumentStatusPresentation.isMissingElectronicDocument(sale.documentStatus) &&
+        branchId?.isEmpty == false &&
+        activityId?.isEmpty == false &&
+        revisions != nil &&
+        hasElectronicInvoiceIssuePermission
+    }
+
+    var hasElectronicInvoiceIssuePermission: Bool {
+        hasPermission(electronicInvoiceIssuePermissions)
+    }
+
+    var shouldShowElectronicInvoiceButton: Bool {
+        !hasElectronicInvoiceRegistered &&
+        BusinessDocumentStatusPresentation.isMissingElectronicDocument(sale.documentStatus) &&
+        hasElectronicInvoiceIssuePermission
+    }
+
+    var electronicInvoiceBlockedReason: String? {
+        if hasElectronicInvoiceRegistered {
+            return nil
+        }
+
+        if !BusinessDocumentStatusPresentation.isMissingElectronicDocument(sale.documentStatus) {
+            return nil
+        }
+
+        if !hasElectronicInvoiceIssuePermission {
+            return "Tu usuario puede consultar comprobantes, pero no emitir factura electrónica. Pide al administrador activar Emitir factura electrónica."
+        }
+
+        if branchId?.isEmpty != false || activityId?.isEmpty != false || revisions == nil {
+            return "Actualiza el contexto del negocio antes de emitir factura electrónica."
+        }
+
+        return nil
+    }
+
     var hasAnyDocumentAction: Bool {
-        hasPermission([
-            "business.documents.issue_internal_ticket",
-            "documents.issue_internal_ticket",
-            "business.documents.register_physical_sale_note",
-            "documents.register_physical_sale_note"
-        ])
+        hasPermission(internalTicketPermissions + physicalSaleNotePermissions)
     }
 
     var hasElectronicInvoiceWarning: Bool {
-        hasPermission([
-            "business.documents.issue_electronic_invoice",
-            "documents.issue_electronic_invoice"
-        ])
+        hasElectronicInvoiceIssuePermission
     }
 
     private var isBusy: Bool {
-        isLoading || isGeneratingInternalTicket || isRegisteringPhysicalSaleNote
+        isLoading || isGeneratingInternalTicket || isRegisteringPhysicalSaleNote || isIssuingElectronicInvoice
+    }
+
+    private var documentViewPermissions: [String] {
+        [
+            "business.documents.view",
+            "documents.view",
+            "business.electronic_documents.view",
+            "electronic_documents.view",
+            "documents.electronic_invoice.view"
+        ]
+    }
+
+    private var documentActionPermissions: [String] {
+        internalTicketPermissions + physicalSaleNotePermissions + electronicInvoiceIssuePermissions
+    }
+
+    private var internalTicketPermissions: [String] {
+        [
+            "business.documents.issue_internal_ticket",
+            "documents.issue_internal_ticket"
+        ]
+    }
+
+    private var physicalSaleNotePermissions: [String] {
+        [
+            "business.documents.register_physical_sale_note",
+            "documents.register_physical_sale_note"
+        ]
+    }
+
+    private var electronicInvoiceIssuePermissions: [String] {
+        [
+            "business.documents.issue_electronic_invoice",
+            "documents.issue_electronic_invoice",
+            "documents.electronic_invoice.issue",
+            "electronic_documents.issue",
+            "business.electronic_documents.issue"
+        ]
     }
 
     func load() async {
@@ -190,9 +300,67 @@ final class BusinessDocumentsViewModel {
         }
     }
 
+    func issueElectronicInvoice() async {
+        guard canIssueElectronicInvoice else {
+            errorMessage = electronicInvoiceBlockedReason ?? "No se puede emitir factura electrónica con el estado actual."
+            return
+        }
+
+        guard let branchId, let activityId, let revisions else {
+            errorMessage = "Actualiza el contexto del negocio antes de emitir factura electrónica."
+            return
+        }
+
+        isIssuingElectronicInvoice = true
+        errorMessage = nil
+        infoMessage = nil
+
+        defer {
+            isIssuingElectronicInvoice = false
+        }
+
+        do {
+            let response = try await repository.issueElectronicInvoice(
+                organizationId: organizationId,
+                saleId: sale.id,
+                branchId: branchId,
+                activityId: activityId,
+                revisions: revisions,
+                idempotencyKey: .generate(prefix: "electronic-invoice-issue"),
+                request: IssueBusinessElectronicDocumentRequest()
+            )
+            upsert(response.document)
+
+            if response.idempotencyReplayed {
+                infoMessage = "Factura electrónica recuperada de un intento anterior. No se duplicó el comprobante."
+            } else if response.authorized {
+                infoMessage = "Factura electrónica autorizada correctamente."
+            } else if let error = BusinessDocumentTextSanitizer.sanitizedMessage(response.document.lastErrorMessage) {
+                infoMessage = "Factura emitida, pero requiere revisión: \(error)"
+            } else if response.stoppedBeforeSri {
+                infoMessage = "Factura generada. Revisa readiness SRI antes de enviarla."
+            } else {
+                infoMessage = "Factura electrónica enviada. Revisa el estado del comprobante."
+            }
+        } catch let error as APIError {
+            handle(apiError: error)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
     func resetMessages() {
         errorMessage = nil
         infoMessage = nil
+    }
+
+    func makeElectronicDocumentDetailViewModel(for document: BusinessDocument) -> BusinessElectronicDocumentDetailViewModel {
+        BusinessElectronicDocumentDetailViewModel(
+            organizationId: organizationId,
+            documentId: document.documentId,
+            effectivePermissions: effectivePermissions,
+            documentsRepository: repository
+        )
     }
 
     private func upsert(_ document: BusinessDocument) {
@@ -217,15 +385,20 @@ final class BusinessDocumentsViewModel {
         }
     }
 
+    private static func isElectronicInvoice(_ document: BusinessDocument) -> Bool {
+        let type = document.type.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return type.contains("electronic_invoice") || type.contains("factura") || type.contains("invoice")
+    }
+
     private func internalTicketValidationMessage() -> String {
-        if !hasPermission(["business.documents.issue_internal_ticket", "documents.issue_internal_ticket"]) {
+        if !hasPermission(internalTicketPermissions) {
             return "No tienes permiso para generar ticket interno."
         }
         return "No se puede generar el ticket con el estado actual."
     }
 
     private func physicalSaleNoteValidationMessage() -> String {
-        if !hasPermission(["business.documents.register_physical_sale_note", "documents.register_physical_sale_note"]) {
+        if !hasPermission(physicalSaleNotePermissions) {
             return "No tienes permiso para registrar nota de venta física."
         }
 
@@ -245,7 +418,7 @@ final class BusinessDocumentsViewModel {
     }
 
     private func hasPermission(_ candidates: [String]) -> Bool {
-        candidates.contains { effectivePermissions.contains($0) }
+        effectivePermissions.contains("*") || candidates.contains { effectivePermissions.contains($0) }
     }
 
     private func normalized(_ value: String) -> String {

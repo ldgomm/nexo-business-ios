@@ -133,6 +133,12 @@ struct BusinessElectronicDocumentDetailView: View {
             ArtifactAvailabilityRow(title: "XML autorizado", artifact: detail.artifacts.authorizedXml ?? detail.artifacts.xml)
             ArtifactAvailabilityRow(title: "XML firmado", artifact: detail.artifacts.signedXml)
 
+            if let hint = viewModel.artifactAvailabilityHint {
+                Label(hint, systemImage: "info.circle")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+
             HStack {
                 Button {
                     Task { await viewModel.previewRide() }
@@ -150,19 +156,19 @@ struct BusinessElectronicDocumentDetailView: View {
                 Button {
                     Task { await viewModel.shareRide() }
                 } label: {
-                    Label("Compartir", systemImage: "square.and.arrow.up")
+                    Label("Compartir RIDE", systemImage: "square.and.arrow.up")
                 }
                 .disabled(!viewModel.canDownloadRide || viewModel.isDownloadingRide)
             }
 
             HStack {
                 Button {
-                    Task { await viewModel.previewXml(authorizedOnly: true) }
+                    Task { await viewModel.previewPrimaryXml() }
                 } label: {
                     if viewModel.isDownloadingXml {
                         ProgressView()
                     } else {
-                        Label("Ver XML autorizado", systemImage: "chevron.left.forwardslash.chevron.right")
+                        Label(viewModel.primaryXmlButtonTitle, systemImage: "chevron.left.forwardslash.chevron.right")
                     }
                 }
                 .disabled(!viewModel.canDownloadXml || viewModel.isDownloadingXml)
@@ -170,9 +176,9 @@ struct BusinessElectronicDocumentDetailView: View {
                 Spacer()
 
                 Button {
-                    Task { await viewModel.shareXml(authorizedOnly: true) }
+                    Task { await viewModel.sharePrimaryXml() }
                 } label: {
-                    Label("Compartir", systemImage: "square.and.arrow.up")
+                    Label(viewModel.primaryXmlShareTitle, systemImage: "square.and.arrow.up")
                 }
                 .disabled(!viewModel.canDownloadXml || viewModel.isDownloadingXml)
             }

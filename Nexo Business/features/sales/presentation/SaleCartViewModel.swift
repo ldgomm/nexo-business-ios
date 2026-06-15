@@ -278,6 +278,60 @@ final class SaleCartViewModel {
         (hasPaymentPermission || hasReceivablePermission)
     }
 
+    var shouldShowCollectLockForCreatedSale: Bool {
+        guard let sale = createdSale else { return false }
+        return sale.needsCollection && !canCollectCreatedSale
+    }
+
+    var canOpenCreatedSaleDocuments: Bool {
+        guard createdSale != nil else { return false }
+        return hasPermission(documentViewPermissions + electronicInvoiceIssuePermissions)
+    }
+
+    var canIssueElectronicInvoiceForCreatedSale: Bool {
+        guard let sale = createdSale else { return false }
+        return !sale.needsCollection &&
+        BusinessDocumentStatusPresentation.isMissingElectronicDocument(sale.documentStatus) &&
+        hasPermission(electronicInvoiceIssuePermissions) &&
+        !branchId.isEmpty &&
+        !activityId.isEmpty
+    }
+
+    var createdSaleDocumentActionTitle: String {
+        guard let sale = createdSale else { return "Ver comprobantes" }
+        if canIssueElectronicInvoiceForCreatedSale {
+            return "Emitir factura electrónica"
+        }
+        if BusinessDocumentStatusPresentation.isMissingElectronicDocument(sale.documentStatus) {
+            return "Ver comprobantes"
+        }
+        return "Ver comprobante electrónico"
+    }
+
+    var createdSaleDocumentActionSystemImage: String {
+        canIssueElectronicInvoiceForCreatedSale ? "doc.badge.plus" : "doc.text.magnifyingglass"
+    }
+
+    private var documentViewPermissions: [String] {
+        [
+            "business.documents.view",
+            "documents.view",
+            "business.electronic_documents.view",
+            "electronic_documents.view",
+            "documents.electronic_invoice.view"
+        ]
+    }
+
+    private var electronicInvoiceIssuePermissions: [String] {
+        [
+            "business.documents.issue_electronic_invoice",
+            "documents.issue_electronic_invoice",
+            "documents.electronic_invoice.issue",
+            "electronic_documents.issue",
+            "business.electronic_documents.issue"
+        ]
+    }
+
     private var hasPaymentPermission: Bool {
         hasPermission([
             "business.payments.collect",
@@ -303,6 +357,36 @@ final class SaleCartViewModel {
     
     var totalForDisplay: MoneyAmount? {
         createdSale?.totals.grandTotal ?? preview?.totals.grandTotal
+    }
+
+    var createdSaleNeedsCollection: Bool {
+        createdSale?.needsCollection == true
+    }
+
+    var createdSalePaymentStatusText: String {
+        PaymentStatusPresentation.displayName(createdSale?.paymentStatus)
+    }
+
+    var createdSaleDocumentStatusText: String {
+        BusinessDocumentStatusPresentation.displayName(createdSale?.documentStatus ?? "not_required")
+    }
+
+    var createdSaleMessageStyle: NexoMessageStyle {
+        createdSaleNeedsCollection ? .warning : .success
+    }
+
+    var startNewOrderConfirmationTitle: String {
+        "Esta venta quedará pendiente de cobro"
+    }
+
+    var startNewOrderConfirmationMessage: String {
+        "La venta fue registrada, pero todavía no se ha cobrado. Si continúas, aparecerá como pendiente en el día y tendrás que cobrarla después."
+    }
+
+    func updateCreatedSale(_ sale: BusinessSale) {
+        guard createdSale?.id == sale.id else { return }
+        createdSale = sale
+        infoMessage = createdSaleSummaryMessage(for: sale, replayed: false)
     }
     
     func selectCustomer(_ customer: BusinessCustomer) {
@@ -661,9 +745,10 @@ final class SaleCartViewModel {
             createdSale = response.sale
             preview = nil
             orderState = .created
-            infoMessage = response.idempotencyReplayed == true
-            ? "Venta recuperada sin duplicar la operación."
-            : "Venta registrada. Ahora puedes cobrarla o iniciar una nueva venta."
+            infoMessage = createdSaleSummaryMessage(
+                for: response.sale,
+                replayed: response.idempotencyReplayed == true
+            )
         } catch let error as APIError {
             orderState = .editing
             if error.isBusinessRevisionConflict,
@@ -691,6 +776,24 @@ final class SaleCartViewModel {
         )
     }
     
+    private func createdSaleSummaryMessage(for sale: BusinessSale, replayed: Bool) -> String {
+        if replayed {
+            return sale.needsCollection
+                ? "Venta pendiente recuperada de un intento anterior. No se duplicó la operación."
+                : "Venta recuperada sin duplicar la operación."
+        }
+
+        if sale.needsCollection {
+            return "Venta pendiente de cobro. La venta fue registrada, pero todavía no se ha cobrado."
+        }
+
+        if PaymentStatusPresentation.isCollected(sale.paymentStatus) {
+            return "Venta cobrada correctamente."
+        }
+
+        return "Venta registrada. Revisa el detalle antes de continuar."
+    }
+
     private func ensureOrderIsEditable() -> Bool {
         guard !isOrderLocked else {
             errorMessage = "Esta venta ya fue registrada. Toca Nueva venta para continuar."

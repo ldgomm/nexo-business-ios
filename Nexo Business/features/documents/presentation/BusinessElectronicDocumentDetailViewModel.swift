@@ -71,31 +71,54 @@ final class BusinessElectronicDocumentDetailViewModel {
     var canDownloadRide: Bool {
         guard let detail else { return false }
 
-        let backendAllowsDownload = detail.allows(.downloadRide)
-        let hasRideArtifact = detail.artifacts.ride != nil
-        let hasLegacyPermission = hasPermission([
-            "documents.electronic_invoice.download_ride",
-            "documents.download_ride",
-            "documents.download_pdf"
-        ])
-
-        return backendAllowsDownload || hasRideArtifact || hasLegacyPermission
+        // No habilitar RIDE solo por permiso. Si no existe artefacto ni acción del backend,
+        // el botón confunde y termina intentando descargar un PDF inexistente.
+        return detail.allows(.downloadRide) || detail.artifacts.ride != nil || detail.summary.hasRide
     }
 
     var canDownloadXml: Bool {
+        canDownloadAuthorizedXml || canDownloadSignedXml
+    }
+
+    var canDownloadAuthorizedXml: Bool {
         guard let detail else { return false }
 
-        let backendAllowsDownload = detail.allows(.downloadXml)
-        let hasXmlArtifact =
-            detail.artifacts.authorizedXml != nil ||
-            detail.artifacts.signedXml != nil ||
-            detail.artifacts.xml != nil
-        let hasLegacyPermission = hasPermission([
-            "documents.electronic_invoice.download_xml",
-            "documents.download_xml"
-        ])
+        return detail.artifacts.authorizedXml != nil ||
+            detail.artifacts.xml?.kind == .authorizedXml ||
+            (detail.allows(.downloadXml) && BusinessDocumentStatusPresentation.isAuthorized(detail.sriStatus))
+    }
 
-        return backendAllowsDownload || hasXmlArtifact || hasLegacyPermission
+    var canDownloadSignedXml: Bool {
+        guard let detail else { return false }
+
+        return detail.artifacts.signedXml != nil ||
+            (!BusinessDocumentStatusPresentation.isAuthorized(detail.sriStatus) && detail.allows(.downloadXml))
+    }
+
+    var primaryXmlButtonTitle: String {
+        canDownloadAuthorizedXml ? "Ver XML autorizado" : "Ver XML firmado"
+    }
+
+    var primaryXmlShareTitle: String {
+        canDownloadAuthorizedXml ? "Compartir XML autorizado" : "Compartir XML firmado"
+    }
+
+    var primaryXmlAuthorizedOnly: Bool {
+        canDownloadAuthorizedXml
+    }
+
+    var artifactAvailabilityHint: String? {
+        guard let detail else { return nil }
+
+        if !BusinessDocumentStatusPresentation.isAuthorized(detail.sriStatus), detail.artifacts.ride == nil {
+            return "El RIDE solo estará disponible cuando la factura sea autorizada o cuando el backend permita regenerarlo."
+        }
+
+        if canDownloadSignedXml && !canDownloadAuthorizedXml {
+            return "Esta factura aún no tiene XML autorizado. Puedes revisar el XML firmado para diagnóstico."
+        }
+
+        return nil
     }
 
     var canViewTimeline: Bool {
@@ -250,6 +273,14 @@ final class BusinessElectronicDocumentDetailViewModel {
         guard let file = await prepareRideFile() else { return }
         shareFile = file
         infoMessage = "\(file.humanName) listo para compartir."
+    }
+
+    func previewPrimaryXml() async {
+        await previewXml(authorizedOnly: primaryXmlAuthorizedOnly)
+    }
+
+    func sharePrimaryXml() async {
+        await shareXml(authorizedOnly: primaryXmlAuthorizedOnly)
     }
 
     func previewXml(authorizedOnly: Bool = true) async {
@@ -431,8 +462,10 @@ final class BusinessElectronicDocumentDetailViewModel {
     }
 
     private func prepareXmlFile(authorizedOnly: Bool) async -> BusinessDocumentDownloadedFile? {
-        guard canDownloadXml else {
-            errorMessage = "No tienes permiso para descargar XML."
+        guard authorizedOnly ? canDownloadAuthorizedXml : canDownloadSignedXml else {
+            errorMessage = authorizedOnly
+                ? "El XML autorizado todavía no está disponible para este comprobante."
+                : "El XML firmado todavía no está disponible para este comprobante."
             return nil
         }
 

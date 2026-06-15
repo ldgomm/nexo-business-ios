@@ -17,9 +17,9 @@ struct BusinessDocumentsView: View {
     var body: some View {
         Form {
             saleSection
+            electronicInvoiceSection
             documentsSection
             actionsSection
-            electronicInvoiceWarningSection
             messagesSection
         }
         .nexoKeyboardDismissable()
@@ -43,27 +43,82 @@ struct BusinessDocumentsView: View {
 
     private var saleSection: some View {
         Section("Venta") {
-            LabeledContent("ID", value: viewModel.sale.id)
+            LabeledContent("Venta", value: viewModel.sale.displayNumber)
             LabeledContent("Estado", value: SaleStatusPresentation.title(for: viewModel.sale.status))
+            LabeledContent("Estado de cobro", value: PaymentStatusPresentation.displayName(viewModel.sale.paymentStatus))
             LabeledContent("Total", value: money(viewModel.sale.totals.grandTotal))
-            LabeledContent("Documento", value: BusinessDocumentStatusPresentation.displayName(viewModel.sale.documentStatus ?? "not_required"))
+        }
+    }
+
+    private var electronicInvoiceSection: some View {
+        Section("Factura electrónica") {
+            Label(
+                viewModel.electronicInvoiceStatusText,
+                systemImage: BusinessDocumentStatusPresentation.systemImage(viewModel.latestElectronicInvoice?.effectiveStatus ?? viewModel.sale.documentStatus ?? "not_required")
+            )
+            .font(.subheadline.weight(.semibold))
+            .foregroundStyle(viewModel.latestElectronicInvoice.map { BusinessDocumentStatusPresentation.isError($0.effectiveStatus) } == true ? Color.red : Color.primary)
+
+            Text(viewModel.electronicInvoiceDescription)
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+
+            if let document = viewModel.latestElectronicInvoice {
+                NavigationLink {
+                    BusinessElectronicDocumentDetailView(
+                        viewModel: viewModel.makeElectronicDocumentDetailViewModel(for: document)
+                    )
+                } label: {
+                    Label("Ver detalle del comprobante", systemImage: "doc.text.magnifyingglass")
+                }
+            }
+
+            if viewModel.shouldShowElectronicInvoiceButton {
+                Button {
+                    NexoKeyboard.dismiss()
+                    Task { await viewModel.issueElectronicInvoice() }
+                } label: {
+                    if viewModel.isIssuingElectronicInvoice {
+                        ProgressView()
+                    } else {
+                        Label("Emitir factura electrónica", systemImage: "doc.badge.plus")
+                    }
+                }
+                .disabled(!viewModel.canIssueElectronicInvoice)
+            }
+
+            if let reason = viewModel.electronicInvoiceBlockedReason {
+                Label(reason, systemImage: viewModel.hasElectronicInvoiceIssuePermission ? "info.circle" : "lock")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
         }
     }
 
     @ViewBuilder
     private var documentsSection: some View {
-        Section("Documentos") {
+        Section("Historial de comprobantes") {
             if viewModel.isLoading && viewModel.documents.isEmpty {
                 ProgressView("Cargando comprobantes…")
             } else if viewModel.documents.isEmpty {
                 ContentUnavailableView(
-                    "Sin comprobantes",
+                    "Sin comprobantes registrados",
                     systemImage: "doc.text",
-                    description: Text("Genera un ticket interno o registra una nota de venta física según corresponda.")
+                    description: Text("Cuando emitas factura electrónica, ticket interno o nota física, aparecerá aquí.")
                 )
             } else {
                 ForEach(viewModel.documents) { document in
-                    BusinessDocumentRow(document: document)
+                    if document.isElectronicInvoiceForBusinessUI {
+                        NavigationLink {
+                            BusinessElectronicDocumentDetailView(
+                                viewModel: viewModel.makeElectronicDocumentDetailViewModel(for: document)
+                            )
+                        } label: {
+                            BusinessDocumentRow(document: document)
+                        }
+                    } else {
+                        BusinessDocumentRow(document: document)
+                    }
                 }
             }
         }
@@ -72,13 +127,17 @@ struct BusinessDocumentsView: View {
     @ViewBuilder
     private var actionsSection: some View {
         if viewModel.hasAnyDocumentAction {
-            Section("Acciones permitidas") {
+            Section("Registro interno") {
+                Text("Usa estas acciones solo si necesitas respaldo interno o registrar una nota física. No reemplazan la autorización SRI de una factura electrónica.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+
                 TextField("Nota opcional", text: $viewModel.note)
                     .textInputAutocapitalization(.sentences)
 
                 Button {
                     NexoKeyboard.dismiss()
-                        Task { await viewModel.generateInternalTicket() }
+                    Task { await viewModel.generateInternalTicket() }
                 } label: {
                     if viewModel.isGeneratingInternalTicket {
                         ProgressView()
@@ -94,7 +153,7 @@ struct BusinessDocumentsView: View {
 
                 Button {
                     NexoKeyboard.dismiss()
-                        Task { await viewModel.registerPhysicalSaleNote() }
+                    Task { await viewModel.registerPhysicalSaleNote() }
                 } label: {
                     if viewModel.isRegisteringPhysicalSaleNote {
                         ProgressView()
@@ -103,20 +162,6 @@ struct BusinessDocumentsView: View {
                     }
                 }
                 .disabled(!viewModel.canRegisterPhysicalSaleNote)
-            }
-        }
-    }
-
-    @ViewBuilder
-    private var electronicInvoiceWarningSection: some View {
-        if viewModel.hasElectronicInvoiceWarning {
-            Section("Factura electrónica") {
-                Label(
-                    "La factura electrónica fuerte no se emite desde la app todavía. Debe pasar por backend, readiness SRI, firma activa, secuencia y autorización.",
-                    systemImage: "lock.shield"
-                )
-                .font(.footnote)
-                .foregroundStyle(.secondary)
             }
         }
     }
@@ -141,7 +186,7 @@ struct BusinessDocumentsView: View {
     }
 
     private func money(_ value: MoneyAmount) -> String {
-        "\(value.currency) \(value.amount)"
+        value.displayText
     }
 }
 
@@ -164,7 +209,7 @@ private struct BusinessDocumentRow: View {
                         systemImage: BusinessDocumentStatusPresentation.systemImage(document.status)
                     )
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(BusinessDocumentStatusPresentation.isError(document.status) ? .red : .secondary)
                 }
 
                 Spacer()
@@ -190,6 +235,17 @@ private struct BusinessDocumentRow: View {
                     .font(.caption)
             }
 
+            if let total = document.total?.trimmingCharacters(in: .whitespacesAndNewlines), !total.isEmpty {
+                LabeledContent("Total", value: "\(document.currency) \(total)")
+                    .font(.caption)
+            }
+
+            if let error = BusinessDocumentTextSanitizer.sanitizedMessage(document.lastErrorMessage) {
+                Label(error, systemImage: "exclamationmark.triangle")
+                    .font(.caption)
+                    .foregroundStyle(.red)
+            }
+
             if let createdAt = document.createdAt {
                 Text("Creado: \(createdAt.formatted(date: .abbreviated, time: .shortened))")
                     .font(.caption)
@@ -207,6 +263,14 @@ private struct BusinessDocumentRow: View {
     }
 }
 
+
+private extension BusinessDocument {
+    var isElectronicInvoiceForBusinessUI: Bool {
+        let normalizedType = type.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return normalizedType.contains("electronic_invoice") || normalizedType.contains("factura") || normalizedType.contains("invoice")
+    }
+}
+
 #Preview {
     NavigationStack {
         BusinessDocumentsView(
@@ -214,6 +278,9 @@ private struct BusinessDocumentRow: View {
                 organizationId: PreviewData.businessContext.organization.id,
                 sale: PreviewData.confirmedSaleResponse.sale,
                 effectivePermissions: PreviewData.businessContext.effectivePermissions,
+                branchId: PreviewData.businessContext.branches.first?.id,
+                activityId: PreviewData.businessContext.activities.first?.id,
+                revisions: PreviewData.businessContext.revisions,
                 documentsRepository: PreviewBusinessDocumentsRepository()
             )
         )
