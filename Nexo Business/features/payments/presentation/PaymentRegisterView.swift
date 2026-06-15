@@ -12,6 +12,7 @@ struct PaymentRegisterView: View {
     private let customersRepository: CustomersRepository
     private let onSaleUpdated: (BusinessSale) -> Void
     @State private var showSubmitConfirmation = false
+    @State private var shouldIssueDocumentAfterPayment = false
 
     init(
         viewModel: PaymentRegisterViewModel,
@@ -48,21 +49,27 @@ struct PaymentRegisterView: View {
         }
         .nexoKeyboardDismissable()
         .navigationTitle(viewModel.hasCompletedSubmission ? "Cobro registrado" : "Confirmar cobro")
-        .alert(viewModel.submitConfirmationTitle, isPresented: $showSubmitConfirmation) {
+        .alert(
+            viewModel.submitConfirmationTitle(issueElectronicDocumentAfterPayment: shouldIssueDocumentAfterPayment),
+            isPresented: $showSubmitConfirmation
+        ) {
             if viewModel.selectedMode == .credit {
-                Button(viewModel.submitButtonTitle) {
+                Button(viewModel.submitButtonTitle(issueElectronicDocumentAfterPayment: false)) {
                     NexoKeyboard.dismiss()
                     Task { await viewModel.submit() }
                 }
             } else {
-                Button(viewModel.submitButtonTitle, role: .destructive) {
+                Button(viewModel.submitButtonTitle(issueElectronicDocumentAfterPayment: shouldIssueDocumentAfterPayment), role: .destructive) {
+                    let shouldIssue = shouldIssueDocumentAfterPayment
                     NexoKeyboard.dismiss()
-                    Task { await viewModel.submit() }
+                    Task { await viewModel.submit(issueElectronicDocumentAfterPayment: shouldIssue) }
                 }
             }
-            Button("Cancelar", role: .cancel) {}
+            Button("Cancelar", role: .cancel) {
+                shouldIssueDocumentAfterPayment = false
+            }
         } message: {
-            Text(viewModel.submitConfirmationMessage)
+            Text(viewModel.submitConfirmationMessage(issueElectronicDocumentAfterPayment: shouldIssueDocumentAfterPayment))
         }
         .task {
             await viewModel.load()
@@ -265,6 +272,25 @@ struct PaymentRegisterView: View {
                 }
             }
         }
+
+        if let document = viewModel.electronicDocumentResult {
+            Section("Factura electrónica") {
+                Label(
+                    BusinessDocumentStatusPresentation.displayName(document.status),
+                    systemImage: BusinessDocumentStatusPresentation.systemImage(document.status)
+                )
+                .foregroundStyle(BusinessDocumentStatusPresentation.isError(document.status) ? .red : .secondary)
+
+                if let number = document.number, !number.isEmpty {
+                    LabeledContent("Número", value: number)
+                }
+                if let error = document.lastErrorMessage, !error.isEmpty {
+                    Label(error, systemImage: "exclamationmark.triangle")
+                        .font(.footnote)
+                        .foregroundStyle(.red)
+                }
+            }
+        }
     }
 
     @ViewBuilder
@@ -309,6 +335,7 @@ struct PaymentRegisterView: View {
         } else {
             Section("Confirmación") {
                 Button {
+                    shouldIssueDocumentAfterPayment = false
                     NexoKeyboard.dismiss()
                     showSubmitConfirmation = true
                 } label: {
@@ -321,6 +348,27 @@ struct PaymentRegisterView: View {
                     }
                 }
                 .disabled(viewModel.selectedMode == .credit ? !viewModel.canCreateReceivable : !viewModel.canSubmitPayment)
+
+                if viewModel.selectedMode != .credit {
+                    Button {
+                        shouldIssueDocumentAfterPayment = true
+                        NexoKeyboard.dismiss()
+                        showSubmitConfirmation = true
+                    } label: {
+                        if viewModel.isSubmitting || viewModel.isIssuingElectronicDocument {
+                            ProgressView()
+                        } else {
+                            Label("Confirmar cobro y emitir documento", systemImage: "doc.badge.plus")
+                        }
+                    }
+                    .disabled(!viewModel.canSubmitPaymentAndIssueElectronicDocument)
+
+                    if let reason = viewModel.electronicDocumentAfterPaymentBlockedReason {
+                        Label(reason, systemImage: "info.circle")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
+                }
 
                 Button {
                     NexoKeyboard.dismiss()
@@ -343,6 +391,7 @@ struct PaymentRegisterInlineView: View {
     private let customersRepository: CustomersRepository
     private let onSaleUpdated: (BusinessSale) -> Void
     @State private var showSubmitConfirmation = false
+    @State private var shouldIssueDocumentAfterPayment = false
 
     init(
         viewModel: PaymentRegisterViewModel,
@@ -372,21 +421,27 @@ struct PaymentRegisterInlineView: View {
 
             paymentMessagesSection
         }
-        .alert(viewModel.submitConfirmationTitle, isPresented: $showSubmitConfirmation) {
+        .alert(
+            viewModel.submitConfirmationTitle(issueElectronicDocumentAfterPayment: shouldIssueDocumentAfterPayment),
+            isPresented: $showSubmitConfirmation
+        ) {
             if viewModel.selectedMode == .credit {
-                Button(viewModel.submitButtonTitle) {
+                Button(viewModel.submitButtonTitle(issueElectronicDocumentAfterPayment: false)) {
                     NexoKeyboard.dismiss()
                     Task { await viewModel.submit() }
                 }
             } else {
-                Button(viewModel.submitButtonTitle, role: .destructive) {
+                Button(viewModel.submitButtonTitle(issueElectronicDocumentAfterPayment: shouldIssueDocumentAfterPayment), role: .destructive) {
+                    let shouldIssue = shouldIssueDocumentAfterPayment
                     NexoKeyboard.dismiss()
-                    Task { await viewModel.submit() }
+                    Task { await viewModel.submit(issueElectronicDocumentAfterPayment: shouldIssue) }
                 }
             }
-            Button("Cancelar", role: .cancel) {}
+            Button("Cancelar", role: .cancel) {
+                shouldIssueDocumentAfterPayment = false
+            }
         } message: {
-            Text(viewModel.submitConfirmationMessage)
+            Text(viewModel.submitConfirmationMessage(issueElectronicDocumentAfterPayment: shouldIssueDocumentAfterPayment))
         }
         .task {
             await viewModel.load()
@@ -530,6 +585,7 @@ struct PaymentRegisterInlineView: View {
     private var paymentActionSection: some View {
         Section("Confirmación") {
             Button {
+                shouldIssueDocumentAfterPayment = false
                 NexoKeyboard.dismiss()
                 showSubmitConfirmation = true
             } label: {
@@ -542,6 +598,27 @@ struct PaymentRegisterInlineView: View {
                 }
             }
             .disabled(viewModel.selectedMode == .credit ? !viewModel.canCreateReceivable : !viewModel.canSubmitPayment)
+
+            if viewModel.selectedMode != .credit {
+                Button {
+                    shouldIssueDocumentAfterPayment = true
+                    NexoKeyboard.dismiss()
+                    showSubmitConfirmation = true
+                } label: {
+                    if viewModel.isSubmitting || viewModel.isIssuingElectronicDocument {
+                        ProgressView()
+                    } else {
+                        Label("Confirmar cobro y emitir documento", systemImage: "doc.badge.plus")
+                    }
+                }
+                .disabled(!viewModel.canSubmitPaymentAndIssueElectronicDocument)
+
+                if let reason = viewModel.electronicDocumentAfterPaymentBlockedReason {
+                    Label(reason, systemImage: "info.circle")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+            }
 
             Button {
                 NexoKeyboard.dismiss()
@@ -587,6 +664,25 @@ struct PaymentRegisterInlineView: View {
                 LabeledContent("Monto", value: receivable.amount.displayText)
                 if let balance = receivable.balance {
                     LabeledContent("Saldo", value: balance.displayText)
+                }
+            }
+        }
+
+        if let document = viewModel.electronicDocumentResult {
+            Section("Factura electrónica") {
+                Label(
+                    BusinessDocumentStatusPresentation.displayName(document.status),
+                    systemImage: BusinessDocumentStatusPresentation.systemImage(document.status)
+                )
+                .foregroundStyle(BusinessDocumentStatusPresentation.isError(document.status) ? .red : .secondary)
+
+                if let number = document.number, !number.isEmpty {
+                    LabeledContent("Número", value: number)
+                }
+                if let error = document.lastErrorMessage, !error.isEmpty {
+                    Label(error, systemImage: "exclamationmark.triangle")
+                        .font(.footnote)
+                        .foregroundStyle(.red)
                 }
             }
         }

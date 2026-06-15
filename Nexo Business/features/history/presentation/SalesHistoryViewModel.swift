@@ -12,6 +12,7 @@ import Observation
 @Observable
 final class SalesHistoryViewModel {
     private(set) var sales: [BusinessSale] = []
+    private(set) var primaryDocumentBySaleId: [String: BusinessDocument] = [:]
     private(set) var total: Int?
     private(set) var hasMore: Bool?
     private(set) var isLoading = false
@@ -28,7 +29,7 @@ final class SalesHistoryViewModel {
     let effectivePermissions: Set<String>
 
     private let repository: SalesHistoryRepository
-    private let documentsRepository: BusinessDocumentsRepository?
+    private let documentsRepository: BusinessDocumentsRepository
 
     init(
         organizationId: String,
@@ -36,7 +37,7 @@ final class SalesHistoryViewModel {
         revisions: BusinessRevisions,
         effectivePermissions: Set<String>,
         historyRepository: SalesHistoryRepository,
-        documentsRepository: BusinessDocumentsRepository? = nil
+        documentsRepository: BusinessDocumentsRepository
     ) {
         self.organizationId = organizationId
         self.branchId = branchId
@@ -84,12 +85,14 @@ final class SalesHistoryViewModel {
     func load() async {
         guard canViewSales else {
             sales = []
+            primaryDocumentBySaleId = [:]
             errorMessage = "No tienes permiso para consultar ventas."
             return
         }
 
         guard !branchId.isEmpty else {
             sales = []
+            primaryDocumentBySaleId = [:]
             errorMessage = "Falta sucursal activa. Actualiza el contexto."
             return
         }
@@ -116,10 +119,11 @@ final class SalesHistoryViewModel {
                 )
             )
 
-            let sortedSales = response.sales.sorted(by: sortSales)
-            sales = await hydrateDocumentStatusIfNeeded(sortedSales)
+            let orderedSales = response.sales.sorted(by: sortSales)
+            sales = orderedSales
             total = response.total
             hasMore = response.hasMore
+            await hydrateDocuments(for: orderedSales)
             infoMessage = sales.isEmpty ? "No encontramos ventas con estos filtros." : nil
         } catch let error as APIError {
             handle(apiError: error)
@@ -151,40 +155,31 @@ final class SalesHistoryViewModel {
         )
     }
 
+    func primaryDocument(for sale: BusinessSale) -> BusinessDocument? {
+        primaryDocumentBySaleId[sale.id]
+    }
 
-    private func hydrateDocumentStatusIfNeeded(_ sales: [BusinessSale]) async -> [BusinessSale] {
-        guard let documentsRepository else { return sales }
-        guard canViewDocuments else { return sales }
+    private func hydrateDocuments(for sales: [BusinessSale]) async {
+        guard canViewDocuments else {
+            primaryDocumentBySaleId = [:]
+            return
+        }
 
-        var hydrated: [BusinessSale] = []
-        hydrated.reserveCapacity(sales.count)
-
+        var result: [String: BusinessDocument] = [:]
         for sale in sales {
-            guard BusinessDocumentStatusPresentation.isMissingElectronicDocument(sale.documentStatus) else {
-                hydrated.append(sale)
-                continue
-            }
-
             do {
                 let response = try await documentsRepository.list(
                     organizationId: organizationId,
                     saleId: sale.id
                 )
-
-                if let latestElectronicDocument = response.documents
-                    .filter({ $0.isElectronicInvoiceForHistory })
-                    .sorted(by: sortDocuments)
-                    .first {
-                    hydrated.append(sale.replacingDocumentStatus(latestElectronicDocument.effectiveStatus))
-                } else {
-                    hydrated.append(sale)
+                if let document = response.documents.sorted(by: sortDocuments).first {
+                    result[sale.id] = document
                 }
             } catch {
-                hydrated.append(sale)
+                continue
             }
         }
-
-        return hydrated
+        primaryDocumentBySaleId = result
     }
 
     private var canViewDocuments: Bool {
@@ -193,7 +188,12 @@ final class SalesHistoryViewModel {
             "documents.view",
             "business.electronic_documents.view",
             "electronic_documents.view",
-            "documents.electronic_invoice.view"
+            "documents.electronic_invoice.view",
+            "business.documents.issue_electronic_invoice",
+            "documents.issue_electronic_invoice",
+            "documents.electronic_invoice.issue",
+            "electronic_documents.issue",
+            "business.electronic_documents.issue"
         ])
     }
 
@@ -242,37 +242,5 @@ final class SalesHistoryViewModel {
     private func emptyToNil(_ value: String) -> String? {
         let trimmed = normalized(value)
         return trimmed.isEmpty ? nil : trimmed
-    }
-}
-
-
-private extension BusinessDocument {
-    var isElectronicInvoiceForHistory: Bool {
-        let normalizedType = type.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        return normalizedType.contains("electronic_invoice") || normalizedType.contains("factura") || normalizedType.contains("invoice")
-    }
-}
-
-private extension BusinessSale {
-    func replacingDocumentStatus(_ documentStatus: String?) -> BusinessSale {
-        BusinessSale(
-            id: id,
-            number: number,
-            organizationId: organizationId,
-            branchId: branchId,
-            activityId: activityId,
-            customerId: customerId,
-            customerName: customerName,
-            customer: customer,
-            status: status,
-            paymentStatus: paymentStatus,
-            documentStatus: documentStatus,
-            totals: totals,
-            items: items,
-            createdAt: createdAt,
-            confirmedAt: confirmedAt,
-            closedAt: closedAt,
-            updatedAt: updatedAt
-        )
     }
 }

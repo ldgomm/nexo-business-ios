@@ -216,7 +216,10 @@ struct SaleDetailView: View {
                             effectivePermissions: viewModel.effectivePermissions,
                             cashRepository: cashRepository,
                             paymentsRepository: paymentsRepository,
-                            receivablesRepository: receivablesRepository
+                            receivablesRepository: receivablesRepository,
+                            documentsRepository: documentsRepository,
+                            activityId: sale.activityId,
+                            revisions: viewModel.revisions
                         ),
                         customersRepository: customersRepository
                     )

@@ -152,7 +152,7 @@ struct SalesHistoryView: View {
                             documentsRepository: documentsRepository
                         )
                     } label: {
-                        SalesHistoryRow(sale: sale)
+                        SalesHistoryRow(sale: sale, document: viewModel.primaryDocument(for: sale))
                     }
                 }
             }
@@ -177,6 +177,7 @@ struct SalesHistoryView: View {
 
 private struct SalesHistoryRow: View {
     let sale: BusinessSale
+    let document: BusinessDocument?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -205,13 +206,37 @@ private struct SalesHistoryRow: View {
                     .lineLimit(2)
             }
 
+            if let document {
+                HStack(spacing: 8) {
+                    Image(systemName: "doc.text.magnifyingglass")
+                        .foregroundStyle(.secondary)
+                    Text(document.number ?? "Comprobante generado")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                    if let error = document.lastErrorMessage, !error.isEmpty {
+                        Text("· \(error)")
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                            .lineLimit(1)
+                    }
+                }
+            }
+
             HStack(spacing: 10) {
                 SaleStatusLabel(status: sale.status)
 
                 Label(PaymentStatusPresentation.displayName(sale.paymentStatus), systemImage: "dollarsign.circle")
 
-                if let documentStatus = sale.documentStatus {
+                if let document {
+                    Label(
+                        BusinessDocumentStatusPresentation.displayName(document.status),
+                        systemImage: BusinessDocumentStatusPresentation.systemImage(document.status)
+                    )
+                    .foregroundStyle(BusinessDocumentStatusPresentation.isError(document.status) ? .red : .secondary)
+                } else if let documentStatus = sale.documentStatus, !BusinessDocumentStatusPresentation.isMissingElectronicDocument(documentStatus) {
                     Label(BusinessDocumentStatusPresentation.displayName(documentStatus), systemImage: "doc.text")
+                } else {
+                    Label("Sin comprobante electrónico", systemImage: "doc")
                 }
             }
             .font(.caption)

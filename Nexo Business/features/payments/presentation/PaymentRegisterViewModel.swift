@@ -67,7 +67,9 @@ final class PaymentRegisterViewModel {
     private(set) var paymentResult: PaymentRecord?
     private(set) var cashMovementResult: CashMovement?
     private(set) var receivableResult: ReceivableRecord?
+    private(set) var electronicDocumentResult: BusinessDocument?
     private(set) var lastSubmittedMode: PaymentRegisterMode?
+    private(set) var isIssuingElectronicDocument = false
     var selectedMode: PaymentRegisterMode = .cash
     var amount: String
     var reference = ""
@@ -81,10 +83,13 @@ final class PaymentRegisterViewModel {
     let organizationId: String
     let branchId: String
     let effectivePermissions: Set<String>
+    let activityId: String?
+    let revisions: BusinessRevisions?
 
     private let cashRepository: CashRepository
     private let paymentsRepository: PaymentsRepository
     private let receivablesRepository: ReceivablesRepository
+    private let documentsRepository: BusinessDocumentsRepository?
 
     init(
         organizationId: String,
@@ -94,6 +99,9 @@ final class PaymentRegisterViewModel {
         cashRepository: CashRepository,
         paymentsRepository: PaymentsRepository,
         receivablesRepository: ReceivablesRepository,
+        documentsRepository: BusinessDocumentsRepository? = nil,
+        activityId: String? = nil,
+        revisions: BusinessRevisions? = nil,
         customersRepository: CustomersRepository = UnavailableCustomersRepository()
     ) {
         self.organizationId = organizationId
@@ -103,6 +111,9 @@ final class PaymentRegisterViewModel {
         self.cashRepository = cashRepository
         self.paymentsRepository = paymentsRepository
         self.receivablesRepository = receivablesRepository
+        self.documentsRepository = documentsRepository
+        self.activityId = activityId ?? sale.activityId
+        self.revisions = revisions
         self.amount = sale.totals.grandTotal.amount
         self.customerId = sale.customerId ?? ""
         self.selectedMode = Self.initialMode(effectivePermissions: effectivePermissions)
@@ -175,6 +186,31 @@ final class PaymentRegisterViewModel {
         return !normalized(customerId).isEmpty
     }
 
+    var canSubmitPaymentAndIssueElectronicDocument: Bool {
+        canSubmitPayment && canIssueElectronicDocumentAfterPayment
+    }
+
+    var canIssueElectronicDocumentAfterPayment: Bool {
+        documentsRepository != nil &&
+        hasElectronicInvoiceIssuePermission &&
+        activityId?.isEmpty == false &&
+        revisions != nil &&
+        BusinessDocumentStatusPresentation.isMissingElectronicDocument(sale.documentStatus)
+    }
+
+    var electronicDocumentAfterPaymentBlockedReason: String? {
+        guard selectedMode != .credit else { return nil }
+        guard BusinessDocumentStatusPresentation.isMissingElectronicDocument(sale.documentStatus) else { return nil }
+
+        if !hasElectronicInvoiceIssuePermission {
+            return "Tu usuario puede cobrar, pero no emitir factura electrónica."
+        }
+        if documentsRepository == nil || activityId?.isEmpty != false || revisions == nil {
+            return "Falta contexto para emitir factura electrónica después del cobro."
+        }
+        return nil
+    }
+
     var shouldShowCashWarning: Bool {
         selectedMode == .cash && currentCashSession?.isOpen != true
     }
@@ -221,6 +257,16 @@ final class PaymentRegisterViewModel {
         ])
     }
 
+    var hasElectronicInvoiceIssuePermission: Bool {
+        hasPermission([
+            "business.documents.issue_electronic_invoice",
+            "documents.issue_electronic_invoice",
+            "documents.electronic_invoice.issue",
+            "electronic_documents.issue",
+            "business.electronic_documents.issue"
+        ])
+    }
+
     var amountMoney: String {
         "\(sale.totals.grandTotal.currency) \(amount)"
     }
@@ -229,11 +275,25 @@ final class PaymentRegisterViewModel {
         selectedMode == .credit ? "Crear cuenta por cobrar" : "Confirmar cobro"
     }
 
+    func submitButtonTitle(issueElectronicDocumentAfterPayment: Bool) -> String {
+        if selectedMode == .credit { return "Crear cuenta por cobrar" }
+        return issueElectronicDocumentAfterPayment ? "Confirmar cobro y emitir documento" : "Confirmar cobro"
+    }
+
     var submitConfirmationTitle: String {
         selectedMode == .credit ? "Crear cuenta por cobrar" : "Confirmar cobro"
     }
 
+    func submitConfirmationTitle(issueElectronicDocumentAfterPayment: Bool) -> String {
+        if selectedMode == .credit { return "Crear cuenta por cobrar" }
+        return issueElectronicDocumentAfterPayment ? "Confirmar cobro y emitir documento" : "Confirmar cobro"
+    }
+
     var submitConfirmationMessage: String {
+        submitConfirmationMessage(issueElectronicDocumentAfterPayment: false)
+    }
+
+    func submitConfirmationMessage(issueElectronicDocumentAfterPayment: Bool) -> String {
         if selectedMode == .credit {
             let dueText = useDueDate ? dueDate.formatted(date: .abbreviated, time: .omitted) : "Sin fecha de vencimiento"
             return "Vas a dejar esta venta como cuenta por cobrar por \(amountMoney).\n\nCliente: \(customerId)\nVencimiento: \(dueText)"
@@ -245,6 +305,9 @@ final class PaymentRegisterViewModel {
         }
         if selectedMode == .cash {
             message += "\n\nEsto actualizará la caja automáticamente. No registres este valor como movimiento manual."
+        }
+        if issueElectronicDocumentAfterPayment {
+            message += "\n\nDespués del cobro se emitirá la factura electrónica para esta venta."
         }
         return message
     }
@@ -327,15 +390,15 @@ final class PaymentRegisterViewModel {
         }
     }
 
-    func submit() async {
+    func submit(issueElectronicDocumentAfterPayment: Bool = false) async {
         if selectedMode == .credit {
             await createReceivable()
         } else {
-            await registerPayment()
+            await registerPayment(issueElectronicDocumentAfterPayment: issueElectronicDocumentAfterPayment)
         }
     }
 
-    func registerPayment() async {
+    func registerPayment(issueElectronicDocumentAfterPayment: Bool = false) async {
         guard selectedMode != .credit else {
             errorMessage = "Selecciona efectivo, transferencia o tarjeta para registrar un cobro."
             return
@@ -396,10 +459,61 @@ final class PaymentRegisterViewModel {
             } else {
                 infoMessage = "Cobro registrado correctamente."
             }
+
+            if issueElectronicDocumentAfterPayment {
+                await issueElectronicInvoiceAfterPayment()
+            }
         } catch let error as APIError {
             handle(apiError: error)
         } catch {
             errorMessage = error.localizedDescription
+        }
+    }
+
+    func issueElectronicInvoiceAfterPayment() async {
+        guard canIssueElectronicDocumentAfterPayment else {
+            errorMessage = electronicDocumentAfterPaymentBlockedReason ?? "No se puede emitir factura electrónica para esta venta."
+            return
+        }
+        guard let documentsRepository, let activityId, let revisions else {
+            errorMessage = "Falta contexto para emitir factura electrónica."
+            return
+        }
+
+        isIssuingElectronicDocument = true
+        electronicDocumentResult = nil
+        errorMessage = nil
+
+        defer {
+            isIssuingElectronicDocument = false
+        }
+
+        do {
+            let response = try await documentsRepository.issueElectronicInvoice(
+                organizationId: organizationId,
+                saleId: sale.id,
+                branchId: sale.branchId.isEmpty ? branchId : sale.branchId,
+                activityId: activityId,
+                revisions: revisions,
+                idempotencyKey: .generate(prefix: "payment-and-electronic-invoice"),
+                request: IssueBusinessElectronicDocumentRequest()
+            )
+
+            electronicDocumentResult = response.document
+            let statusText = BusinessDocumentStatusPresentation.displayName(response.document.status)
+            if response.idempotencyReplayed {
+                infoMessage = "Cobro confirmado. Factura recuperada de un intento anterior: \(statusText)."
+            } else if response.authorized {
+                infoMessage = "Cobro confirmado y factura autorizada correctamente."
+            } else if let error = response.document.lastErrorMessage, !error.isEmpty {
+                infoMessage = "Cobro confirmado. La factura fue emitida, pero requiere revisión: \(error)."
+            } else {
+                infoMessage = "Cobro confirmado. Factura electrónica emitida: \(statusText)."
+            }
+        } catch let error as APIError {
+            errorMessage = "Cobro confirmado, pero no se pudo emitir la factura: \(error.userMessage)"
+        } catch {
+            errorMessage = "Cobro confirmado, pero no se pudo emitir la factura: \(error.localizedDescription)"
         }
     }
 

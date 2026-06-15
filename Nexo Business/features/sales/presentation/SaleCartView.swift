@@ -422,7 +422,10 @@ struct SaleCartView: View {
                                 effectivePermissions: viewModel.effectivePermissions,
                                 cashRepository: cashRepository,
                                 paymentsRepository: paymentsRepository,
-                                receivablesRepository: receivablesRepository
+                                receivablesRepository: receivablesRepository,
+                                documentsRepository: documentsRepository,
+                                activityId: sale.activityId ?? viewModel.activityId,
+                                revisions: viewModel.revisions
                             ),
                             customersRepository: customersRepository,
                             onSaleUpdated: { updatedSale in
@@ -432,31 +435,10 @@ struct SaleCartView: View {
                     } label: {
                         Label("Cobrar ahora", systemImage: "dollarsign.circle.fill")
                     }
-                } else if viewModel.shouldShowCollectLockForCreatedSale {
-                    Label("Esta venta está pendiente, pero tu usuario no puede cobrarla.", systemImage: "lock")
+                } else {
+                    Label("Este usuario puede registrar ventas, pero no cobrar.", systemImage: "lock")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
-                }
-
-                if viewModel.canOpenCreatedSaleDocuments {
-                    NavigationLink {
-                        BusinessDocumentsView(
-                            viewModel: BusinessDocumentsViewModel(
-                                organizationId: viewModel.organizationId,
-                                sale: sale,
-                                effectivePermissions: viewModel.effectivePermissions,
-                                branchId: sale.branchId,
-                                activityId: sale.activityId,
-                                revisions: viewModel.revisions,
-                                documentsRepository: documentsRepository
-                            )
-                        )
-                    } label: {
-                        Label(
-                            viewModel.createdSaleDocumentActionTitle,
-                            systemImage: viewModel.createdSaleDocumentActionSystemImage
-                        )
-                    }
                 }
 
                 Button {
