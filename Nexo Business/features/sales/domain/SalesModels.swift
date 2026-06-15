@@ -1,10 +1,3 @@
-//
-//  SalesModels.swift
-//  Nexo Business
-//
-//  Created by José Ruiz on 11/6/26.
-//
-
 import Foundation
 
 struct SaleDraftItem: Codable, Equatable, Identifiable, Sendable {
@@ -530,6 +523,7 @@ struct BusinessSale: Decodable, Equatable, Identifiable, Sendable {
     let status: String
     let paymentStatus: String?
     let documentStatus: String?
+    let electronicDocumentSummary: BusinessDocument?
     let totals: BusinessSaleTotals
     let items: [BusinessSaleItem]
     let createdAt: Date?
@@ -549,6 +543,7 @@ struct BusinessSale: Decodable, Equatable, Identifiable, Sendable {
         status: String,
         paymentStatus: String? = nil,
         documentStatus: String? = nil,
+        electronicDocumentSummary: BusinessDocument? = nil,
         totals: BusinessSaleTotals,
         items: [BusinessSaleItem] = [],
         createdAt: Date? = nil,
@@ -567,6 +562,7 @@ struct BusinessSale: Decodable, Equatable, Identifiable, Sendable {
         self.status = status
         self.paymentStatus = paymentStatus
         self.documentStatus = documentStatus
+        self.electronicDocumentSummary = electronicDocumentSummary
         self.totals = totals
         self.items = items
         self.createdAt = createdAt
@@ -590,6 +586,11 @@ struct BusinessSale: Decodable, Equatable, Identifiable, Sendable {
         case operationalStatus
         case paymentStatus
         case documentStatus
+        case electronicDocumentSummary
+        case latestElectronicDocument
+        case primaryElectronicDocument
+        case electronicDocument
+        case documentSummary
         case totals
         case summary
         case total
@@ -620,7 +621,13 @@ struct BusinessSale: Decodable, Equatable, Identifiable, Sendable {
         ?? (try? container.decodeIfPresent(String.self, forKey: .operationalStatus))
         ?? "pending"
         paymentStatus = try? container.decodeIfPresent(String.self, forKey: .paymentStatus)
-        documentStatus = try? container.decodeIfPresent(String.self, forKey: .documentStatus)
+        electronicDocumentSummary = (try? container.decodeIfPresent(BusinessDocument.self, forKey: .electronicDocumentSummary))
+        ?? (try? container.decodeIfPresent(BusinessDocument.self, forKey: .latestElectronicDocument))
+        ?? (try? container.decodeIfPresent(BusinessDocument.self, forKey: .primaryElectronicDocument))
+        ?? (try? container.decodeIfPresent(BusinessDocument.self, forKey: .electronicDocument))
+        ?? (try? container.decodeIfPresent(BusinessDocument.self, forKey: .documentSummary))
+        documentStatus = (try? container.decodeIfPresent(String.self, forKey: .documentStatus))
+        ?? electronicDocumentSummary?.effectiveStatus
         
         if let totals = try? container.decodeIfPresent(BusinessSaleTotals.self, forKey: .totals) {
             self.totals = totals

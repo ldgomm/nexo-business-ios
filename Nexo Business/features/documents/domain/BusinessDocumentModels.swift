@@ -1,10 +1,3 @@
-//
-//  BusinessDocumentModels.swift
-//  Nexo Business
-//
-//  Created by José Ruiz on 11/6/26.
-//
-
 import Foundation
 
 struct BusinessDocument: Decodable, Equatable, Identifiable, Sendable {
@@ -168,6 +161,26 @@ struct BusinessDocument: Decodable, Equatable, Identifiable, Sendable {
     }
 }
 
+private struct BusinessDocumentListEnvelope: Decodable, Equatable, Sendable {
+    let documents: [BusinessDocument]
+    let total: Int?
+    let hasMore: Bool?
+
+    private enum CodingKeys: String, CodingKey { case documents, items, results, data, total, count, hasMore }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        documents = (try? c.decodeIfPresent([BusinessDocument].self, forKey: .documents))
+            ?? (try? c.decodeIfPresent([BusinessDocument].self, forKey: .items))
+            ?? (try? c.decodeIfPresent([BusinessDocument].self, forKey: .results))
+            ?? (try? c.decodeIfPresent([BusinessDocument].self, forKey: .data))
+            ?? []
+        total = (try? c.decodeIfPresent(Int.self, forKey: .total))
+            ?? (try? c.decodeIfPresent(Int.self, forKey: .count))
+        hasMore = try? c.decodeIfPresent(Bool.self, forKey: .hasMore)
+    }
+}
+
 struct BusinessDocumentsResponse: Decodable, Equatable, Sendable {
     let documents: [BusinessDocument]
 
@@ -175,13 +188,21 @@ struct BusinessDocumentsResponse: Decodable, Equatable, Sendable {
         self.documents = documents
     }
 
-    private enum CodingKeys: String, CodingKey { case documents, items, data }
+    private enum CodingKeys: String, CodingKey { case documents, items, results, data, payload, result }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
-        documents = try c.decodeIfPresent([BusinessDocument].self, forKey: .documents)
-            ?? c.decodeIfPresent([BusinessDocument].self, forKey: .items)
-            ?? c.decodeIfPresent([BusinessDocument].self, forKey: .data)
+        let nestedData = (try? c.decodeIfPresent(BusinessDocumentListEnvelope.self, forKey: .data)) ?? nil
+        let nestedPayload = (try? c.decodeIfPresent(BusinessDocumentListEnvelope.self, forKey: .payload)) ?? nil
+        let nestedResult = (try? c.decodeIfPresent(BusinessDocumentListEnvelope.self, forKey: .result)) ?? nil
+
+        documents = (try? c.decodeIfPresent([BusinessDocument].self, forKey: .documents))
+            ?? (try? c.decodeIfPresent([BusinessDocument].self, forKey: .items))
+            ?? (try? c.decodeIfPresent([BusinessDocument].self, forKey: .results))
+            ?? (try? c.decodeIfPresent([BusinessDocument].self, forKey: .data))
+            ?? nestedData?.documents
+            ?? nestedPayload?.documents
+            ?? nestedResult?.documents
             ?? []
     }
 }
@@ -232,16 +253,36 @@ struct BusinessElectronicDocumentsResponse: Decodable, Equatable, Sendable {
         self.hasMore = hasMore
     }
 
-    private enum CodingKeys: String, CodingKey { case documents, items, data, total, hasMore }
+    private enum CodingKeys: String, CodingKey { case documents, items, results, data, payload, result, total, count, hasMore }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
-        documents = try c.decodeIfPresent([BusinessDocument].self, forKey: .documents)
-            ?? c.decodeIfPresent([BusinessDocument].self, forKey: .items)
-            ?? c.decodeIfPresent([BusinessDocument].self, forKey: .data)
+
+        let nestedData = (try? c.decodeIfPresent(BusinessDocumentListEnvelope.self, forKey: .data)) ?? nil
+        let nestedPayload = (try? c.decodeIfPresent(BusinessDocumentListEnvelope.self, forKey: .payload)) ?? nil
+        let nestedResult = (try? c.decodeIfPresent(BusinessDocumentListEnvelope.self, forKey: .result)) ?? nil
+
+        documents = (try? c.decodeIfPresent([BusinessDocument].self, forKey: .documents))
+            ?? (try? c.decodeIfPresent([BusinessDocument].self, forKey: .items))
+            ?? (try? c.decodeIfPresent([BusinessDocument].self, forKey: .results))
+            ?? (try? c.decodeIfPresent([BusinessDocument].self, forKey: .data))
+            ?? nestedData?.documents
+            ?? nestedPayload?.documents
+            ?? nestedResult?.documents
             ?? []
-        total = try c.decodeIfPresent(Int.self, forKey: .total) ?? documents.count
-        hasMore = try c.decodeIfPresent(Bool.self, forKey: .hasMore) ?? false
+
+        total = (try? c.decodeIfPresent(Int.self, forKey: .total))
+            ?? (try? c.decodeIfPresent(Int.self, forKey: .count))
+            ?? nestedData?.total
+            ?? nestedPayload?.total
+            ?? nestedResult?.total
+            ?? documents.count
+
+        hasMore = (try? c.decodeIfPresent(Bool.self, forKey: .hasMore))
+            ?? nestedData?.hasMore
+            ?? nestedPayload?.hasMore
+            ?? nestedResult?.hasMore
+            ?? false
     }
 }
 

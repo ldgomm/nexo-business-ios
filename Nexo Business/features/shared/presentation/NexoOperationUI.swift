@@ -1,10 +1,3 @@
-//
-//  NexoOperationUI.swift
-//  Nexo Business
-//
-//  Created by José Ruiz on 2/6/26.
-//
-
 import SwiftUI
 
 #if canImport(UIKit)
@@ -150,7 +143,7 @@ struct NexoSaleSuccessCard: View {
             VStack(alignment: .leading, spacing: 6) {
                 Label(sale.displayCustomerName, systemImage: "person.crop.circle")
                 Label(PaymentStatusPresentation.displayName(sale.paymentStatus), systemImage: PaymentStatusPresentation.systemImage(sale.paymentStatus))
-                Label(BusinessDocumentStatusPresentation.displayName(sale.documentStatus ?? "not_required"), systemImage: BusinessDocumentStatusPresentation.systemImage(sale.documentStatus ?? "not_required"))
+                Label(BusinessDocumentStatusPresentation.displayName(sale.effectiveDocumentStatus ?? "not_required"), systemImage: BusinessDocumentStatusPresentation.systemImage(sale.effectiveDocumentStatus ?? "not_required"))
                 if !sale.displayItemsSummary.isEmpty {
                     Label(sale.displayItemsSummary, systemImage: "cart")
                 }
@@ -242,6 +235,19 @@ extension BusinessSale {
         PaymentStatusPresentation.canCollect(status: paymentStatus)
     }
 
+    var primaryElectronicDocument: BusinessDocument? {
+        electronicDocumentSummary
+    }
+
+    var effectiveDocumentStatus: String? {
+        primaryElectronicDocument?.effectiveStatus ?? documentStatus
+    }
+
+    var hasElectronicDocumentRegistered: Bool {
+        if primaryElectronicDocument != nil { return true }
+        return !BusinessDocumentStatusPresentation.isMissingElectronicDocument(documentStatus)
+    }
+
     func replacingPaymentStatus(_ paymentStatus: String?) -> BusinessSale {
         BusinessSale(
             id: id,
@@ -255,6 +261,30 @@ extension BusinessSale {
             status: status,
             paymentStatus: paymentStatus,
             documentStatus: documentStatus,
+            electronicDocumentSummary: electronicDocumentSummary,
+            totals: totals,
+            items: items,
+            createdAt: createdAt,
+            confirmedAt: confirmedAt,
+            closedAt: closedAt,
+            updatedAt: Date()
+        )
+    }
+
+    func replacingElectronicDocument(_ document: BusinessDocument?) -> BusinessSale {
+        BusinessSale(
+            id: id,
+            number: number,
+            organizationId: organizationId,
+            branchId: branchId,
+            activityId: activityId,
+            customerId: customerId,
+            customerName: customerName,
+            customer: customer,
+            status: status,
+            paymentStatus: paymentStatus,
+            documentStatus: document?.effectiveStatus ?? documentStatus,
+            electronicDocumentSummary: document ?? electronicDocumentSummary,
             totals: totals,
             items: items,
             createdAt: createdAt,

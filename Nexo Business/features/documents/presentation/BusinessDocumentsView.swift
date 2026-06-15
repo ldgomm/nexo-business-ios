@@ -1,10 +1,3 @@
-//
-//  BusinessDocumentsView.swift
-//  Nexo Business
-//
-//  Created by José Ruiz on 29/5/26.
-//
-
 import SwiftUI
 
 struct BusinessDocumentsView: View {
@@ -54,7 +47,7 @@ struct BusinessDocumentsView: View {
         Section("Factura electrónica") {
             Label(
                 viewModel.electronicInvoiceStatusText,
-                systemImage: BusinessDocumentStatusPresentation.systemImage(viewModel.latestElectronicInvoice?.effectiveStatus ?? viewModel.sale.documentStatus ?? "not_required")
+                systemImage: BusinessDocumentStatusPresentation.systemImage(viewModel.latestElectronicInvoice?.effectiveStatus ?? viewModel.sale.effectiveDocumentStatus ?? "not_required")
             )
             .font(.subheadline.weight(.semibold))
             .foregroundStyle(viewModel.latestElectronicInvoice.map { BusinessDocumentStatusPresentation.isError($0.effectiveStatus) } == true ? Color.red : Color.primary)

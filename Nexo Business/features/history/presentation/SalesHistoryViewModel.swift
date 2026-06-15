@@ -1,10 +1,3 @@
-//
-//  SalesHistoryViewModel.swift
-//  Nexo Business
-//
-//  Created by José Ruiz on 2/6/26.
-//
-
 import Foundation
 import Observation
 
@@ -16,6 +9,7 @@ final class SalesHistoryViewModel {
     private(set) var total: Int?
     private(set) var hasMore: Bool?
     private(set) var isLoading = false
+    private(set) var isRefreshingDocuments = false
     var query = ""
     var selectedStatus: SalesHistoryStatusFilter = .all
     var selectedDate = Date()
@@ -30,6 +24,8 @@ final class SalesHistoryViewModel {
 
     private let repository: SalesHistoryRepository
     private let documentsRepository: BusinessDocumentsRepository
+    private var lastLoadedAt: Date?
+    private var lastAppearRefreshAt: Date?
 
     init(
         organizationId: String,
@@ -83,6 +79,52 @@ final class SalesHistoryViewModel {
     }
 
     func load() async {
+        await load(force: true)
+    }
+
+    func loadIfNeeded() async {
+        guard sales.isEmpty else { return }
+        await load(force: true)
+    }
+
+    func refreshOnAppear() async {
+        let now = Date()
+        if let lastAppearRefreshAt, now.timeIntervalSince(lastAppearRefreshAt) < 2 {
+            return
+        }
+        self.lastAppearRefreshAt = now
+        await load(force: false)
+    }
+
+    func clearFilters() {
+        query = ""
+        selectedStatus = .all
+        selectedDate = Date()
+        useDateFilter = true
+        errorMessage = nil
+        infoMessage = nil
+    }
+
+    func makeSaleDetailViewModel(
+        for sale: BusinessSale,
+        salesRepository: SalesRepository
+    ) -> SaleDetailViewModel {
+        let initialSale = sale.replacingElectronicDocument(primaryDocumentBySaleId[sale.id])
+        return SaleDetailViewModel(
+            organizationId: organizationId,
+            saleId: sale.id,
+            revisions: revisions,
+            initialSale: initialSale,
+            effectivePermissions: effectivePermissions,
+            salesRepository: salesRepository
+        )
+    }
+
+    func primaryDocument(for sale: BusinessSale) -> BusinessDocument? {
+        sale.primaryElectronicDocument ?? primaryDocumentBySaleId[sale.id]
+    }
+
+    private func load(force: Bool) async {
         guard canViewSales else {
             sales = []
             primaryDocumentBySaleId = [:]
@@ -99,12 +141,20 @@ final class SalesHistoryViewModel {
 
         guard !isLoading else { return }
 
+        if !force,
+           let lastLoadedAt,
+           Date().timeIntervalSince(lastLoadedAt) < 8,
+           !sales.isEmpty {
+            return
+        }
+
         isLoading = true
         errorMessage = nil
         infoMessage = nil
 
         defer {
             isLoading = false
+            lastLoadedAt = Date()
         }
 
         do {
@@ -120,11 +170,18 @@ final class SalesHistoryViewModel {
             )
 
             let orderedSales = response.sales.sorted(by: sortSales)
-            sales = orderedSales
             total = response.total
             hasMore = response.hasMore
-            await hydrateDocuments(for: orderedSales)
-            infoMessage = sales.isEmpty ? "No encontramos ventas con estos filtros." : nil
+
+            let hydration = await hydrateSalesWithDocuments(orderedSales)
+            sales = hydration.sales
+            primaryDocumentBySaleId = hydration.documentsBySaleId
+
+            if sales.isEmpty {
+                infoMessage = "No encontramos ventas con estos filtros."
+            } else {
+                infoMessage = hydration.warning
+            }
         } catch let error as APIError {
             handle(apiError: error)
         } catch {
@@ -132,54 +189,177 @@ final class SalesHistoryViewModel {
         }
     }
 
-    func clearFilters() {
-        query = ""
-        selectedStatus = .all
-        selectedDate = Date()
-        useDateFilter = true
-        errorMessage = nil
-        infoMessage = nil
-    }
+    private func hydrateSalesWithDocuments(_ inputSales: [BusinessSale]) async -> DocumentHydrationResult {
+        guard canViewDocuments else {
+            let documentsBySaleId = inputSales.reduce(into: [String: BusinessDocument]()) { result, sale in
+                if let document = sale.primaryElectronicDocument {
+                    result[sale.id] = document
+                }
+            }
+            return DocumentHydrationResult(sales: inputSales, documentsBySaleId: documentsBySaleId, warning: nil)
+        }
 
-    func makeSaleDetailViewModel(
-        for sale: BusinessSale,
-        salesRepository: SalesRepository
-    ) -> SaleDetailViewModel {
-        SaleDetailViewModel(
-            organizationId: organizationId,
-            saleId: sale.id,
-            revisions: revisions,
-            initialSale: sale,
-            effectivePermissions: effectivePermissions,
-            salesRepository: salesRepository
+        isRefreshingDocuments = true
+        defer { isRefreshingDocuments = false }
+
+        var documentsBySaleId: [String: BusinessDocument] = [:]
+        var enrichedSales: [BusinessSale] = []
+        var failedCount = 0
+        var bulkDocuments: [BusinessDocument] = []
+        var usedDocumentIds = Set<String>()
+
+        do {
+            let response = try await documentsRepository.listElectronicDocuments(
+                organizationId: organizationId,
+                filters: BusinessElectronicDocumentFilters(limit: 250)
+            )
+            bulkDocuments = response.documents.sorted(by: sortDocuments)
+        } catch {
+            failedCount += 1
+        }
+
+        for sale in inputSales {
+            if let document = sale.primaryElectronicDocument {
+                documentsBySaleId[sale.id] = document
+                usedDocumentIds.insert(document.id)
+                enrichedSales.append(sale.replacingElectronicDocument(document))
+                continue
+            }
+
+            if let document = bestDocument(for: sale, from: bulkDocuments, excluding: usedDocumentIds) {
+                documentsBySaleId[sale.id] = document
+                usedDocumentIds.insert(document.id)
+                enrichedSales.append(sale.replacingElectronicDocument(document))
+                continue
+            }
+
+            if let document = await loadElectronicDocumentForSaleId(sale.id, failedCount: &failedCount) {
+                documentsBySaleId[sale.id] = document
+                usedDocumentIds.insert(document.id)
+                enrichedSales.append(sale.replacingElectronicDocument(document))
+                continue
+            }
+
+            if let document = await loadElectronicDocumentForAlternateIdentifiers(sale, excluding: usedDocumentIds, failedCount: &failedCount) {
+                documentsBySaleId[sale.id] = document
+                usedDocumentIds.insert(document.id)
+                enrichedSales.append(sale.replacingElectronicDocument(document))
+                continue
+            }
+
+            if let document = await loadLegacyDocument(for: sale, failedCount: &failedCount) {
+                documentsBySaleId[sale.id] = document
+                usedDocumentIds.insert(document.id)
+                enrichedSales.append(sale.replacingElectronicDocument(document))
+                continue
+            }
+
+            enrichedSales.append(sale)
+        }
+
+        let missingPaidSales = enrichedSales.filter { sale in
+            PaymentStatusPresentation.isCollected(sale.paymentStatus) && !sale.hasElectronicDocumentRegistered
+        }.count
+
+        let warning: String?
+        if failedCount > 0 {
+            warning = "Algunos comprobantes no pudieron actualizarse. Vuelve a intentar si ves estados incompletos."
+        } else if missingPaidSales > 0 {
+            warning = "Hay ventas cobradas sin comprobante enlazado por saleId. Si Admin sí muestra el comprobante, el enlace quedó inconsistente en servidor."
+        } else {
+            warning = nil
+        }
+
+        return DocumentHydrationResult(
+            sales: enrichedSales,
+            documentsBySaleId: documentsBySaleId,
+            warning: warning
         )
     }
 
-    func primaryDocument(for sale: BusinessSale) -> BusinessDocument? {
-        primaryDocumentBySaleId[sale.id]
+    private func loadElectronicDocumentForSaleId(_ saleId: String, failedCount: inout Int) async -> BusinessDocument? {
+        do {
+            let response = try await documentsRepository.listElectronicDocuments(
+                organizationId: organizationId,
+                filters: BusinessElectronicDocumentFilters(saleId: saleId, limit: 10)
+            )
+            return response.documents.sorted(by: sortDocuments).first
+        } catch {
+            failedCount += 1
+            return nil
+        }
     }
 
-    private func hydrateDocuments(for sales: [BusinessSale]) async {
-        guard canViewDocuments else {
-            primaryDocumentBySaleId = [:]
-            return
-        }
+    private func loadElectronicDocumentForAlternateIdentifiers(
+        _ sale: BusinessSale,
+        excluding usedDocumentIds: Set<String>,
+        failedCount: inout Int
+    ) async -> BusinessDocument? {
+        let identifiers = saleIdentifierCandidates(for: sale).filter { $0 != sale.id }
 
-        var result: [String: BusinessDocument] = [:]
-        for sale in sales {
+        for identifier in identifiers {
             do {
-                let response = try await documentsRepository.list(
+                let response = try await documentsRepository.listElectronicDocuments(
                     organizationId: organizationId,
-                    saleId: sale.id
+                    filters: BusinessElectronicDocumentFilters(saleId: identifier, limit: 10)
                 )
-                if let document = response.documents.sorted(by: sortDocuments).first {
-                    result[sale.id] = document
+                if let document = response.documents.sorted(by: sortDocuments).first(where: { !usedDocumentIds.contains($0.id) }) {
+                    return document
                 }
             } catch {
-                continue
+                failedCount += 1
             }
         }
-        primaryDocumentBySaleId = result
+
+        return nil
+    }
+
+    private func loadLegacyDocument(for sale: BusinessSale, failedCount: inout Int) async -> BusinessDocument? {
+        do {
+            let response = try await documentsRepository.list(
+                organizationId: organizationId,
+                saleId: sale.id
+            )
+            return response.documents.sorted(by: sortDocuments).first
+        } catch {
+            failedCount += 1
+            return nil
+        }
+    }
+
+    private func bestDocument(
+        for sale: BusinessSale,
+        from documents: [BusinessDocument],
+        excluding usedDocumentIds: Set<String>
+    ) -> BusinessDocument? {
+        let identifiers = Set(saleIdentifierCandidates(for: sale).map(normalizedIdentifier))
+
+        return documents.first { document in
+            guard !usedDocumentIds.contains(document.id) else { return false }
+            let documentSaleId = normalizedIdentifier(document.saleId)
+            guard !documentSaleId.isEmpty else { return false }
+            return identifiers.contains(documentSaleId)
+        }
+    }
+
+    private func saleIdentifierCandidates(for sale: BusinessSale) -> [String] {
+        var values = [sale.id]
+
+        if let number = sale.number?.trimmedNilIfBlank {
+            values.append(number)
+        }
+
+        values.append(sale.displayNumber)
+        values.append(sale.compactDisplayNumber)
+
+        return Array(Set(values.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) })).filter { !$0.isEmpty }
+    }
+
+    private func normalizedIdentifier(_ value: String) -> String {
+        value
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+            .replacingOccurrences(of: "_", with: "-")
     }
 
     private var canViewDocuments: Bool {
@@ -198,7 +378,7 @@ final class SalesHistoryViewModel {
     }
 
     private func sortDocuments(_ lhs: BusinessDocument, _ rhs: BusinessDocument) -> Bool {
-        switch (lhs.createdAt, rhs.createdAt) {
+        switch (lhs.createdAt ?? lhs.issuedAt ?? lhs.authorizedAt, rhs.createdAt ?? rhs.issuedAt ?? rhs.authorizedAt) {
         case let (left?, right?):
             return left > right
         case (_?, nil):
@@ -240,7 +420,24 @@ final class SalesHistoryViewModel {
     }
 
     private func emptyToNil(_ value: String) -> String? {
-        let trimmed = normalized(value)
-        return trimmed.isEmpty ? nil : trimmed
+        let cleaned = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        return cleaned.isEmpty ? nil : cleaned
+    }
+}
+
+private struct DocumentHydrationResult: Sendable {
+    let sales: [BusinessSale]
+    let documentsBySaleId: [String: BusinessDocument]
+    let warning: String?
+}
+
+private extension String {
+    var trimmedNilIfBlank: String? {
+        let value = trimmingCharacters(in: .whitespacesAndNewlines)
+        return value.isEmpty ? nil : value
+    }
+
+    var nilIfBlank: String? {
+        isEmpty ? nil : self
     }
 }

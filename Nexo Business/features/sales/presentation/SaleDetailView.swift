@@ -1,10 +1,3 @@
-//
-//  SaleDetailView.swift
-//  Nexo Business
-//
-//  Created by José Ruiz on 2/6/26.
-//
-
 import SwiftUI
 
 struct SaleDetailView: View {
@@ -156,14 +149,37 @@ struct SaleDetailView: View {
     }
 
     private func electronicDocumentSection(_ sale: BusinessSale) -> some View {
-        Section("Comprobante electrónico") {
+        let status = sale.effectiveDocumentStatus ?? "not_required"
+        let document = sale.primaryElectronicDocument
+
+        return Section("Comprobante electrónico") {
             Label(
-                BusinessDocumentStatusPresentation.displayName(sale.documentStatus ?? "not_required"),
-                systemImage: BusinessDocumentStatusPresentation.systemImage(sale.documentStatus ?? "not_required")
+                BusinessDocumentStatusPresentation.displayName(status),
+                systemImage: BusinessDocumentStatusPresentation.systemImage(status)
             )
             .font(.subheadline.weight(.semibold))
 
-            if BusinessDocumentStatusPresentation.isMissingElectronicDocument(sale.documentStatus) {
+            if let document {
+                LabeledContent("Número", value: document.displayNumber)
+
+                if let authorizationNumber = document.authorizationNumber, !authorizationNumber.isEmpty {
+                    LabeledContent("Autorización", value: authorizationNumber)
+                }
+
+                if let error = BusinessDocumentTextSanitizer.sanitizedMessage(document.lastErrorMessage) {
+                    Label(error, systemImage: "exclamationmark.triangle")
+                        .font(.footnote)
+                        .foregroundStyle(.red)
+                } else if BusinessDocumentStatusPresentation.isAuthorized(document.effectiveStatus) {
+                    Text(document.hasRide ? "Factura autorizada. RIDE y XML se revisan desde Comprobantes." : "Factura autorizada, pero todavía falta RIDE.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text("Revisa el comprobante para ver autorización, RIDE, XML, correo y errores si existieran.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+            } else if BusinessDocumentStatusPresentation.isMissingElectronicDocument(status) {
                 Text("Sin factura electrónica emitida. Esta venta puede estar cobrada y seguir como registro interno hasta que alguien con permiso emita el comprobante.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
@@ -178,7 +194,7 @@ struct SaleDetailView: View {
                         .foregroundStyle(.secondary)
                 }
             } else {
-                Text("Revisa el comprobante para ver autorización, RIDE, XML, correo y errores si existieran.")
+                Text("La venta indica un comprobante electrónico en estado \(BusinessDocumentStatusPresentation.displayName(status)). Abre Comprobantes para cargar el detalle real.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }

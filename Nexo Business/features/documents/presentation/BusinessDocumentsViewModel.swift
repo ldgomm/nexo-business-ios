@@ -1,10 +1,3 @@
-//
-//  BusinessDocumentsViewModel.swift
-//  Nexo Business
-//
-//  Created by José Ruiz on 29/5/26.
-//
-
 import Foundation
 import Observation
 
@@ -22,7 +15,7 @@ final class BusinessDocumentsViewModel {
     var infoMessage: String?
 
     let organizationId: String
-    let sale: BusinessSale
+    private(set) var sale: BusinessSale
     let effectivePermissions: Set<String>
     let branchId: String?
     let activityId: String?
@@ -61,12 +54,12 @@ final class BusinessDocumentsViewModel {
     }
 
     var hasElectronicInvoiceRegistered: Bool {
-        latestElectronicInvoice != nil
+        latestElectronicInvoice != nil || sale.hasElectronicDocumentRegistered
     }
 
     var electronicInvoiceStatusText: String {
         guard let document = latestElectronicInvoice else {
-            return BusinessDocumentStatusPresentation.displayName(sale.documentStatus ?? "not_required")
+            return BusinessDocumentStatusPresentation.displayName(sale.effectiveDocumentStatus ?? "not_required")
         }
 
         return BusinessDocumentStatusPresentation.displayName(document.effectiveStatus)
@@ -74,6 +67,9 @@ final class BusinessDocumentsViewModel {
 
     var electronicInvoiceDescription: String {
         guard let document = latestElectronicInvoice else {
+            if let status = sale.effectiveDocumentStatus, !BusinessDocumentStatusPresentation.isMissingElectronicDocument(status) {
+                return "La venta indica un comprobante electrónico en estado \(BusinessDocumentStatusPresentation.displayName(status)), pero todavía falta cargar el detalle documental."
+            }
             return "Sin factura electrónica emitida. Esta venta puede estar cobrada y quedar como registro interno hasta que alguien con permiso emita el comprobante."
         }
 
@@ -115,7 +111,7 @@ final class BusinessDocumentsViewModel {
         !sale.id.isEmpty &&
         !isBusy &&
         !hasElectronicInvoiceRegistered &&
-        BusinessDocumentStatusPresentation.isMissingElectronicDocument(sale.documentStatus) &&
+        BusinessDocumentStatusPresentation.isMissingElectronicDocument(sale.effectiveDocumentStatus) &&
         branchId?.isEmpty == false &&
         activityId?.isEmpty == false &&
         revisions != nil &&
@@ -128,7 +124,7 @@ final class BusinessDocumentsViewModel {
 
     var shouldShowElectronicInvoiceButton: Bool {
         !hasElectronicInvoiceRegistered &&
-        BusinessDocumentStatusPresentation.isMissingElectronicDocument(sale.documentStatus) &&
+        BusinessDocumentStatusPresentation.isMissingElectronicDocument(sale.effectiveDocumentStatus) &&
         hasElectronicInvoiceIssuePermission
     }
 
@@ -137,7 +133,7 @@ final class BusinessDocumentsViewModel {
             return nil
         }
 
-        if !BusinessDocumentStatusPresentation.isMissingElectronicDocument(sale.documentStatus) {
+        if !BusinessDocumentStatusPresentation.isMissingElectronicDocument(sale.effectiveDocumentStatus) {
             return nil
         }
 
@@ -218,16 +214,44 @@ final class BusinessDocumentsViewModel {
             isLoading = false
         }
 
+        var loadedDocuments: [BusinessDocument] = []
+        var failedSources: [String] = []
+
+        if let saleDocument = sale.primaryElectronicDocument {
+            loadedDocuments.append(saleDocument)
+        }
+
+        do {
+            let response = try await repository.listElectronicDocuments(
+                organizationId: organizationId,
+                filters: BusinessElectronicDocumentFilters(saleId: sale.id, limit: 25)
+            )
+            loadedDocuments.append(contentsOf: response.documents)
+        } catch {
+            failedSources.append("facturas electrónicas")
+        }
+
         do {
             let response = try await repository.list(
                 organizationId: organizationId,
                 saleId: sale.id
             )
-            documents = response.documents.sorted(by: sortDocuments)
-        } catch let error as APIError {
-            handle(apiError: error)
+            loadedDocuments.append(contentsOf: response.documents)
         } catch {
-            errorMessage = error.localizedDescription
+            failedSources.append("documentos internos")
+        }
+
+        let merged = uniqueDocuments(loadedDocuments).sorted(by: sortDocuments)
+        documents = merged
+
+        if let latestElectronicInvoice {
+            sale = sale.replacingElectronicDocument(latestElectronicInvoice)
+        }
+
+        if !failedSources.isEmpty, merged.isEmpty {
+            errorMessage = "No se pudieron cargar los comprobantes de esta venta."
+        } else if !failedSources.isEmpty {
+            infoMessage = "Algunos comprobantes no pudieron actualizarse: \(failedSources.joined(separator: ", "))."
         }
     }
 
@@ -330,6 +354,7 @@ final class BusinessDocumentsViewModel {
                 request: IssueBusinessElectronicDocumentRequest()
             )
             upsert(response.document)
+            sale = sale.replacingElectronicDocument(response.document)
 
             if response.idempotencyReplayed {
                 infoMessage = "Factura electrónica recuperada de un intento anterior. No se duplicó el comprobante."
@@ -364,12 +389,36 @@ final class BusinessDocumentsViewModel {
     }
 
     private func upsert(_ document: BusinessDocument) {
-        if let index = documents.firstIndex(where: { $0.id == document.id }) {
+        if let index = documents.firstIndex(where: { sameDocument($0, document) }) {
             documents[index] = document
         } else {
             documents.append(document)
         }
-        documents.sort(by: sortDocuments)
+        documents = uniqueDocuments(documents).sorted(by: sortDocuments)
+    }
+
+    private func uniqueDocuments(_ input: [BusinessDocument]) -> [BusinessDocument] {
+        var seen = Set<String>()
+        var result: [BusinessDocument] = []
+
+        for document in input {
+            let key = documentIdentity(document)
+            guard !seen.contains(key) else { continue }
+            seen.insert(key)
+            result.append(document)
+        }
+
+        return result
+    }
+
+    private func documentIdentity(_ document: BusinessDocument) -> String {
+        if !document.documentId.isEmpty { return "documentId:\(document.documentId)" }
+        if let accessKey = document.accessKey, !accessKey.isEmpty { return "accessKey:\(accessKey)" }
+        return "id:\(document.id)"
+    }
+
+    private func sameDocument(_ lhs: BusinessDocument, _ rhs: BusinessDocument) -> Bool {
+        documentIdentity(lhs) == documentIdentity(rhs)
     }
 
     private func sortDocuments(_ lhs: BusinessDocument, _ rhs: BusinessDocument) -> Bool {

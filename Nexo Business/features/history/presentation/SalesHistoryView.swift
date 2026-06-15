@@ -1,10 +1,3 @@
-//
-//  SalesHistoryView.swift
-//  Nexo Business
-//
-//  Created by José Ruiz on 2/6/26.
-//
-
 import SwiftUI
 
 struct SalesHistoryView: View {
@@ -52,9 +45,13 @@ struct SalesHistoryView: View {
             }
         }
         .task {
-            if viewModel.sales.isEmpty && viewModel.errorMessage == nil {
-                await viewModel.load()
-            }
+            await viewModel.loadIfNeeded()
+        }
+        .onAppear {
+            Task { await viewModel.refreshOnAppear() }
+        }
+        .refreshable {
+            await viewModel.load()
         }
     }
 
@@ -116,6 +113,15 @@ struct SalesHistoryView: View {
                 LabeledContent("Ventas encontradas", value: String(total))
             } else {
                 LabeledContent("Ventas", value: String(viewModel.sales.count))
+            }
+
+            if viewModel.isRefreshingDocuments {
+                HStack(spacing: 10) {
+                    ProgressView()
+                    Text("Actualizando comprobantes electrónicos…")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
             }
 
             if viewModel.hasMore == true {
@@ -210,7 +216,7 @@ private struct SalesHistoryRow: View {
                 HStack(spacing: 8) {
                     Image(systemName: "doc.text.magnifyingglass")
                         .foregroundStyle(.secondary)
-                    Text(document.number ?? "Comprobante generado")
+                    Text(document.displayNumber)
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.secondary)
                     if let error = document.lastErrorMessage, !error.isEmpty {
@@ -228,13 +234,17 @@ private struct SalesHistoryRow: View {
                 Label(PaymentStatusPresentation.displayName(sale.paymentStatus), systemImage: "dollarsign.circle")
 
                 if let document {
+                    let status = document.effectiveStatus
                     Label(
-                        BusinessDocumentStatusPresentation.displayName(document.status),
-                        systemImage: BusinessDocumentStatusPresentation.systemImage(document.status)
+                        BusinessDocumentStatusPresentation.displayName(status),
+                        systemImage: BusinessDocumentStatusPresentation.systemImage(status)
                     )
-                    .foregroundStyle(BusinessDocumentStatusPresentation.isError(document.status) ? .red : .secondary)
-                } else if let documentStatus = sale.documentStatus, !BusinessDocumentStatusPresentation.isMissingElectronicDocument(documentStatus) {
-                    Label(BusinessDocumentStatusPresentation.displayName(documentStatus), systemImage: "doc.text")
+                    .foregroundStyle(BusinessDocumentStatusPresentation.isError(status) ? .red : .secondary)
+                } else if let documentStatus = sale.effectiveDocumentStatus, !BusinessDocumentStatusPresentation.isMissingElectronicDocument(documentStatus) {
+                    Label(
+                        BusinessDocumentStatusPresentation.displayName(documentStatus),
+                        systemImage: BusinessDocumentStatusPresentation.systemImage(documentStatus)
+                    )
                 } else {
                     Label("Sin comprobante electrónico", systemImage: "doc")
                 }

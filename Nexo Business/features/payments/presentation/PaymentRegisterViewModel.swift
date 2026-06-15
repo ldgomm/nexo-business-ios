@@ -1,10 +1,3 @@
-//
-//  PaymentRegisterViewModel.swift
-//  Nexo Business
-//
-//  Created by José Ruiz on 11/6/26.
-//
-
 import Foundation
 import Observation
 
@@ -195,12 +188,14 @@ final class PaymentRegisterViewModel {
         hasElectronicInvoiceIssuePermission &&
         activityId?.isEmpty == false &&
         revisions != nil &&
-        BusinessDocumentStatusPresentation.isMissingElectronicDocument(sale.documentStatus)
+        !sale.hasElectronicDocumentRegistered &&
+        BusinessDocumentStatusPresentation.isMissingElectronicDocument(sale.effectiveDocumentStatus)
     }
 
     var electronicDocumentAfterPaymentBlockedReason: String? {
         guard selectedMode != .credit else { return nil }
-        guard BusinessDocumentStatusPresentation.isMissingElectronicDocument(sale.documentStatus) else { return nil }
+        guard !sale.hasElectronicDocumentRegistered,
+              BusinessDocumentStatusPresentation.isMissingElectronicDocument(sale.effectiveDocumentStatus) else { return nil }
 
         if !hasElectronicInvoiceIssuePermission {
             return "Tu usuario puede cobrar, pero no emitir factura electrónica."
@@ -235,7 +230,7 @@ final class PaymentRegisterViewModel {
     }
 
     var saleDocumentStatusText: String {
-        BusinessDocumentStatusPresentation.displayName(sale.documentStatus ?? "not_required")
+        BusinessDocumentStatusPresentation.displayName(sale.effectiveDocumentStatus ?? "not_required")
     }
 
     var hasPaymentPermission: Bool {
@@ -500,7 +495,8 @@ final class PaymentRegisterViewModel {
             )
 
             electronicDocumentResult = response.document
-            let statusText = BusinessDocumentStatusPresentation.displayName(response.document.status)
+            sale = sale.replacingElectronicDocument(response.document)
+            let statusText = BusinessDocumentStatusPresentation.displayName(response.document.effectiveStatus)
             if response.idempotencyReplayed {
                 infoMessage = "Cobro confirmado. Factura recuperada de un intento anterior: \(statusText)."
             } else if response.authorized {

@@ -1,10 +1,3 @@
-//
-//  SaleDetailViewModel.swift
-//  Nexo Business
-//
-//  Created by José Ruiz on 11/6/26.
-//
-
 import Foundation
 import Observation
 
@@ -71,14 +64,13 @@ final class SaleDetailViewModel {
 
     var canIssueElectronicInvoice: Bool {
         guard let sale else { return false }
-        return !isBusy &&
-        canIssueElectronicInvoice(for: sale)
+        return !isBusy && canIssueElectronicInvoice(for: sale)
     }
 
     var electronicInvoiceBlockedReason: String? {
         guard let sale else { return "No se encontró la venta." }
 
-        if !BusinessDocumentStatusPresentation.isMissingElectronicDocument(sale.documentStatus) {
+        if sale.hasElectronicDocumentRegistered {
             return nil
         }
 
@@ -86,7 +78,7 @@ final class SaleDetailViewModel {
             return "Tu usuario puede consultar comprobantes, pero no emitir factura electrónica. Pide al administrador activar Emitir factura electrónica."
         }
 
-        if sale.branchId.isEmpty || ((sale.activityId?.isEmpty) != nil) {
+        if !hasValidEmissionContext(for: sale) {
             return "Actualiza el contexto del negocio antes de emitir factura electrónica."
         }
 
@@ -157,7 +149,7 @@ final class SaleDetailViewModel {
     }
 
     func documentActionTitle(for sale: BusinessSale) -> String {
-        guard BusinessDocumentStatusPresentation.isMissingElectronicDocument(sale.documentStatus) else {
+        guard !sale.hasElectronicDocumentRegistered else {
             return "Ver comprobantes"
         }
 
@@ -167,7 +159,7 @@ final class SaleDetailViewModel {
     }
 
     func documentActionSystemImage(for sale: BusinessSale) -> String {
-        guard BusinessDocumentStatusPresentation.isMissingElectronicDocument(sale.documentStatus) else {
+        guard !sale.hasElectronicDocumentRegistered else {
             return "doc.text.magnifyingglass"
         }
 
@@ -177,10 +169,10 @@ final class SaleDetailViewModel {
     }
 
     func canIssueElectronicInvoice(for sale: BusinessSale) -> Bool {
-        BusinessDocumentStatusPresentation.isMissingElectronicDocument(sale.documentStatus) &&
+        !sale.hasElectronicDocumentRegistered &&
+        BusinessDocumentStatusPresentation.isMissingElectronicDocument(sale.effectiveDocumentStatus) &&
         hasElectronicInvoiceIssuePermission &&
-        !sale.branchId.isEmpty &&
-        ((sale.activityId?.isEmpty) == nil)
+        hasValidEmissionContext(for: sale)
     }
 
     func load() async {
@@ -199,7 +191,7 @@ final class SaleDetailViewModel {
                 organizationId: organizationId,
                 saleId: saleId
             )
-            sale = response.sale
+            sale = salePreservingKnownElectronicDocument(response.sale)
         } catch let error as APIError {
             handle(apiError: error)
         } catch {
@@ -238,7 +230,7 @@ final class SaleDetailViewModel {
                 idempotencyKey: .generate(prefix: "sale-confirm"),
                 request: ConfirmSaleRequest()
             )
-            self.sale = response.sale
+            self.sale = salePreservingKnownElectronicDocument(response.sale)
             infoMessage = response.idempotencyReplayed == true
                 ? "Confirmación recuperada de un intento anterior."
                 : "Venta confirmada correctamente."
@@ -286,7 +278,7 @@ final class SaleDetailViewModel {
                 )
             )
 
-            self.sale = response.sale
+            self.sale = salePreservingKnownElectronicDocument(response.sale)
             infoMessage = response.idempotencyReplayed == true
                 ? "Cancelación recuperada de un intento anterior."
                 : "Venta cancelada correctamente."
@@ -295,6 +287,21 @@ final class SaleDetailViewModel {
         } catch {
             errorMessage = error.localizedDescription
         }
+    }
+
+    private func hasValidEmissionContext(for sale: BusinessSale) -> Bool {
+        !sale.branchId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+        sale.activityId?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+    }
+
+    private func salePreservingKnownElectronicDocument(_ loadedSale: BusinessSale) -> BusinessSale {
+        guard loadedSale.primaryElectronicDocument == nil,
+              BusinessDocumentStatusPresentation.isMissingElectronicDocument(loadedSale.documentStatus),
+              let currentDocument = sale?.primaryElectronicDocument else {
+            return loadedSale
+        }
+
+        return loadedSale.replacingElectronicDocument(currentDocument)
     }
 
     private func hasPermission(_ permissions: [String]) -> Bool {
@@ -307,11 +314,5 @@ final class SaleDetailViewModel {
         if apiError.statusCode == 409 || apiError.statusCode == 428 {
             infoMessage = "Actualiza el contexto del negocio antes de continuar."
         }
-    }
-}
-
-private extension String {
-    var nilIfEmpty: String? {
-        isEmpty ? nil : self
     }
 }

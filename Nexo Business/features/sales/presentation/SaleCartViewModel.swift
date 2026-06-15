@@ -1,10 +1,3 @@
-//
-//  SaleCartViewModel.swift
-//  Nexo Business
-//
-//  Created by José Ruiz on 11/6/26.
-//
-
 import Foundation
 import Observation
 
@@ -291,7 +284,8 @@ final class SaleCartViewModel {
     var canIssueElectronicInvoiceForCreatedSale: Bool {
         guard let sale = createdSale else { return false }
         return !sale.needsCollection &&
-        BusinessDocumentStatusPresentation.isMissingElectronicDocument(sale.documentStatus) &&
+        !sale.hasElectronicDocumentRegistered &&
+        BusinessDocumentStatusPresentation.isMissingElectronicDocument(sale.effectiveDocumentStatus) &&
         hasPermission(electronicInvoiceIssuePermissions) &&
         !branchId.isEmpty &&
         !activityId.isEmpty
@@ -302,7 +296,7 @@ final class SaleCartViewModel {
         if canIssueElectronicInvoiceForCreatedSale {
             return "Emitir factura electrónica"
         }
-        if BusinessDocumentStatusPresentation.isMissingElectronicDocument(sale.documentStatus) {
+        if BusinessDocumentStatusPresentation.isMissingElectronicDocument(sale.effectiveDocumentStatus) {
             return "Ver comprobantes"
         }
         return "Ver comprobante electrónico"
@@ -368,7 +362,7 @@ final class SaleCartViewModel {
     }
 
     var createdSaleDocumentStatusText: String {
-        BusinessDocumentStatusPresentation.displayName(createdSale?.documentStatus ?? "not_required")
+        BusinessDocumentStatusPresentation.displayName(createdSale?.effectiveDocumentStatus ?? "not_required")
     }
 
     var createdSaleMessageStyle: NexoMessageStyle {
