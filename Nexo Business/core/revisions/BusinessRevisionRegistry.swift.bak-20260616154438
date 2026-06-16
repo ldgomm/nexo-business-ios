@@ -57,8 +57,8 @@ actor BusinessRevisionRegistry {
 
     func latestRevisions(
         organizationId: String,
-        branchId: String?,
-        activityId: String?,
+        branchId: String,
+        activityId: String,
         fallback: BusinessRevisions
     ) -> BusinessRevisions {
         let contextKey = key(
@@ -88,10 +88,10 @@ actor BusinessRevisionRegistry {
 
     private func key(
         organizationId: String,
-        branchId: String?,
-        activityId: String?
+        branchId: String,
+        activityId: String
     ) -> String {
-        [organizationId, branchId ?? "", activityId ?? ""]
+        [organizationId, branchId, activityId]
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .joined(separator: "|")
     }

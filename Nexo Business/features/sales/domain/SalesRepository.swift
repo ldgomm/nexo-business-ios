@@ -21,6 +21,30 @@ protocol SalesRepository: Sendable {
         request: QuickSaleRequest
     ) async throws -> QuickSaleResponse
 
+    func bulkAddItems(
+        organizationId: String,
+        saleId: String,
+        revisions: BusinessRevisions,
+        idempotencyKey: IdempotencyKey,
+        request: BulkAddSaleItemsRequest
+    ) async throws -> QuickSaleResponse
+
+    func bulkUpdateItems(
+        organizationId: String,
+        saleId: String,
+        revisions: BusinessRevisions,
+        idempotencyKey: IdempotencyKey,
+        request: BulkUpdateSaleItemsRequest
+    ) async throws -> QuickSaleResponse
+
+    func bulkRemoveItems(
+        organizationId: String,
+        saleId: String,
+        revisions: BusinessRevisions,
+        idempotencyKey: IdempotencyKey,
+        request: BulkRemoveSaleItemsRequest
+    ) async throws -> QuickSaleResponse
+
     func getSale(
         organizationId: String,
         saleId: String

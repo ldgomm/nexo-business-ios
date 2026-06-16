@@ -43,12 +43,13 @@ struct SaleCartView: View {
             cashSection
             customerSection
 
-            if viewModel.createdSale == nil {
+            if viewModel.createdSale == nil || viewModel.canEditRegisteredSaleItems {
                 searchSection
                 resultsSection
                 cartSection
                 discountSection
                 previewSection
+                registeredSaleEditSection
             } else {
                 lockedCartSection
             }
@@ -539,6 +540,36 @@ struct SaleCartView: View {
         }
     }
 
+
+    @ViewBuilder
+    private var registeredSaleEditSection: some View {
+        if viewModel.createdSale != nil {
+            Section("Edición antes de facturar") {
+                if viewModel.registeredSaleHasUnsavedChanges {
+                    Label("Hay cambios sin guardar. Guarda antes de cobrar o facturar.", systemImage: "exclamationmark.triangle")
+                        .font(.footnote)
+                        .foregroundStyle(Color.orange)
+                } else {
+                    Label("Puedes corregir productos mientras la venta no tenga factura electrónica enviada o autorizada.", systemImage: "pencil.and.list.clipboard")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+
+                Button {
+                    NexoKeyboard.dismiss()
+                    Task { await viewModel.saveRegisteredSaleChanges() }
+                } label: {
+                    if viewModel.isCreatingSale {
+                        ProgressView()
+                    } else {
+                        Label("Guardar cambios de productos", systemImage: "checkmark.circle")
+                    }
+                }
+                .disabled(!viewModel.canSaveRegisteredSaleChanges)
+            }
+        }
+    }
+
     @ViewBuilder
     private var saleSection: some View {
         if let sale = viewModel.createdSale {
@@ -556,6 +587,14 @@ struct SaleCartView: View {
             }
         }
 
+
+        if let warning = viewModel.finalConsumerInvoiceWarning {
+            Section {
+                NexoMessageBanner(warning, style: .warning)
+            }
+        }
+
+
         if let message = viewModel.infoMessage {
             Section {
                 NexoMessageBanner(message, style: viewModel.createdSale == nil ? .info : viewModel.createdSaleMessageStyle)
@@ -567,6 +606,22 @@ struct SaleCartView: View {
     private var actionsSection: some View {
         if let sale = viewModel.createdSale {
             Section("Siguiente acción") {
+
+                if viewModel.registeredSaleHasUnsavedChanges {
+                    Label("Guarda los cambios de productos antes de cobrar o facturar.", systemImage: "exclamationmark.triangle")
+                        .font(.footnote)
+                        .foregroundStyle(Color.orange)
+                }
+
+                if viewModel.canSaveRegisteredSaleChanges {
+                    Button {
+                        NexoKeyboard.dismiss()
+                        Task { await viewModel.saveRegisteredSaleChanges() }
+                    } label: {
+                        Label("Guardar cambios de productos", systemImage: "checkmark.circle")
+                    }
+                }
+
                 if viewModel.canCollectCreatedSale {
                     Button {
                         preparePaymentNavigation(for: sale)

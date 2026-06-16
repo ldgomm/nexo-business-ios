@@ -664,6 +664,73 @@ private extension KeyedDecodingContainer {
     }
 }
 
+
+enum BusinessElectronicInvoiceCustomerPolicy {
+    static let finalConsumerIdentification = "9999999999999"
+    static let finalConsumerMaxAmount = Decimal(50)
+    static let finalConsumerMaxAmountText = "USD 50.00"
+
+    static func requiresIdentifiedCustomerForInvoice(
+        total: MoneyAmount,
+        selectedCustomer: BusinessCustomer?
+    ) -> Bool {
+        isFinalConsumer(selectedCustomer) && decimal(total.amount) > finalConsumerMaxAmount
+    }
+
+    static func requiresIdentifiedCustomerForInvoice(sale: BusinessSale) -> Bool {
+        isFinalConsumer(sale: sale) && decimal(sale.totals.grandTotal.amount) > finalConsumerMaxAmount
+    }
+
+    static func warningMessage(total: MoneyAmount, selectedCustomer: BusinessCustomer?) -> String? {
+        guard requiresIdentifiedCustomerForInvoice(total: total, selectedCustomer: selectedCustomer) else { return nil }
+        return "Esta venta supera \(finalConsumerMaxAmountText). Para emitir factura electrónica debes seleccionar un cliente con cédula, RUC o pasaporte."
+    }
+
+    static func blockingMessageForInvoice(total: MoneyAmount, selectedCustomer: BusinessCustomer?) -> String? {
+        guard requiresIdentifiedCustomerForInvoice(total: total, selectedCustomer: selectedCustomer) else { return nil }
+        return "No se puede emitir factura electrónica como Consumidor final porque la venta supera \(finalConsumerMaxAmountText). Selecciona un cliente identificado antes de facturar."
+    }
+
+    static func blockingMessageForInvoice(sale: BusinessSale) -> String? {
+        guard requiresIdentifiedCustomerForInvoice(sale: sale) else { return nil }
+        return "No se puede emitir factura electrónica como Consumidor final porque la venta supera \(finalConsumerMaxAmountText). Selecciona un cliente con cédula, RUC o pasaporte antes de facturar."
+    }
+
+    static func isFinalConsumer(_ customer: BusinessCustomer?) -> Bool {
+        guard let customer else { return true }
+        return customer.identificationType == .finalConsumer || normalized(customer.identificationNumber) == finalConsumerIdentification
+    }
+
+    static func isFinalConsumer(sale: BusinessSale) -> Bool {
+        if let customerId = sale.customerId?.trimmingCharacters(in: .whitespacesAndNewlines), !customerId.isEmpty {
+            return false
+        }
+
+        if let identification = sale.customer?.identification, normalized(identification) == finalConsumerIdentification {
+            return true
+        }
+
+        let saleName = normalized(sale.customer?.displayName ?? sale.customerName ?? "")
+        return sale.customer == nil || saleName == "consumidor final"
+    }
+
+    private static func decimal(_ value: String) -> Decimal {
+        Decimal(
+            string: value
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .replacingOccurrences(of: ",", with: "."),
+            locale: Locale(identifier: "en_US_POSIX")
+        ) ?? .zero
+    }
+
+    private static func normalized(_ value: String) -> String {
+        value
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+            .folding(options: [.diacriticInsensitive], locale: .current)
+    }
+}
+
 typealias SalePreviewItem = BusinessSaleItem
 
 struct BusinessSale: Decodable, Equatable, Identifiable, Sendable {
@@ -947,6 +1014,75 @@ struct ConfirmSaleResponse: Decodable, Equatable, Sendable {
         
         self.sale = try BusinessSale(from: decoder)
         self.idempotencyReplayed = nil
+    }
+}
+
+
+struct BulkAddSaleItemsRequest: Encodable, Equatable, Sendable {
+    let requestId: String
+    let catalogRevision: String?
+    let taxConfigurationRevision: String?
+    let items: [BusinessSaleItemRequest]
+
+    init(
+        requestId: String = "sale-items-add-\(UUID().uuidString.lowercased())",
+        catalogRevision: String? = nil,
+        taxConfigurationRevision: String? = nil,
+        items: [BusinessSaleItemRequest]
+    ) {
+        self.requestId = requestId
+        self.catalogRevision = catalogRevision
+        self.taxConfigurationRevision = taxConfigurationRevision
+        self.items = items
+    }
+}
+
+struct BulkUpdateSaleItemRequest: Encodable, Equatable, Sendable {
+    let saleItemId: String
+    let replacement: BusinessSaleItemRequest
+}
+
+struct BulkUpdateSaleItemsRequest: Encodable, Equatable, Sendable {
+    let requestId: String
+    let reason: String
+    let catalogRevision: String?
+    let taxConfigurationRevision: String?
+    let items: [BulkUpdateSaleItemRequest]
+
+    init(
+        requestId: String = "sale-items-update-\(UUID().uuidString.lowercased())",
+        reason: String,
+        catalogRevision: String? = nil,
+        taxConfigurationRevision: String? = nil,
+        items: [BulkUpdateSaleItemRequest]
+    ) {
+        self.requestId = requestId
+        self.reason = reason
+        self.catalogRevision = catalogRevision
+        self.taxConfigurationRevision = taxConfigurationRevision
+        self.items = items
+    }
+}
+
+struct BulkRemoveSaleItemsRequest: Encodable, Equatable, Sendable {
+    let requestId: String
+    let reason: String
+    let catalogRevision: String?
+    let taxConfigurationRevision: String?
+    let saleItemIds: [String]
+
+    init(
+        requestId: String = "sale-items-remove-\(UUID().uuidString.lowercased())",
+        reason: String,
+        catalogRevision: String? = nil,
+        taxConfigurationRevision: String? = nil,
+        saleItemIds: [String]
+    ) {
+        self.requestId = requestId
+        self.reason = reason
+        self.catalogRevision = catalogRevision
+        self.taxConfigurationRevision = taxConfigurationRevision
+        self.saleItemIds = saleItemIds
     }
 }
 

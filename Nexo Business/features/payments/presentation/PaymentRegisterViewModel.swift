@@ -194,13 +194,18 @@ final class PaymentRegisterViewModel {
         canSubmitPayment && canIssueElectronicDocumentAfterPayment
     }
 
+    var finalConsumerInvoiceBlockedReason: String? {
+        BusinessElectronicInvoiceCustomerPolicy.blockingMessageForInvoice(sale: sale)
+    }
+
     var shouldShowPaymentAndIssueElectronicDocumentAction: Bool {
         selectedMode != .credit &&
         !hasCompletedSubmission &&
         !sale.hasElectronicDocumentRegistered &&
         BusinessDocumentStatusPresentation.isMissingElectronicDocument(sale.effectiveDocumentStatus) &&
         canEvaluateElectronicInvoiceReadinessForActions &&
-        sale.electronicInvoiceReadiness.canIssue
+        sale.electronicInvoiceReadiness.canIssue &&
+        finalConsumerInvoiceBlockedReason == nil
     }
 
     var canIssueElectronicDocumentAfterPayment: Bool {
@@ -211,7 +216,8 @@ final class PaymentRegisterViewModel {
         !sale.hasElectronicDocumentRegistered &&
         BusinessDocumentStatusPresentation.isMissingElectronicDocument(sale.effectiveDocumentStatus) &&
         canEvaluateElectronicInvoiceReadinessForActions &&
-        sale.electronicInvoiceReadiness.canIssue
+        sale.electronicInvoiceReadiness.canIssue &&
+        finalConsumerInvoiceBlockedReason == nil
     }
 
     var hasReliableElectronicInvoiceReadinessData: Bool {
@@ -253,6 +259,11 @@ final class PaymentRegisterViewModel {
         if !sale.electronicInvoiceReadiness.canIssue {
             return sale.electronicInvoiceReadiness.primaryMessage
         }
+
+        if let finalConsumerInvoiceBlockedReason {
+            return finalConsumerInvoiceBlockedReason
+        }
+
         if !hasActionableElectronicInvoiceReadinessEvidence {
             return "Esta venta todavía no tiene información tributaria suficiente para emitir factura electrónica desde esta pantalla. Si el producto tiene IVA vigente, actualiza la venta; si sigue igual, revisa la configuración tributaria del producto."
         }

@@ -89,6 +89,11 @@ final class SaleDetailViewModel {
             return sale.electronicInvoiceReadiness.primaryMessage
         }
 
+        if let reason = BusinessElectronicInvoiceCustomerPolicy.blockingMessageForInvoice(sale: sale) {
+            return reason
+        }
+
+
         if !hasElectronicInvoiceIssuePermission {
             return "Tu usuario puede consultar comprobantes, pero no emitir factura electrónica. Pide al administrador activar Emitir factura electrónica."
         }
@@ -187,6 +192,7 @@ final class SaleDetailViewModel {
         !sale.hasElectronicDocumentRegistered &&
         BusinessDocumentStatusPresentation.isMissingElectronicDocument(sale.effectiveDocumentStatus) &&
         sale.electronicInvoiceReadiness.canIssue &&
+        BusinessElectronicInvoiceCustomerPolicy.blockingMessageForInvoice(sale: sale) == nil &&
         hasElectronicInvoiceIssuePermission &&
         hasValidEmissionContext(for: sale)
     }

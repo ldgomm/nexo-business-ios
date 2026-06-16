@@ -22,6 +22,20 @@ enum BusinessSalesRoutes {
     static func cancel(saleId: String) -> String {
         "/api/v1/business/sales/\(saleId)/cancel"
     }
+
+
+    static func bulkAdd(saleId: String) -> String {
+        "/api/v1/business/sales/\(saleId)/items/bulk-add"
+    }
+
+    static func bulkUpdate(saleId: String) -> String {
+        "/api/v1/business/sales/\(saleId)/items/bulk-update"
+    }
+
+    static func bulkRemove(saleId: String) -> String {
+        "/api/v1/business/sales/\(saleId)/items/bulk-remove"
+    }
+
 }
 
 final class SalesAPIRepository: SalesRepository, @unchecked Sendable {
@@ -109,6 +123,113 @@ final class SalesAPIRepository: SalesRepository, @unchecked Sendable {
                     organizationId: organizationId,
                     branchId: body.branchId,
                     activityId: body.activityId,
+                    revisions: resolvedRevisions,
+                    idempotencyKey: idempotencyKey
+                )
+            )
+        )
+    }
+
+    func bulkAddItems(
+        organizationId: String,
+        saleId: String,
+        revisions: BusinessRevisions,
+        idempotencyKey: IdempotencyKey,
+        request body: BulkAddSaleItemsRequest
+    ) async throws -> QuickSaleResponse {
+        let resolvedRevisions = await revisionRegistry.latestRevisions(
+            organizationId: organizationId,
+            branchId: nil,
+            activityId: nil,
+            fallback: revisions
+        )
+        let resolvedBody = BulkAddSaleItemsRequest(
+            requestId: body.requestId,
+            catalogRevision: resolvedRevisions.catalogRevision,
+            taxConfigurationRevision: resolvedRevisions.taxConfigurationRevision,
+            items: body.items
+        )
+        return try await apiClient.send(
+            try APIRequest<QuickSaleResponse>.json(
+                method: .post,
+                path: BusinessSalesRoutes.bulkAdd(saleId: saleId),
+                body: resolvedBody,
+                headers: mutationHeaders(
+                    organizationId: organizationId,
+                    branchId: nil,
+                    activityId: nil,
+                    revisions: resolvedRevisions,
+                    idempotencyKey: idempotencyKey
+                )
+            )
+        )
+    }
+
+    func bulkUpdateItems(
+        organizationId: String,
+        saleId: String,
+        revisions: BusinessRevisions,
+        idempotencyKey: IdempotencyKey,
+        request body: BulkUpdateSaleItemsRequest
+    ) async throws -> QuickSaleResponse {
+        let resolvedRevisions = await revisionRegistry.latestRevisions(
+            organizationId: organizationId,
+            branchId: nil,
+            activityId: nil,
+            fallback: revisions
+        )
+        let resolvedBody = BulkUpdateSaleItemsRequest(
+            requestId: body.requestId,
+            reason: body.reason,
+            catalogRevision: resolvedRevisions.catalogRevision,
+            taxConfigurationRevision: resolvedRevisions.taxConfigurationRevision,
+            items: body.items
+        )
+        return try await apiClient.send(
+            try APIRequest<QuickSaleResponse>.json(
+                method: .put,
+                path: BusinessSalesRoutes.bulkUpdate(saleId: saleId),
+                body: resolvedBody,
+                headers: mutationHeaders(
+                    organizationId: organizationId,
+                    branchId: nil,
+                    activityId: nil,
+                    revisions: resolvedRevisions,
+                    idempotencyKey: idempotencyKey
+                )
+            )
+        )
+    }
+
+    func bulkRemoveItems(
+        organizationId: String,
+        saleId: String,
+        revisions: BusinessRevisions,
+        idempotencyKey: IdempotencyKey,
+        request body: BulkRemoveSaleItemsRequest
+    ) async throws -> QuickSaleResponse {
+        let resolvedRevisions = await revisionRegistry.latestRevisions(
+            organizationId: organizationId,
+            branchId: nil,
+            activityId: nil,
+            fallback: revisions
+        )
+        let resolvedBody = BulkRemoveSaleItemsRequest(
+            requestId: body.requestId,
+            reason: body.reason,
+            catalogRevision: resolvedRevisions.catalogRevision,
+            taxConfigurationRevision: resolvedRevisions.taxConfigurationRevision,
+            saleItemIds: body.saleItemIds
+        )
+        return try await apiClient.send(
+            try APIRequest<QuickSaleResponse>.json(
+                method: .post,
+                path: BusinessSalesRoutes.bulkRemove(saleId: saleId),
+                body: resolvedBody,
+                headers: mutationHeaders(
+                    organizationId: organizationId,
+                    branchId: nil,
+                    activityId: nil,
                     revisions: resolvedRevisions,
                     idempotencyKey: idempotencyKey
                 )
