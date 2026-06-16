@@ -126,6 +126,8 @@ final class CashDashboardViewModel {
     }
 
     func load() async {
+        guard !isLoading else { return }
+        
         guard !branchId.isEmpty else {
             currentSession = nil
             state = .failed("Falta una sucursal operativa.")

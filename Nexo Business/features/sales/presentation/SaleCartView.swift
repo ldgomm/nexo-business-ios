@@ -16,6 +16,11 @@ struct SaleCartView: View {
     private let documentsRepository: BusinessDocumentsRepository
     @State private var showStartNewOrderConfirmation = false
 
+    @State private var preparedPaymentViewModel: PaymentRegisterViewModel?
+    @State private var isPreparingPaymentNavigation = false
+    @State private var shouldShowPaymentRegister = false
+    @State private var paymentPreparationMessage: String?
+    
     init(
         viewModel: SaleCartViewModel,
         customersRepository: CustomersRepository = UnavailableCustomersRepository(),
@@ -54,6 +59,17 @@ struct SaleCartView: View {
         }
         .nexoKeyboardDismissable()
         .navigationTitle(navigationTitle)
+        .navigationDestination(isPresented: $shouldShowPaymentRegister) {
+            if let preparedPaymentViewModel {
+                PaymentRegisterView(
+                    viewModel: preparedPaymentViewModel,
+                    customersRepository: customersRepository,
+                    onSaleUpdated: { updatedSale in
+                        viewModel.updateCreatedSale(updatedSale)
+                    }
+                )
+            }
+        }
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 if viewModel.canStartNewOrder {
@@ -552,29 +568,16 @@ struct SaleCartView: View {
         if let sale = viewModel.createdSale {
             Section("Siguiente acción") {
                 if viewModel.canCollectCreatedSale {
-                    NavigationLink {
-                        PaymentRegisterView(
-                            viewModel: PaymentRegisterViewModel(
-                                organizationId: viewModel.organizationId,
-                                branchId: sale.branchId,
-                                sale: sale,
-                                effectivePermissions: viewModel.effectivePermissions,
-                                cashRepository: cashRepository,
-                                paymentsRepository: paymentsRepository,
-                                receivablesRepository: receivablesRepository,
-                                documentsRepository: documentsRepository,
-                                salesRepository: viewModel.salesRepositoryForPaymentReadiness,
-                                activityId: sale.activityId ?? viewModel.activityId,
-                                revisions: viewModel.revisions
-                            ),
-                            customersRepository: customersRepository,
-                            onSaleUpdated: { updatedSale in
-                                viewModel.updateCreatedSale(updatedSale)
-                            }
-                        )
+                    Button {
+                        preparePaymentNavigation(for: sale)
                     } label: {
-                        Label("Cobrar ahora", systemImage: "dollarsign.circle.fill")
+                        if isPreparingPaymentNavigation {
+                            Label("Preparando cobro...", systemImage: "clock")
+                        } else {
+                            Label("Cobrar ahora", systemImage: "dollarsign.circle.fill")
+                        }
                     }
+                    .disabled(isPreparingPaymentNavigation)
                 } else {
                     Label("Este usuario puede registrar ventas, pero no cobrar.", systemImage: "lock")
                         .font(.footnote)
@@ -631,6 +634,37 @@ struct SaleCartView: View {
                         Label("Limpiar carrito", systemImage: "trash")
                     }
                 }
+            }
+        }
+    }
+    
+    private func preparePaymentNavigation(for sale: BusinessSale) {
+        guard !isPreparingPaymentNavigation else { return }
+
+        isPreparingPaymentNavigation = true
+        paymentPreparationMessage = nil
+
+        Task {
+            let paymentViewModel = PaymentRegisterViewModel(
+                organizationId: viewModel.organizationId,
+                branchId: sale.branchId,
+                sale: sale,
+                effectivePermissions: viewModel.effectivePermissions,
+                cashRepository: cashRepository,
+                paymentsRepository: paymentsRepository,
+                receivablesRepository: receivablesRepository,
+                documentsRepository: documentsRepository,
+                salesRepository: viewModel.salesRepositoryForPaymentReadiness,
+                activityId: sale.activityId ?? viewModel.activityId,
+                revisions: viewModel.revisions
+            )
+
+            await paymentViewModel.prepareForCashCollectionIfNeeded()
+
+            await MainActor.run {
+                self.preparedPaymentViewModel = paymentViewModel
+                self.isPreparingPaymentNavigation = false
+                self.shouldShowPaymentRegister = true
             }
         }
     }

@@ -860,4 +860,81 @@ final class PaymentRegisterViewModel {
 
         return hasReceivables ? .credit : .cash
     }
+    
+    func prepareForCashCollectionIfNeeded() async {
+        await refreshSaleForElectronicInvoiceReadinessIfPossible()
+
+        guard selectedMode == .cash else {
+            await refreshForSelectedMode()
+            return
+        }
+
+        await refreshForSelectedMode()
+
+        if currentCashSession?.isOpen == true {
+            return
+        }
+
+        guard canOpenCashAutomatically else {
+            return
+        }
+
+        await openCashAutomatically()
+
+        if currentCashSession?.isOpen != true {
+            await refreshForSelectedMode()
+        }
+    }
+    
+    private var canOpenCashAutomatically: Bool {
+        hasPermission([
+            "cash.open",
+            "cash.session.open",
+            "business.cash.open"
+        ])
+    }
+
+    private func openCashAutomatically() async {
+        guard !branchId.isEmpty else {
+            errorMessage = "Falta sucursal activa. Actualiza el contexto."
+            return
+        }
+
+        guard canOpenCashAutomatically else {
+            errorMessage = "No tienes permiso para abrir caja automáticamente."
+            return
+        }
+
+        guard !isLoadingCash else { return }
+
+        isLoadingCash = true
+        errorMessage = nil
+
+        defer {
+            isLoadingCash = false
+        }
+
+        do {
+            let identity = BusinessMutationIdentity.generate(prefix: "cash-auto-open")
+
+            let response = try await cashRepository.open(
+                organizationId: organizationId,
+                idempotencyKey: identity.idempotencyKey,
+                request: OpenCashSessionRequest(
+                    branchId: branchId,
+                    openingAmount: "0.00",
+                    note: "Apertura automática antes de cobrar",
+                    requestId: identity.requestId
+                )
+            )
+
+            currentCashSession = response.session
+        } catch let error as APIError {
+            currentCashSession = nil
+            errorMessage = humanMessage(for: error)
+        } catch {
+            currentCashSession = nil
+            errorMessage = error.localizedDescription
+        }
+    }
 }
