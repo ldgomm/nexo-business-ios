@@ -43,7 +43,8 @@ final class SalesHistoryAPIRepository: SalesHistoryRepository, @unchecked Sendab
     func queryItems(for request: SalesHistorySearchRequest) -> [URLQueryItem] {
         var items: [URLQueryItem] = [
             URLQueryItem(name: "branchId", value: request.branchId),
-            URLQueryItem(name: "limit", value: String(request.limit))
+            URLQueryItem(name: "limit", value: String(request.limit)),
+            URLQueryItem(name: "timezone", value: TimeZone.current.identifier)
         ]
 
         if let query = request.query?.trimmingCharacters(in: .whitespacesAndNewlines), !query.isEmpty {

@@ -1,3 +1,10 @@
+//
+//  SalesHistoryView.swift
+//  Nexo Business
+//
+//  Created by José Ruiz on 16/6/26.
+//
+
 import SwiftUI
 
 struct SalesHistoryView: View {
@@ -37,7 +44,7 @@ struct SalesHistoryView: View {
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
                     NexoKeyboard.dismiss()
-                    Task { await viewModel.load() }
+                    Task { await viewModel.searchNow() }
                 } label: {
                     Image(systemName: "arrow.clockwise")
                 }
@@ -51,19 +58,31 @@ struct SalesHistoryView: View {
             Task { await viewModel.refreshOnAppear() }
         }
         .refreshable {
-            await viewModel.load()
+            await viewModel.searchNow()
+        }
+        .onChange(of: viewModel.query) { _, _ in
+            viewModel.scheduleSearch()
+        }
+        .onChange(of: viewModel.selectedStatus) { _, _ in
+            viewModel.scheduleSearch()
+        }
+        .onChange(of: viewModel.useDateFilter) { _, _ in
+            viewModel.scheduleSearch()
+        }
+        .onChange(of: viewModel.selectedDate) { _, _ in
+            viewModel.scheduleSearch()
         }
     }
 
     private var filtersSection: some View {
         Section("Buscar") {
-            TextField("Venta, cliente o referencia", text: $viewModel.query)
+            TextField("Venta, cliente o factura", text: $viewModel.query)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
                 .submitLabel(.search)
                 .onSubmit {
                     NexoKeyboard.dismiss()
-                    Task { await viewModel.load() }
+                    Task { await viewModel.searchNow() }
                 }
 
             Picker("Estado", selection: $viewModel.selectedStatus) {
@@ -85,7 +104,7 @@ struct SalesHistoryView: View {
             HStack {
                 Button {
                     NexoKeyboard.dismiss()
-                    Task { await viewModel.load() }
+                    Task { await viewModel.searchNow() }
                 } label: {
                     if viewModel.isLoading {
                         ProgressView()
@@ -98,7 +117,7 @@ struct SalesHistoryView: View {
                 Button("Limpiar") {
                     viewModel.clearFilters()
                     NexoKeyboard.dismiss()
-                    Task { await viewModel.load() }
+                    Task { await viewModel.searchNow() }
                 }
                 .disabled(viewModel.isLoading)
             }
@@ -113,15 +132,6 @@ struct SalesHistoryView: View {
                 LabeledContent("Ventas encontradas", value: String(total))
             } else {
                 LabeledContent("Ventas", value: String(viewModel.sales.count))
-            }
-
-            if viewModel.isRefreshingDocuments {
-                HStack(spacing: 10) {
-                    ProgressView()
-                    Text("Actualizando comprobantes electrónicos…")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                }
             }
 
             if viewModel.hasMore == true {
@@ -142,7 +152,7 @@ struct SalesHistoryView: View {
                 ContentUnavailableView(
                     "Sin ventas",
                     systemImage: "doc.text.magnifyingglass",
-                    description: Text("Ajusta los filtros o cambia la fecha.")
+                    description: Text("Prueba con otro texto, estado o fecha.")
                 )
             } else {
                 ForEach(viewModel.sales) { sale in

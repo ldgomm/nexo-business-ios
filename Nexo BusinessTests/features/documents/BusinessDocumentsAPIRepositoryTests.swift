@@ -1,3 +1,10 @@
+//
+//  BusinessDocumentsAPIRepositoryTests.swift
+//  Nexo Business
+//
+//  Created by José Ruiz on 16/6/26.
+//
+
 import XCTest
 @testable import Nexo_Business
 

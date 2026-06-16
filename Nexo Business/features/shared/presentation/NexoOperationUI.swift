@@ -1,3 +1,10 @@
+//
+//  NexoOperationUI.swift
+//  Nexo Business
+//
+//  Created by José Ruiz on 16/6/26.
+//
+
 import SwiftUI
 
 #if canImport(UIKit)

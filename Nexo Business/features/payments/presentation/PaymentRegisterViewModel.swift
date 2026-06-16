@@ -1,3 +1,10 @@
+//
+//  PaymentRegisterViewModel.swift
+//  Nexo Business
+//
+//  Created by José Ruiz on 16/6/26.
+//
+
 import Foundation
 import Observation
 
@@ -667,7 +674,6 @@ final class PaymentRegisterViewModel {
 
         return loadedSale
     }
-
 
     func makeBusinessDocumentsViewModel() -> BusinessDocumentsViewModel? {
         guard let documentsRepository,

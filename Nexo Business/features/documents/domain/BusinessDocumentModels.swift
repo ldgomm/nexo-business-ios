@@ -1,3 +1,10 @@
+//
+//  BusinessDocumentModels.swift
+//  Nexo Business
+//
+//  Created by José Ruiz on 16/6/26.
+//
+
 import Foundation
 
 struct BusinessDocument: Decodable, Equatable, Identifiable, Sendable {

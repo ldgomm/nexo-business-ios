@@ -1,3 +1,10 @@
+//
+//  SalesHistoryViewModel.swift
+//  Nexo Business
+//
+//  Created by José Ruiz on 16/6/26.
+//
+
 import Foundation
 import Observation
 
@@ -13,7 +20,7 @@ final class SalesHistoryViewModel {
     var query = ""
     var selectedStatus: SalesHistoryStatusFilter = .all
     var selectedDate = Date()
-    var useDateFilter = true
+    var useDateFilter = false
     var errorMessage: String?
     var infoMessage: String?
 
@@ -26,6 +33,7 @@ final class SalesHistoryViewModel {
     private let documentsRepository: BusinessDocumentsRepository
     private var lastLoadedAt: Date?
     private var lastAppearRefreshAt: Date?
+    private var pendingSearchTask: Task<Void, Never>?
 
     init(
         organizationId: String,
@@ -97,12 +105,27 @@ final class SalesHistoryViewModel {
     }
 
     func clearFilters() {
+        pendingSearchTask?.cancel()
         query = ""
         selectedStatus = .all
         selectedDate = Date()
-        useDateFilter = true
+        useDateFilter = false
         errorMessage = nil
         infoMessage = nil
+    }
+
+    func scheduleSearch() {
+        pendingSearchTask?.cancel()
+        pendingSearchTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 350_000_000)
+            guard !Task.isCancelled else { return }
+            await self?.load(force: true)
+        }
+    }
+
+    func searchNow() async {
+        pendingSearchTask?.cancel()
+        await load(force: true)
     }
 
     func makeSaleDetailViewModel(
@@ -171,16 +194,40 @@ final class SalesHistoryViewModel {
         }
 
         do {
-            let response = try await repository.searchSales(
+            let normalizedQuery = emptyToNil(query)
+            var response = try await repository.searchSales(
                 organizationId: organizationId,
                 request: SalesHistorySearchRequest(
                     branchId: branchId,
-                    query: emptyToNil(query),
+                    query: normalizedQuery,
                     status: selectedStatus,
                     date: useDateFilter ? selectedDate : nil,
-                    limit: 50
+                    limit: 25
                 )
             )
+
+            var foundOutsideSelectedDate = false
+
+            // UX de búsqueda tipo Google: si el usuario busca texto/factura y la fecha activa
+            // deja el resultado vacío, hacemos un fallback sin fecha. Esto evita que una factura
+            // existente parezca perdida solo porque pertenece a otra fecha operativa.
+            if response.sales.isEmpty, normalizedQuery != nil, useDateFilter {
+                let fallback = try await repository.searchSales(
+                    organizationId: organizationId,
+                    request: SalesHistorySearchRequest(
+                        branchId: branchId,
+                        query: normalizedQuery,
+                        status: selectedStatus,
+                        date: nil,
+                        limit: 25
+                    )
+                )
+
+                if !fallback.sales.isEmpty {
+                    response = fallback
+                    foundOutsideSelectedDate = true
+                }
+            }
 
             let orderedSales = response.sales.sorted(by: sortSales)
             total = response.total
@@ -192,6 +239,8 @@ final class SalesHistoryViewModel {
 
             if sales.isEmpty {
                 infoMessage = "No encontramos ventas con estos filtros."
+            } else if foundOutsideSelectedDate {
+                infoMessage = "Encontramos resultados fuera de la fecha seleccionada. La búsqueda por texto revisó todo el historial."
             } else {
                 infoMessage = hydration.warning
             }
@@ -203,93 +252,20 @@ final class SalesHistoryViewModel {
     }
 
     private func hydrateSalesWithDocuments(_ inputSales: [BusinessSale]) async -> DocumentHydrationResult {
-        guard canViewDocuments else {
-            let documentsBySaleId = inputSales.reduce(into: [String: BusinessDocument]()) { result, sale in
-                if let document = sale.primaryElectronicDocument {
-                    result[sale.id] = document
-                }
-            }
-            return DocumentHydrationResult(sales: inputSales, documentsBySaleId: documentsBySaleId, warning: nil)
-        }
-
-        isRefreshingDocuments = true
-        defer { isRefreshingDocuments = false }
-
-        var documentsBySaleId: [String: BusinessDocument] = [:]
-        var enrichedSales: [BusinessSale] = []
-        var failedCount = 0
-        var bulkDocuments: [BusinessDocument] = []
-        var usedDocumentKeys = Set<String>()
-
-        do {
-            let response = try await documentsRepository.listElectronicDocuments(
-                organizationId: organizationId,
-                filters: BusinessElectronicDocumentFilters(limit: 250)
-            )
-            bulkDocuments = BusinessDocument.mergeUniquePreferBest(response.documents)
-        } catch {
-            failedCount += 1
-        }
-
-        for sale in inputSales {
-            var candidates: [BusinessDocument] = []
-
+        let documentsBySaleId = inputSales.reduce(into: [String: BusinessDocument]()) { result, sale in
             if let document = sale.primaryElectronicDocument {
-                candidates.append(document)
-            }
-
-            if let document = bestDocument(for: sale, from: bulkDocuments, excluding: usedDocumentKeys) {
-                candidates.append(document)
-            }
-
-            var best = BusinessDocument.bestElectronicInvoice(in: candidates)
-
-            if best.map({ !BusinessDocumentStatusPresentation.isAuthorized($0.effectiveStatus) }) ?? true {
-                if let document = await loadElectronicDocumentForSaleId(sale.id, failedCount: &failedCount) {
-                    candidates.append(document)
-                }
-            }
-
-            best = BusinessDocument.bestElectronicInvoice(in: candidates)
-
-            if best.map({ !BusinessDocumentStatusPresentation.isAuthorized($0.effectiveStatus) }) ?? true {
-                if let document = await loadElectronicDocumentForAlternateIdentifiers(sale, excluding: usedDocumentKeys, failedCount: &failedCount) {
-                    candidates.append(document)
-                }
-            }
-
-            best = BusinessDocument.bestElectronicInvoice(in: candidates)
-
-            if best == nil, let document = await loadLegacyDocument(for: sale, failedCount: &failedCount) {
-                candidates.append(document)
-            }
-
-            if let document = BusinessDocument.bestElectronicInvoice(in: candidates) {
-                documentsBySaleId[sale.id] = document
-                markDocumentUsed(document, in: &usedDocumentKeys)
-                enrichedSales.append(sale.replacingElectronicDocument(document))
-            } else {
-                enrichedSales.append(sale)
+                result[sale.id] = document
             }
         }
 
-        let missingPaidSales = enrichedSales.filter { sale in
-            PaymentStatusPresentation.isCollected(sale.paymentStatus) && !sale.hasElectronicDocumentRegistered
-        }.count
-
-        let warning: String?
-        if failedCount > 0 {
-            warning = "Algunos comprobantes no pudieron actualizarse. Vuelve a intentar si ves estados incompletos."
-        } else if missingPaidSales > 0 {
-            warning = "Hay ventas cobradas que todavía no muestran factura electrónica. Actualiza el historial o revisa el enlace documental de la venta."
-        } else {
-            warning = nil
+        let enrichedSales = inputSales.map { sale in
+            sale.replacingElectronicDocument(documentsBySaleId[sale.id])
         }
 
         return DocumentHydrationResult(
             sales: enrichedSales,
             documentsBySaleId: documentsBySaleId,
-            warning: warning
+            warning: nil
         )
     }
 
