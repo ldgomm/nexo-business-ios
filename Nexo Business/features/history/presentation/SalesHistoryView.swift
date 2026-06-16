@@ -15,6 +15,8 @@ struct SalesHistoryView: View {
     private let receivablesRepository: ReceivablesRepository
     private let documentsRepository: BusinessDocumentsRepository
 
+    @State private var pendingSearchTask: Task<Void, Never>?
+    
     init(
         viewModel: SalesHistoryViewModel,
         salesRepository: SalesRepository,
@@ -75,23 +77,140 @@ struct SalesHistoryView: View {
     }
 
     private var filtersSection: some View {
-        Section("Buscar") {
-            TextField("Venta, cliente o factura", text: $viewModel.query)
+        Section {
+            searchField
+            statusFilter
+            dateFilter
+        } header: {
+            HStack {
+                Text("Filtros")
+
+                Spacer()
+
+                if hasActiveFilters {
+                    Button {
+                        viewModel.clearFilters()
+                        NexoKeyboard.dismiss()
+                        runSearchNow()
+                    } label: {
+                        Text("Limpiar")
+                            .font(.caption)
+                            .fontWeight(.medium)
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(viewModel.isLoading)
+                    .accessibilityLabel("Limpiar filtros")
+                }
+            }
+        }
+        .onChange(of: viewModel.query) { _, _ in
+            scheduleSearch()
+        }
+        .onChange(of: viewModel.selectedStatus) { _, _ in
+            runSearchNow()
+        }
+        .onChange(of: viewModel.useDateFilter) { _, _ in
+            runSearchNow()
+        }
+        .onChange(of: viewModel.selectedDate) { _, _ in
+            guard viewModel.useDateFilter else { return }
+            runSearchNow()
+        }
+    }
+    
+    private var searchField: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "magnifyingglass")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+
+            TextField("Venta, cliente, factura o valor", text: $viewModel.query)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
                 .submitLabel(.search)
                 .onSubmit {
                     NexoKeyboard.dismiss()
-                    Task { await viewModel.searchNow() }
+                    runSearchNow()
                 }
 
-            Picker("Estado", selection: $viewModel.selectedStatus) {
-                ForEach(SalesHistoryStatusFilter.allCases) { status in
-                    Text(status.displayName).tag(status)
+            if hasQueryFilter {
+                Button {
+                    viewModel.query = ""
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 16, weight: .semibold))
+                        .symbolRenderingMode(.hierarchical)
+                        .foregroundStyle(.tertiary)
                 }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Limpiar texto de búsqueda")
             }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(Color(.secondarySystemBackground))
+        )
+    }
+    
+    private var statusFilter: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Estado")
+                .font(.caption)
+                .foregroundStyle(.secondary)
 
-            Toggle("Filtrar por fecha", isOn: $viewModel.useDateFilter)
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(SalesHistoryStatusFilter.allCases) { status in
+                        statusChip(status)
+                    }
+                }
+                .padding(.vertical, 2)
+            }
+        }
+        .padding(.vertical, 4)
+    }
+    
+    private func statusChip(_ status: SalesHistoryStatusFilter) -> some View {
+        let isSelected = viewModel.selectedStatus == status
+
+        return Button {
+            viewModel.selectedStatus = status
+        } label: {
+            Text(status.displayName)
+                .font(.footnote.weight(isSelected ? .semibold : .regular))
+                .foregroundStyle(isSelected ? .primary : .secondary)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 7)
+                .background(
+                    Capsule(style: .continuous)
+                        .fill(
+                            isSelected
+                            ? Color.accentColor.opacity(0.12)
+                            : Color(.secondarySystemBackground)
+                        )
+                )
+                .overlay(
+                    Capsule(style: .continuous)
+                        .strokeBorder(
+                            isSelected
+                            ? Color.accentColor.opacity(0.45)
+                            : Color(.separator),
+                            lineWidth: 1
+                        )
+                )
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
+    
+    private var dateFilter: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Toggle(isOn: $viewModel.useDateFilter) {
+                Label("Filtrar por fecha", systemImage: "calendar")
+            }
 
             if viewModel.useDateFilter {
                 DatePicker(
@@ -99,27 +218,7 @@ struct SalesHistoryView: View {
                     selection: $viewModel.selectedDate,
                     displayedComponents: [.date]
                 )
-            }
-
-            HStack {
-                Button {
-                    NexoKeyboard.dismiss()
-                    Task { await viewModel.searchNow() }
-                } label: {
-                    if viewModel.isLoading {
-                        ProgressView()
-                    } else {
-                        Label("Buscar", systemImage: "magnifyingglass")
-                    }
-                }
-                .disabled(!viewModel.canSearch)
-
-                Button("Limpiar") {
-                    viewModel.clearFilters()
-                    NexoKeyboard.dismiss()
-                    Task { await viewModel.searchNow() }
-                }
-                .disabled(viewModel.isLoading)
+                .datePickerStyle(.compact)
             }
         }
     }
@@ -190,6 +289,36 @@ struct SalesHistoryView: View {
             Section {
                 NexoMessageBanner(message, style: .info)
             }
+        }
+    }
+    
+    private var hasActiveFilters: Bool {
+        !viewModel.query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
+        viewModel.selectedStatus != .all ||
+        viewModel.useDateFilter
+    }
+
+    private var hasQueryFilter: Bool {
+        !viewModel.query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private func scheduleSearch() {
+        pendingSearchTask?.cancel()
+
+        pendingSearchTask = Task {
+            try? await Task.sleep(nanoseconds: 350_000_000)
+
+            guard !Task.isCancelled else { return }
+
+            await viewModel.searchNow()
+        }
+    }
+
+    private func runSearchNow() {
+        pendingSearchTask?.cancel()
+
+        Task {
+            await viewModel.searchNow()
         }
     }
 }

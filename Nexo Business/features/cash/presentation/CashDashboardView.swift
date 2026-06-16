@@ -16,27 +16,21 @@ struct CashDashboardView: View {
 
     var body: some View {
         Form {
-            heroSection
+            statusSection
             messagesSection
 
             if viewModel.shouldShowCloseSection {
-                closeSection
+                closingGuideSection
                 manualAdjustmentsSection
             } else if viewModel.shouldShowOpenSection {
-                openSection
+                openingGuideSection
             }
         }
         .nexoKeyboardDismissable()
         .navigationTitle("Caja")
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                Button {
-                    NexoKeyboard.dismiss()
-                    Task { await viewModel.load() }
-                } label: {
-                    Image(systemName: "arrow.clockwise")
-                }
-                .disabled(viewModel.isLoading || viewModel.isMutating)
+                refreshButton
             }
         }
         .alert("Registrar ajuste manual", isPresented: $viewModel.showsMovementConfirmation) {
@@ -44,6 +38,7 @@ struct CashDashboardView: View {
                 NexoKeyboard.dismiss()
                 Task { await viewModel.registerMovement() }
             }
+
             Button("Cancelar", role: .cancel) {}
         } message: {
             Text(viewModel.movementConfirmationMessage)
@@ -53,6 +48,7 @@ struct CashDashboardView: View {
                 NexoKeyboard.dismiss()
                 Task { await viewModel.closeCash() }
             }
+
             Button("Cancelar", role: .cancel) {}
         } message: {
             Text(viewModel.closeConfirmationMessage)
@@ -64,16 +60,32 @@ struct CashDashboardView: View {
         }
     }
 
+    private var isBusy: Bool {
+        viewModel.isLoading || viewModel.isMutating
+    }
+
+    private var refreshButton: some View {
+        Button {
+            NexoKeyboard.dismiss()
+            Task { await viewModel.load() }
+        } label: {
+            if viewModel.isLoading {
+                ProgressView()
+                    .controlSize(.small)
+            } else {
+                Image(systemName: "arrow.clockwise")
+            }
+        }
+        .disabled(isBusy)
+        .accessibilityLabel("Actualizar caja")
+    }
+
     @ViewBuilder
-    private var heroSection: some View {
+    private var statusSection: some View {
         Section {
             switch viewModel.state {
             case .idle, .loading:
-                HStack {
-                    ProgressView()
-                    Text("Consultando caja…")
-                        .foregroundStyle(.secondary)
-                }
+                CashLoadingCard()
 
             case let .failed(message):
                 ContentUnavailableView {
@@ -90,19 +102,11 @@ struct CashDashboardView: View {
                 if let session {
                     CashSessionHeroView(session: session)
                 } else {
-                    VStack(alignment: .leading, spacing: 10) {
-                        Label("Caja cerrada", systemImage: "lock")
-                            .font(.headline)
-                            .foregroundStyle(.orange)
-
-                        Text("Abre caja al iniciar operación para cobrar en efectivo y controlar el cierre del día.")
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                    }
-                    .padding(.vertical, 6)
+                    CashEmptyStateCard()
                 }
             }
         }
+        .listRowInsets(EdgeInsets(top: 10, leading: 16, bottom: 10, trailing: 16))
     }
 
     @ViewBuilder
@@ -120,104 +124,198 @@ struct CashDashboardView: View {
         }
     }
 
-    private var openSection: some View {
-        Section("Abrir caja") {
-            TextField("Monto inicial", text: $viewModel.openingAmount)
-                .keyboardType(.decimalPad)
+    private var openingGuideSection: some View {
+        Section {
+            VStack(alignment: .leading, spacing: 14) {
+                CashSectionHeader(
+                    icon: "lock.open",
+                    title: "Abrir caja",
+                    subtitle: "Registra el efectivo inicial antes de comenzar a cobrar."
+                )
 
-            TextField("Nota opcional", text: $viewModel.openingNote, axis: .vertical)
-                .lineLimit(1...3)
+                VStack(spacing: 10) {
+                    CashInputRow(
+                        title: "Monto inicial",
+                        placeholder: "0.00",
+                        text: $viewModel.openingAmount,
+                        keyboardType: .decimalPad,
+                        systemImage: "dollarsign.circle"
+                    )
 
-            Button {
-                NexoKeyboard.dismiss()
-                Task { await viewModel.openCash() }
-            } label: {
-                if viewModel.isMutating && !viewModel.isOpen {
-                    ProgressView()
-                } else {
-                    Label("Abrir caja", systemImage: "lock.open")
+                    CashMultilineInputRow(
+                        title: "Nota",
+                        placeholder: "Opcional",
+                        text: $viewModel.openingNote,
+                        systemImage: "note.text"
+                    )
                 }
+
+                CashHintCard(
+                    icon: "info.circle",
+                    text: "Este monto será la base del efectivo esperado. Los cobros en efectivo aumentarán la caja automáticamente."
+                )
+
+                Button {
+                    NexoKeyboard.dismiss()
+                    Task { await viewModel.openCash() }
+                } label: {
+                    CashActionLabel(
+                        title: "Abrir caja",
+                        systemImage: "lock.open",
+                        isLoading: viewModel.isMutating && !viewModel.isOpen
+                    )
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                .frame(maxWidth: .infinity, alignment: .trailing)
+                .disabled(!viewModel.canOpen || viewModel.isMutating)
             }
-            .disabled(!viewModel.canOpen || viewModel.isMutating)
+            .padding(.vertical, 6)
         }
     }
 
-    private var closeSection: some View {
-        Section("Cierre guiado") {
-            LabeledContent("Efectivo esperado", value: viewModel.currentExpectedDisplay)
+    private var closingGuideSection: some View {
+        Section {
+            VStack(alignment: .leading, spacing: 16) {
+                CashSectionHeader(
+                    icon: "checklist",
+                    title: "Cierre guiado",
+                    subtitle: "Cuenta el efectivo físico y confirma la diferencia antes de cerrar."
+                )
 
-            TextField("Monto contado", text: $viewModel.countedAmount)
-                .keyboardType(.decimalPad)
+                VStack(spacing: 10) {
+                    CashMetricRow(
+                        title: "Efectivo esperado",
+                        value: viewModel.currentExpectedDisplay,
+                        systemImage: "banknote",
+                        isProminent: true
+                    )
 
-            Button {
-                viewModel.useExpectedAmountForClosing()
-                NexoKeyboard.dismiss()
-            } label: {
-                Label("Usar efectivo esperado", systemImage: "equal.circle")
-            }
-            .disabled(viewModel.isMutating)
+                    CashInputRow(
+                        title: "Monto contado",
+                        placeholder: "0.00",
+                        text: $viewModel.countedAmount,
+                        keyboardType: .decimalPad,
+                        systemImage: "number.circle"
+                    )
 
-            LabeledContent("Diferencia estimada", value: viewModel.closingDifferencePreview.displayText)
+                    Button {
+                        viewModel.useExpectedAmountForClosing()
+                        NexoKeyboard.dismiss()
+                    } label: {
+                        Label("Usar efectivo esperado", systemImage: "equal.circle")
+                            .font(.footnote.weight(.medium))
+                    }
+                    .buttonStyle(.borderless)
+                    .foregroundStyle(.secondary)
+                    .disabled(viewModel.isMutating)
 
-            TextField("Nota opcional", text: $viewModel.closingNote, axis: .vertical)
-                .lineLimit(1...3)
+                    CashMetricRow(
+                        title: "Diferencia estimada",
+                        value: viewModel.closingDifferencePreview.displayText,
+                        systemImage: "plus.forwardslash.minus",
+                        isProminent: false
+                    )
 
-            Text("El monto contado viene prellenado con el efectivo esperado. Cámbialo solo si al contar físicamente el dinero hay una diferencia.")
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-
-            Button(role: .destructive) {
-                NexoKeyboard.dismiss()
-                viewModel.prepareCloseConfirmation()
-            } label: {
-                if viewModel.isMutating {
-                    ProgressView()
-                } else {
-                    Label("Cerrar caja", systemImage: "lock")
+                    CashMultilineInputRow(
+                        title: "Nota",
+                        placeholder: "Opcional",
+                        text: $viewModel.closingNote,
+                        systemImage: "note.text"
+                    )
                 }
+
+                CashHintCard(
+                    icon: "lightbulb",
+                    text: "El monto contado viene prellenado con el efectivo esperado. Cámbialo solo si al contar físicamente el dinero hay diferencia."
+                )
+
+                Button(role: .destructive) {
+                    NexoKeyboard.dismiss()
+                    viewModel.prepareCloseConfirmation()
+                } label: {
+                    CashActionLabel(
+                        title: "Cerrar caja",
+                        systemImage: "lock",
+                        isLoading: viewModel.isMutating
+                    )
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                .frame(maxWidth: .infinity, alignment: .trailing)
+                .disabled(!viewModel.canPrepareClose)
             }
-            .disabled(!viewModel.canPrepareClose)
+            .padding(.vertical, 6)
         }
     }
 
     private var manualAdjustmentsSection: some View {
         Section {
             DisclosureGroup {
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("Usa esto solo para ingresos, egresos o ajustes que no vienen de una venta. Los cobros de ventas se registran desde Cobrar venta y actualizan caja automáticamente.")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
+                VStack(alignment: .leading, spacing: 14) {
+                    CashHintCard(
+                        icon: "exclamationmark.triangle",
+                        text: "Usa ajustes manuales solo para ingresos, egresos o correcciones que no vienen de una venta. Los cobros normales se registran desde Cobrar venta."
+                    )
 
-                    Picker("Tipo", selection: $viewModel.movementType) {
+                    Picker("Tipo de ajuste", selection: $viewModel.movementType) {
                         ForEach(CashMovementType.allCases) { type in
                             Text(type.displayName).tag(type)
                         }
                     }
+                    .pickerStyle(.menu)
 
-                    TextField("Monto", text: $viewModel.movementAmount)
-                        .keyboardType(.decimalPad)
+                    CashInputRow(
+                        title: "Monto",
+                        placeholder: "0.00",
+                        text: $viewModel.movementAmount,
+                        keyboardType: .decimalPad,
+                        systemImage: "dollarsign.circle"
+                    )
 
-                    TextField("Motivo", text: $viewModel.movementNote, axis: .vertical)
-                        .lineLimit(1...3)
+                    CashMultilineInputRow(
+                        title: "Motivo",
+                        placeholder: "Ej. retiro para cambio, ingreso extra, corrección",
+                        text: $viewModel.movementNote,
+                        systemImage: "text.quote"
+                    )
 
                     Button {
                         NexoKeyboard.dismiss()
                         viewModel.prepareMovementConfirmation()
                     } label: {
                         Label("Registrar ajuste manual", systemImage: "plus.forwardslash.minus")
+                            .frame(maxWidth: .infinity)
                     }
+                    .buttonStyle(.bordered)
+                    .controlSize(.large)
                     .disabled(!viewModel.canPrepareMovement)
 
                     if let movement = viewModel.lastMovement {
                         Divider()
-                        LabeledContent("Último ajuste", value: movement.type.displayName)
-                        LabeledContent("Monto", value: moneyText(movement.amount))
+                            .padding(.vertical, 2)
+
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Último ajuste")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+
+                            CashMetricRow(
+                                title: movement.type.displayName,
+                                value: moneyText(movement.amount),
+                                systemImage: "clock.arrow.circlepath",
+                                isProminent: false
+                            )
+                        }
                     }
                 }
-                .padding(.vertical, 8)
+                .padding(.vertical, 10)
             } label: {
-                Label("Ajustes manuales de caja", systemImage: "slider.horizontal.3")
+                Label("Ajustes manuales", systemImage: "slider.horizontal.3")
+                    .font(.body.weight(.medium))
             }
+        } footer: {
+            Text("Los ajustes manuales afectan la caja y deben tener un motivo claro.")
         }
     }
 
@@ -226,68 +324,293 @@ struct CashDashboardView: View {
     }
 }
 
+private struct CashLoadingCard: View {
+    var body: some View {
+        HStack(spacing: 12) {
+            ProgressView()
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text("Consultando caja…")
+                    .font(.headline)
+
+                Text("Estamos revisando el estado actual de caja.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(.vertical, 8)
+    }
+}
+
+private struct CashEmptyStateCard: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .top, spacing: 12) {
+                Image(systemName: "lock.fill")
+                    .font(.title3)
+                    .foregroundStyle(.orange)
+
+                VStack(alignment: .leading, spacing: 5) {
+                    Text("Caja cerrada")
+                        .font(.headline)
+
+                    Text("Abre caja al iniciar operación para cobrar en efectivo y controlar el cierre del día.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+        .padding(.vertical, 8)
+    }
+}
+
 private struct CashSessionHeroView: View {
     let session: CashSession
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 5) {
-                    Label(session.isOpen ? "Caja abierta" : "Caja cerrada", systemImage: session.isOpen ? "checkmark.circle.fill" : "lock")
-                        .font(.headline)
-                        .foregroundStyle(session.isOpen ? .green : .secondary)
-
-                    if let openedAt = session.openedAt {
-                        Text("Apertura: \(openedAt.formatted(date: .abbreviated, time: .shortened))")
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-
-                Spacer()
-
-                if let expectedAmount = session.expectedAmount {
-                    VStack(alignment: .trailing, spacing: 3) {
-                        Text(session.isOpen ? "Efectivo esperado" : "Esperado")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        Text(expectedAmount.displayText)
-                            .font(.title3.weight(.bold))
-                            .monospacedDigit()
-                    }
-                }
-            }
+        VStack(alignment: .leading, spacing: 16) {
+            header
 
             Divider()
 
-            VStack(spacing: 8) {
-                NexoMoneyTotalView(title: "Monto inicial", amount: session.openingAmount ?? MoneyAmount(amount: "0.00"))
+            metrics
 
-                if session.isOpen {
-                    HStack {
-                        Text("Conteo")
-                            .foregroundStyle(.secondary)
-                        Spacer()
-                        Text("Pendiente al cierre")
-                            .font(.body.weight(.semibold))
-                    }
+            if session.isOpen {
+                CashHintCard(
+                    icon: "checkmark.seal",
+                    text: "Los cobros en efectivo de ventas aumentan automáticamente el efectivo esperado. No registres esos cobros como ajustes manuales."
+                )
+            }
+        }
+        .padding(.vertical, 8)
+    }
 
-                    Text("Los cobros en efectivo de ventas aumentan automáticamente el efectivo esperado. No registres esos cobros como ajustes manuales.")
+    private var header: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: session.isOpen ? "checkmark.circle.fill" : "lock.fill")
+                .font(.title2)
+                .foregroundStyle(session.isOpen ? .green : .secondary)
+
+            VStack(alignment: .leading, spacing: 5) {
+                Text(session.isOpen ? "Caja abierta" : "Caja cerrada")
+                    .font(.headline)
+
+                if let openedAt = session.openedAt {
+                    Text("Apertura: \(openedAt.formatted(date: .abbreviated, time: .shortened))")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                } else {
-                    if let countedAmount = session.countedAmount {
-                        NexoMoneyTotalView(title: "Contado", amount: countedAmount)
-                    }
+                }
+            }
 
-                    if let differenceAmount = session.differenceAmount {
-                        NexoMoneyTotalView(title: "Diferencia", amount: differenceAmount, isProminent: true)
-                    }
+            Spacer()
+
+            if let expectedAmount = session.expectedAmount {
+                VStack(alignment: .trailing, spacing: 3) {
+                    Text(session.isOpen ? "Esperado" : "Esperado final")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    Text(expectedAmount.displayText)
+                        .font(.title3.weight(.bold))
+                        .monospacedDigit()
                 }
             }
         }
-        .padding(.vertical, 6)
+    }
+
+    private var metrics: some View {
+        VStack(spacing: 10) {
+            CashMetricRow(
+                title: "Monto inicial",
+                value: (session.openingAmount ?? MoneyAmount(amount: "0.00")).displayText,
+                systemImage: "tray.and.arrow.down",
+                isProminent: false
+            )
+
+            if session.isOpen {
+                CashMetricRow(
+                    title: "Conteo",
+                    value: "Pendiente al cierre",
+                    systemImage: "hourglass",
+                    isProminent: false
+                )
+            } else {
+                if let countedAmount = session.countedAmount {
+                    CashMetricRow(
+                        title: "Contado",
+                        value: countedAmount.displayText,
+                        systemImage: "checkmark.circle",
+                        isProminent: false
+                    )
+                }
+
+                if let differenceAmount = session.differenceAmount {
+                    CashMetricRow(
+                        title: "Diferencia",
+                        value: differenceAmount.displayText,
+                        systemImage: "plus.forwardslash.minus",
+                        isProminent: true
+                    )
+                }
+            }
+        }
+    }
+}
+
+private struct CashSectionHeader: View {
+    let icon: String
+    let title: String
+    let subtitle: String
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: icon)
+                .font(.title3)
+                .foregroundStyle(.primary)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.headline)
+
+                Text(subtitle)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+}
+
+private struct CashMetricRow: View {
+    let title: String
+    let value: String
+    let systemImage: String
+    let isProminent: Bool
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: systemImage)
+                .font(.body)
+                .foregroundStyle(.secondary)
+                .frame(width: 24)
+
+            Text(title)
+                .foregroundStyle(.secondary)
+
+            Spacer()
+
+            Text(value)
+                .font(isProminent ? .body.weight(.bold) : .body.weight(.semibold))
+                .monospacedDigit()
+                .multilineTextAlignment(.trailing)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(Color(.secondarySystemBackground))
+        )
+    }
+}
+
+private struct CashInputRow: View {
+    let title: String
+    let placeholder: String
+    @Binding var text: String
+    let keyboardType: UIKeyboardType
+    let systemImage: String
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: systemImage)
+                .font(.body)
+                .foregroundStyle(.secondary)
+                .frame(width: 24)
+
+            Text(title)
+                .foregroundStyle(.secondary)
+
+            TextField(placeholder, text: $text)
+                .keyboardType(keyboardType)
+                .multilineTextAlignment(.trailing)
+                .monospacedDigit()
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(Color(.secondarySystemBackground))
+        )
+    }
+}
+
+private struct CashMultilineInputRow: View {
+    let title: String
+    let placeholder: String
+    @Binding var text: String
+    let systemImage: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                Image(systemName: systemImage)
+                    .foregroundStyle(.secondary)
+
+                Text(title)
+                    .foregroundStyle(.secondary)
+            }
+
+            TextField(placeholder, text: $text, axis: .vertical)
+                .lineLimit(1...3)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(Color(.secondarySystemBackground))
+        )
+    }
+}
+
+private struct CashHintCard: View {
+    let icon: String
+    let text: String
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: icon)
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .padding(.top, 1)
+
+            Text(text)
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(Color(.tertiarySystemGroupedBackground))
+        )
+    }
+}
+
+private struct CashActionLabel: View {
+    let title: String
+    let systemImage: String
+    let isLoading: Bool
+
+    var body: some View {
+        HStack {
+            if isLoading {
+                ProgressView()
+                    .controlSize(.small)
+            } else {
+                Label(title, systemImage: systemImage)
+            }
+        }
+        .frame(maxWidth: .infinity)
     }
 }
 
