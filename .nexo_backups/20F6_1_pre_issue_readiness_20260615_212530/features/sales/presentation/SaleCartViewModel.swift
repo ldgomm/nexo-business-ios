@@ -978,13 +978,12 @@ final class SaleCartViewModel {
                 )
             )
 
-            let saleWithLocalTaxFallback = response.sale.withLocalCartTaxProfileFallback(from: cartItems)
-            createdSale = saleWithLocalTaxFallback
+            createdSale = response.sale
             preview = nil
             isPreviewDirty = false
             orderState = .created
             infoMessage = createdSaleSummaryMessage(
-                for: saleWithLocalTaxFallback,
+                for: response.sale,
                 replayed: response.idempotencyReplayed == true
             )
         } catch let error as APIError {
@@ -1281,84 +1280,5 @@ final class SaleCartViewModel {
     
     private func resolvedAllowsDecimal(for item: BusinessCatalogItem) -> Bool {
         item.allowsDecimalQuantity ?? item.unit?.allowsDecimal ?? false
-    }
-}
-
-
-private extension BusinessSale {
-    func withLocalCartTaxProfileFallback(from cartItems: [SaleCartItem]) -> BusinessSale {
-        guard !cartItems.isEmpty, !items.isEmpty else { return self }
-
-        let enrichedItems = items.enumerated().map { index, item in
-            guard item.taxProfileCode?.nilIfBlank == nil else { return item }
-            guard let cartItem = matchingCartItem(for: item, at: index, cartItems: cartItems) else { return item }
-
-            return BusinessSaleItem(
-                id: item.id,
-                catalogItemId: item.catalogItemId,
-                name: item.name,
-                quantity: item.quantity,
-                unitPrice: item.unitPrice,
-                subtotal: item.subtotal,
-                total: item.total,
-                taxProfileCode: cartItem.taxTreatment.taxProfileCode,
-                taxProfileName: item.taxProfileName,
-                taxTreatment: item.taxTreatment,
-                taxRate: item.taxRate,
-                sriTaxCode: item.sriTaxCode,
-                sriRateCode: item.sriRateCode,
-                taxableBase: item.taxableBase,
-                taxAmount: item.taxAmount,
-                note: item.note
-            )
-        }
-
-        return BusinessSale(
-            id: id,
-            number: number,
-            organizationId: organizationId,
-            branchId: branchId,
-            activityId: activityId,
-            customerId: customerId,
-            customerName: customerName,
-            customer: customer,
-            status: status,
-            paymentStatus: paymentStatus,
-            documentStatus: documentStatus,
-            electronicDocumentSummary: electronicDocumentSummary,
-            totals: totals,
-            items: enrichedItems,
-            createdAt: createdAt,
-            confirmedAt: confirmedAt,
-            closedAt: closedAt,
-            updatedAt: updatedAt
-        )
-    }
-
-    private func matchingCartItem(for saleItem: BusinessSaleItem, at index: Int, cartItems: [SaleCartItem]) -> SaleCartItem? {
-        if let catalogItemId = saleItem.catalogItemId?.nilIfBlank,
-           let match = cartItems.first(where: { $0.catalogItem.id == catalogItemId }) {
-            return match
-        }
-
-        if index < cartItems.count {
-            return cartItems[index]
-        }
-
-        let normalizedSaleName = saleItem.name.normalized
-        return cartItems.first { $0.catalogItem.name.normalized == normalizedSaleName }
-    }
-}
-
-private extension String {
-    var nilIfBlank: String? {
-        let trimmed = trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? nil : trimmed
-    }
-
-    var normalized: String {
-        trimmingCharacters(in: .whitespacesAndNewlines)
-            .lowercased()
-            .folding(options: [.diacriticInsensitive], locale: .current)
     }
 }

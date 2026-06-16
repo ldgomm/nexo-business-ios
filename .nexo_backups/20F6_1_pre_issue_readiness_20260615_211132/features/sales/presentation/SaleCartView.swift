@@ -605,7 +605,6 @@ struct SaleCartView: View {
                                 paymentsRepository: paymentsRepository,
                                 receivablesRepository: receivablesRepository,
                                 documentsRepository: documentsRepository,
-                                salesRepository: viewModel.salesRepositoryForPaymentReadiness,
                                 activityId: sale.activityId ?? viewModel.activityId,
                                 revisions: viewModel.revisions
                             ),

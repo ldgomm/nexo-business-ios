@@ -83,8 +83,6 @@ final class PaymentRegisterViewModel {
     private let paymentsRepository: PaymentsRepository
     private let receivablesRepository: ReceivablesRepository
     private let documentsRepository: BusinessDocumentsRepository?
-    private let salesRepository: SalesRepository?
-    private(set) var hasAttemptedSaleRefreshForInvoiceReadiness = false
 
     init(
         organizationId: String,
@@ -95,7 +93,6 @@ final class PaymentRegisterViewModel {
         paymentsRepository: PaymentsRepository,
         receivablesRepository: ReceivablesRepository,
         documentsRepository: BusinessDocumentsRepository? = nil,
-        salesRepository: SalesRepository? = nil,
         activityId: String? = nil,
         revisions: BusinessRevisions? = nil,
         customersRepository: CustomersRepository = UnavailableCustomersRepository()
@@ -108,7 +105,6 @@ final class PaymentRegisterViewModel {
         self.paymentsRepository = paymentsRepository
         self.receivablesRepository = receivablesRepository
         self.documentsRepository = documentsRepository
-        self.salesRepository = salesRepository
         self.activityId = activityId ?? sale.activityId
         self.revisions = revisions
         self.amount = sale.totals.grandTotal.amount
@@ -192,7 +188,6 @@ final class PaymentRegisterViewModel {
         !hasCompletedSubmission &&
         !sale.hasElectronicDocumentRegistered &&
         BusinessDocumentStatusPresentation.isMissingElectronicDocument(sale.effectiveDocumentStatus) &&
-        canEvaluateElectronicInvoiceReadinessForActions &&
         sale.electronicInvoiceReadiness.canIssue
     }
 
@@ -203,45 +198,7 @@ final class PaymentRegisterViewModel {
         revisions != nil &&
         !sale.hasElectronicDocumentRegistered &&
         BusinessDocumentStatusPresentation.isMissingElectronicDocument(sale.effectiveDocumentStatus) &&
-        canEvaluateElectronicInvoiceReadinessForActions &&
         sale.electronicInvoiceReadiness.canIssue
-    }
-
-    var hasReliableElectronicInvoiceReadinessData: Bool {
-        guard !sale.items.isEmpty else { return false }
-
-        return sale.items.allSatisfy { item in
-            [item.taxProfileCode, item.taxTreatment, item.sriTaxCode, item.sriRateCode]
-                .contains { value in
-                    value?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
-                }
-        }
-    }
-
-    var hasPositiveTaxEvidenceForElectronicInvoice: Bool {
-        isPositiveDecimalText(sale.totals.tax.amount) ||
-        sale.items.contains { item in
-            isPositiveDecimalText(item.taxAmount?.amount) ||
-            isPositiveDecimalText(item.taxRate)
-        }
-    }
-
-    var hasActionableElectronicInvoiceReadinessEvidence: Bool {
-        guard !sale.items.isEmpty else { return false }
-        guard sale.electronicInvoiceReadiness.canIssue else { return false }
-
-        return hasReliableElectronicInvoiceReadinessData ||
-        hasPositiveTaxEvidenceForElectronicInvoice
-    }
-
-    var canEvaluateElectronicInvoiceReadinessForActions: Bool {
-        guard hasActionableElectronicInvoiceReadinessEvidence else { return false }
-
-        if salesRepository != nil {
-            return hasAttemptedSaleRefreshForInvoiceReadiness
-        }
-
-        return true
     }
 
     var electronicDocumentAfterPaymentBlockedReason: String? {
@@ -249,14 +206,8 @@ final class PaymentRegisterViewModel {
         guard !sale.hasElectronicDocumentRegistered,
               BusinessDocumentStatusPresentation.isMissingElectronicDocument(sale.effectiveDocumentStatus) else { return nil }
 
-        if salesRepository != nil && !hasAttemptedSaleRefreshForInvoiceReadiness {
-            return "Estamos actualizando la venta antes de habilitar la factura electrónica."
-        }
         if !sale.electronicInvoiceReadiness.canIssue {
             return sale.electronicInvoiceReadiness.primaryMessage
-        }
-        if !hasActionableElectronicInvoiceReadinessEvidence {
-            return "Esta venta todavía no tiene información tributaria suficiente para emitir factura electrónica desde esta pantalla. Si el producto tiene IVA vigente, actualiza la venta; si sigue igual, revisa la configuración tributaria del producto."
         }
         if !hasElectronicInvoiceIssuePermission {
             return "Tu usuario puede cobrar, pero no emitir factura electrónica."
@@ -383,26 +334,7 @@ final class PaymentRegisterViewModel {
     }
 
     func load() async {
-        await refreshSaleForElectronicInvoiceReadinessIfPossible()
         await refreshForSelectedMode()
-    }
-
-    private func refreshSaleForElectronicInvoiceReadinessIfPossible() async {
-        guard let salesRepository else {
-            hasAttemptedSaleRefreshForInvoiceReadiness = true
-            return
-        }
-
-        do {
-            let response = try await salesRepository.getSale(
-                organizationId: organizationId,
-                saleId: sale.id
-            )
-            sale = salePreservingKnownElectronicDocument(response.sale)
-            hasAttemptedSaleRefreshForInvoiceReadiness = true
-        } catch {
-            hasAttemptedSaleRefreshForInvoiceReadiness = true
-        }
     }
 
     func refreshForSelectedMode() async {
@@ -671,16 +603,6 @@ final class PaymentRegisterViewModel {
         infoMessage = nil
     }
 
-    private func salePreservingKnownElectronicDocument(_ loadedSale: BusinessSale) -> BusinessSale {
-        guard loadedSale.primaryElectronicDocument == nil,
-              BusinessDocumentStatusPresentation.isMissingElectronicDocument(loadedSale.documentStatus),
-              let currentDocument = sale.primaryElectronicDocument else {
-            return loadedSale
-        }
-
-        return loadedSale.replacingElectronicDocument(currentDocument)
-    }
-
     func makeCashDashboardViewModel() -> CashDashboardViewModel {
         CashDashboardViewModel(
             organizationId: organizationId,
@@ -803,18 +725,6 @@ final class PaymentRegisterViewModel {
             string: normalized(text).replacingOccurrences(of: ",", with: "."),
             locale: Locale(identifier: "en_US_POSIX")
         )
-    }
-
-    private func isPositiveDecimalText(_ value: String?) -> Bool {
-        guard let normalizedValue = value?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .replacingOccurrences(of: ",", with: "."),
-              !normalizedValue.isEmpty,
-              let decimal = Decimal(string: normalizedValue, locale: Locale(identifier: "en_US_POSIX")) else {
-            return false
-        }
-
-        return decimal > Decimal.zero
     }
 
     private func normalized(_ text: String) -> String {

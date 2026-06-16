@@ -218,24 +218,8 @@ final class PaymentRegisterViewModel {
         }
     }
 
-    var hasPositiveTaxEvidenceForElectronicInvoice: Bool {
-        isPositiveDecimalText(sale.totals.tax.amount) ||
-        sale.items.contains { item in
-            isPositiveDecimalText(item.taxAmount?.amount) ||
-            isPositiveDecimalText(item.taxRate)
-        }
-    }
-
-    var hasActionableElectronicInvoiceReadinessEvidence: Bool {
-        guard !sale.items.isEmpty else { return false }
-        guard sale.electronicInvoiceReadiness.canIssue else { return false }
-
-        return hasReliableElectronicInvoiceReadinessData ||
-        hasPositiveTaxEvidenceForElectronicInvoice
-    }
-
     var canEvaluateElectronicInvoiceReadinessForActions: Bool {
-        guard hasActionableElectronicInvoiceReadinessEvidence else { return false }
+        guard hasReliableElectronicInvoiceReadinessData else { return false }
 
         if salesRepository != nil {
             return hasAttemptedSaleRefreshForInvoiceReadiness
@@ -249,14 +233,14 @@ final class PaymentRegisterViewModel {
         guard !sale.hasElectronicDocumentRegistered,
               BusinessDocumentStatusPresentation.isMissingElectronicDocument(sale.effectiveDocumentStatus) else { return nil }
 
+        if !hasReliableElectronicInvoiceReadinessData {
+            return "Actualiza la venta antes de emitir factura electrónica. Todavía no hay suficiente información tributaria para verificar si todos los productos pueden facturarse."
+        }
         if salesRepository != nil && !hasAttemptedSaleRefreshForInvoiceReadiness {
             return "Estamos actualizando la venta antes de habilitar la factura electrónica."
         }
         if !sale.electronicInvoiceReadiness.canIssue {
             return sale.electronicInvoiceReadiness.primaryMessage
-        }
-        if !hasActionableElectronicInvoiceReadinessEvidence {
-            return "Esta venta todavía no tiene información tributaria suficiente para emitir factura electrónica desde esta pantalla. Si el producto tiene IVA vigente, actualiza la venta; si sigue igual, revisa la configuración tributaria del producto."
         }
         if !hasElectronicInvoiceIssuePermission {
             return "Tu usuario puede cobrar, pero no emitir factura electrónica."
@@ -803,18 +787,6 @@ final class PaymentRegisterViewModel {
             string: normalized(text).replacingOccurrences(of: ",", with: "."),
             locale: Locale(identifier: "en_US_POSIX")
         )
-    }
-
-    private func isPositiveDecimalText(_ value: String?) -> Bool {
-        guard let normalizedValue = value?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .replacingOccurrences(of: ",", with: "."),
-              !normalizedValue.isEmpty,
-              let decimal = Decimal(string: normalizedValue, locale: Locale(identifier: "en_US_POSIX")) else {
-            return false
-        }
-
-        return decimal > Decimal.zero
     }
 
     private func normalized(_ text: String) -> String {

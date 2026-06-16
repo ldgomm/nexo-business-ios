@@ -19,10 +19,6 @@ final class SaleDetailViewModel {
 
     private let repository: SalesRepository
 
-    var salesRepositoryForPaymentReadiness: SalesRepository {
-        repository
-    }
-
     init(
         organizationId: String,
         saleId: String,
