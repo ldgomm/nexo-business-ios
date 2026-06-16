@@ -70,19 +70,6 @@ enum SaleLineTaxTreatmentOption: String, CaseIterable, Identifiable, Sendable {
         fromTaxProfileCode(item.taxProfileCode) ?? .defaultForNewLine()
     }
 
-    var isElectronicInvoiceCompatible: Bool {
-        switch self {
-        case .operationalNoTax:
-            return false
-        case .ivaCurrent, .ivaTourism8, .ivaZero, .notSubject, .exempt:
-            return true
-        }
-    }
-
-    var electronicInvoiceWarningText: String? {
-        isElectronicInvoiceCompatible ? nil : "Solo registro: esta línea no podrá usarse para factura electrónica."
-    }
-
     static func fromTaxProfileCode(_ code: String?) -> SaleLineTaxTreatmentOption? {
         switch code?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
         case "altos_staging_no_tax_internal", "no_tax_internal", "internal_no_tax":
@@ -157,6 +144,216 @@ struct SaleCartItem: Equatable, Identifiable, Sendable {
     }
 }
 
+
+struct LocalSaleTaxConfiguration: Equatable, Sendable {
+    let ivaCurrentRate: Decimal
+    let ivaTourismRate: Decimal
+    let currency: String
+
+    init(
+        ivaCurrentRate: Decimal,
+        ivaTourismRate: Decimal,
+        currency: String = "USD"
+    ) {
+        self.ivaCurrentRate = ivaCurrentRate
+        self.ivaTourismRate = ivaTourismRate
+        self.currency = currency
+    }
+
+    static let ecuadorStagingFallback = LocalSaleTaxConfiguration(
+        ivaCurrentRate: Decimal(15),
+        ivaTourismRate: Decimal(8),
+        currency: "USD"
+    )
+}
+
+struct LocalSaleLineCalculation: Equatable, Identifiable, Sendable {
+    let id: String
+    let name: String
+    let quantity: String
+    let taxTreatment: SaleLineTaxTreatmentOption
+    let unitPrice: MoneyAmount
+    let subtotalWithoutDiscount: MoneyAmount
+    let discount: MoneyAmount
+    let taxableBase: MoneyAmount
+    let taxRatePercent: String
+    let taxAmount: MoneyAmount
+    let total: MoneyAmount
+    let warning: String?
+}
+
+struct LocalSaleCalculation: Equatable, Sendable {
+    let lines: [LocalSaleLineCalculation]
+    let totals: BusinessSaleTotals
+    let warnings: [String]
+    let canIssueElectronicInvoice: Bool
+    let currency: String
+
+    static let empty = LocalSaleCalculation(
+        lines: [],
+        totals: BusinessSaleTotals(
+            subtotalWithoutTaxes: MoneyAmount(amount: "0.00"),
+            discountTotal: MoneyAmount(amount: "0.00"),
+            taxTotal: MoneyAmount(amount: "0.00"),
+            grandTotal: MoneyAmount(amount: "0.00")
+        ),
+        warnings: [],
+        canIssueElectronicInvoice: true,
+        currency: "USD"
+    )
+
+    var hasDiscount: Bool {
+        Self.decimal(from: totals.discountTotal.amount) > .zero
+    }
+
+    var primaryWarning: String? {
+        warnings.first
+    }
+
+    static func make(
+        cartItems: [SaleCartItem],
+        taxConfiguration: LocalSaleTaxConfiguration = .ecuadorStagingFallback
+    ) -> LocalSaleCalculation {
+        guard !cartItems.isEmpty else { return .empty }
+
+        var lines: [LocalSaleLineCalculation] = []
+        var subtotal = Decimal.zero
+        var discountTotal = Decimal.zero
+        var taxTotal = Decimal.zero
+        var grandTotal = Decimal.zero
+        var warnings: [String] = []
+        var canIssueElectronicInvoice = true
+
+        for item in cartItems {
+            let quantity = max(.zero, decimal(from: item.quantity))
+            let unitPrice = max(.zero, decimal(from: item.catalogItem.price?.amount ?? "0"))
+            let rawSubtotal = roundMoney(unitPrice * quantity)
+            let requestedDiscount = max(.zero, decimal(from: item.discount?.amount ?? "0"))
+            let appliedDiscount = min(rawSubtotal, requestedDiscount)
+            let taxableBase = max(.zero, rawSubtotal - appliedDiscount)
+            let taxRate = item.taxTreatment.localTaxRate(using: taxConfiguration)
+            let taxAmount = roundMoney(taxableBase * taxRate / Decimal(100))
+            let lineTotal = roundMoney(taxableBase + taxAmount)
+            let warning = item.taxTreatment.localWarning(itemName: item.catalogItem.name)
+
+            if let warning {
+                warnings.append(warning)
+            }
+            if !item.taxTreatment.canIssueElectronicInvoiceLocally {
+                canIssueElectronicInvoice = false
+            }
+
+            subtotal += rawSubtotal
+            discountTotal += appliedDiscount
+            taxTotal += taxAmount
+            grandTotal += lineTotal
+
+            lines.append(
+                LocalSaleLineCalculation(
+                    id: item.id,
+                    name: item.catalogItem.name,
+                    quantity: item.quantity,
+                    taxTreatment: item.taxTreatment,
+                    unitPrice: money(unitPrice, currency: taxConfiguration.currency),
+                    subtotalWithoutDiscount: money(rawSubtotal, currency: taxConfiguration.currency),
+                    discount: money(appliedDiscount, currency: taxConfiguration.currency),
+                    taxableBase: money(taxableBase, currency: taxConfiguration.currency),
+                    taxRatePercent: percentText(taxRate),
+                    taxAmount: money(taxAmount, currency: taxConfiguration.currency),
+                    total: money(lineTotal, currency: taxConfiguration.currency),
+                    warning: warning
+                )
+            )
+        }
+
+        let roundedSubtotal = roundMoney(subtotal)
+        let roundedDiscount = roundMoney(discountTotal)
+        let roundedTax = roundMoney(taxTotal)
+        let roundedGrandTotal = roundMoney(grandTotal)
+
+        return LocalSaleCalculation(
+            lines: lines,
+            totals: BusinessSaleTotals(
+                subtotalWithoutTaxes: money(roundedSubtotal, currency: taxConfiguration.currency),
+                discountTotal: money(roundedDiscount, currency: taxConfiguration.currency),
+                taxTotal: money(roundedTax, currency: taxConfiguration.currency),
+                grandTotal: money(roundedGrandTotal, currency: taxConfiguration.currency)
+            ),
+            warnings: Array(NSOrderedSet(array: warnings).compactMap { $0 as? String }),
+            canIssueElectronicInvoice: canIssueElectronicInvoice,
+            currency: taxConfiguration.currency
+        )
+    }
+
+    private static func decimal(from value: String) -> Decimal {
+        Decimal(
+            string: value
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .replacingOccurrences(of: ",", with: "."),
+            locale: Locale(identifier: "en_US_POSIX")
+        ) ?? .zero
+    }
+
+    private static func roundMoney(_ value: Decimal) -> Decimal {
+        var input = value
+        var output = Decimal()
+        NSDecimalRound(&output, &input, 2, .plain)
+        return output
+    }
+
+    private static func money(_ value: Decimal, currency: String) -> MoneyAmount {
+        MoneyAmount(amount: formatMoney(value), currency: currency)
+    }
+
+    private static func formatMoney(_ decimal: Decimal) -> String {
+        let rounded = roundMoney(decimal)
+        let number = NSDecimalNumber(decimal: rounded)
+        return String(format: "%.2f", number.doubleValue)
+    }
+
+    private static func percentText(_ decimal: Decimal) -> String {
+        let number = NSDecimalNumber(decimal: decimal)
+        let doubleValue = number.doubleValue
+        if doubleValue.rounded() == doubleValue {
+            return String(Int(doubleValue.rounded()))
+        }
+        return String(format: "%.2f", doubleValue)
+    }
+}
+
+extension SaleLineTaxTreatmentOption {
+    func localTaxRate(using configuration: LocalSaleTaxConfiguration) -> Decimal {
+        switch self {
+        case .operationalNoTax, .ivaZero, .notSubject, .exempt:
+            return .zero
+        case .ivaCurrent:
+            return configuration.ivaCurrentRate
+        case .ivaTourism8:
+            return configuration.ivaTourismRate
+        }
+    }
+
+    var canIssueElectronicInvoiceLocally: Bool {
+        switch self {
+        case .operationalNoTax:
+            return false
+        case .ivaCurrent, .ivaTourism8, .ivaZero, .notSubject, .exempt:
+            return true
+        }
+    }
+
+    func localWarning(itemName: String) -> String? {
+        switch self {
+        case .operationalNoTax:
+            return "\(itemName) está como Solo registro; esa línea no podrá usarse para factura electrónica."
+        case .ivaTourism8:
+            return "\(itemName) usa IVA turismo 8%; verifica que aplique para el negocio y la fecha antes de facturar."
+        case .ivaCurrent, .ivaZero, .notSubject, .exempt:
+            return nil
+        }
+    }
+}
+
 enum SaleCartOrderState: Equatable, Sendable {
     case editing
     case previewing
@@ -185,6 +382,8 @@ final class SaleCartViewModel {
     private(set) var searchResults: [BusinessCatalogItem] = []
     private(set) var cartItems: [SaleCartItem] = []
     private(set) var preview: SalesPreviewResponse?
+    private(set) var localCalculation: LocalSaleCalculation = .empty
+    private(set) var isPreviewDirty = false
     private(set) var createdSale: BusinessSale?
     private(set) var orderState: SaleCartOrderState = .editing
     private(set) var isSearching = false
@@ -209,6 +408,7 @@ final class SaleCartViewModel {
     private let salesRepository: SalesRepository
     private let contextRepository: BusinessContextRepository?
     private let revisionRegistry: BusinessRevisionRegistry
+    private var scheduledPreviewTask: Task<Void, Never>?
     
     init(
         organizationId: String,
@@ -233,6 +433,11 @@ final class SaleCartViewModel {
         self.contextRepository = contextRepository
         self.revisionRegistry = revisionRegistry
     }
+
+    func cancelScheduledPreview() {
+        scheduledPreviewTask?.cancel()
+        scheduledPreviewTask = nil
+    }
     
     var canSearchCatalog: Bool {
         !isSearching && !isOrderLocked
@@ -247,30 +452,7 @@ final class SaleCartViewModel {
     }
     
     var canCreateSale: Bool {
-        canEditCart && !cartItems.isEmpty
-    }
-
-    var cartElectronicInvoiceReadiness: ElectronicInvoiceReadiness {
-        ElectronicInvoiceReadiness(
-            blockers: cartItems.compactMap { item in
-                guard !item.taxTreatment.isElectronicInvoiceCompatible else { return nil }
-                return ElectronicInvoiceReadinessBlocker(
-                    code: "invalid_tax_profile",
-                    message: "No se podrá emitir factura electrónica. \(item.catalogItem.name) está configurado como Solo registro.",
-                    itemId: item.id,
-                    itemName: item.catalogItem.name,
-                    technicalValue: "taxProfileCode=\(item.taxTreatment.taxProfileCode)"
-                )
-            }
-        )
-    }
-
-    var cartElectronicInvoiceWarningMessage: String? {
-        cartElectronicInvoiceReadiness.primaryMessage
-    }
-
-    var cartElectronicInvoiceDetailedWarning: String? {
-        cartElectronicInvoiceReadiness.detailedMessage
+        !isOrderLocked && !cartItems.isEmpty && !isCreatingSale && !isPreviewing
     }
     
     var canClearCart: Bool {
@@ -320,32 +502,10 @@ final class SaleCartViewModel {
     var canIssueElectronicInvoiceForCreatedSale: Bool {
         guard let sale = createdSale else { return false }
         return !sale.needsCollection &&
-        !sale.hasElectronicDocumentRegistered &&
-        BusinessDocumentStatusPresentation.isMissingElectronicDocument(sale.effectiveDocumentStatus) &&
-        sale.electronicInvoiceReadiness.canIssue &&
+        BusinessDocumentStatusPresentation.isMissingElectronicDocument(sale.documentStatus) &&
         hasPermission(electronicInvoiceIssuePermissions) &&
         !branchId.isEmpty &&
         !activityId.isEmpty
-    }
-
-    var createdSaleElectronicInvoiceBlockedReason: String? {
-        guard let sale = createdSale else { return nil }
-        guard !sale.hasElectronicDocumentRegistered,
-              BusinessDocumentStatusPresentation.isMissingElectronicDocument(sale.effectiveDocumentStatus) else { return nil }
-
-        if !sale.electronicInvoiceReadiness.canIssue {
-            return sale.electronicInvoiceReadiness.primaryMessage
-        }
-
-        if !hasPermission(electronicInvoiceIssuePermissions) {
-            return "Tu usuario puede ver comprobantes, pero no emitir factura electrónica."
-        }
-
-        if branchId.isEmpty || activityId.isEmpty {
-            return "Falta contexto para emitir factura electrónica."
-        }
-
-        return nil
     }
 
     var createdSaleDocumentActionTitle: String {
@@ -353,7 +513,7 @@ final class SaleCartViewModel {
         if canIssueElectronicInvoiceForCreatedSale {
             return "Emitir factura electrónica"
         }
-        if BusinessDocumentStatusPresentation.isMissingElectronicDocument(sale.effectiveDocumentStatus) {
+        if BusinessDocumentStatusPresentation.isMissingElectronicDocument(sale.documentStatus) {
             return "Ver comprobantes"
         }
         return "Ver comprobante electrónico"
@@ -407,7 +567,14 @@ final class SaleCartViewModel {
     }
     
     var totalForDisplay: MoneyAmount? {
-        createdSale?.totals.grandTotal ?? preview?.totals.grandTotal
+        createdSale?.totals.grandTotal ?? localCalculation.totals.grandTotal
+    }
+
+    var calculationStatusText: String? {
+        guard createdSale == nil, !cartItems.isEmpty else { return nil }
+        if isPreviewing { return "Validando total con servidor antes de registrar…" }
+        if isPreviewDirty || preview == nil { return "Total calculado en este dispositivo. El servidor validará la venta al registrar." }
+        return "Total validado con servidor."
     }
 
     var createdSaleNeedsCollection: Bool {
@@ -419,7 +586,7 @@ final class SaleCartViewModel {
     }
 
     var createdSaleDocumentStatusText: String {
-        BusinessDocumentStatusPresentation.displayName(createdSale?.effectiveDocumentStatus ?? "not_required")
+        BusinessDocumentStatusPresentation.displayName(createdSale?.documentStatus ?? "not_required")
     }
 
     var createdSaleMessageStyle: NexoMessageStyle {
@@ -439,30 +606,30 @@ final class SaleCartViewModel {
         createdSale = sale
         infoMessage = createdSaleSummaryMessage(for: sale, replayed: false)
     }
+
+    func recalculateLocalTotalsIfNeeded() {
+        recalculateLocalCalculation()
+    }
     
     func selectCustomer(_ customer: BusinessCustomer) {
         guard ensureOrderIsEditable() else { return }
         selectedCustomer = customer
-        preview = nil
         errorMessage = nil
-        infoMessage = nil
+        markCalculationDirty(shouldScheduleAutomaticPreview: true)
     }
     
     func clearCustomer() {
         guard ensureOrderIsEditable() else { return }
         selectedCustomer = nil
-        preview = nil
         errorMessage = nil
-        infoMessage = nil
+        markCalculationDirty(shouldScheduleAutomaticPreview: true)
     }
 
     func updateLineNote(cartItemId: String, note: String) {
         guard ensureOrderIsEditable() else { return }
         guard let index = cartItems.firstIndex(where: { $0.id == cartItemId }) else { return }
         cartItems[index].note = note
-        preview = nil
         errorMessage = nil
-        infoMessage = nil
     }
 
     func lineNote(for cartItemId: String) -> String {
@@ -473,13 +640,8 @@ final class SaleCartViewModel {
         guard ensureOrderIsEditable() else { return }
         guard let index = cartItems.firstIndex(where: { $0.id == cartItemId }) else { return }
         cartItems[index].taxTreatment = taxTreatment
-        preview = nil
         errorMessage = nil
-        if taxTreatment.isElectronicInvoiceCompatible {
-            infoMessage = "Calcula nuevamente el total para validar el tratamiento tributario seleccionado."
-        } else {
-            infoMessage = "Este ítem quedó como Solo registro. Podrás guardar la venta, pero no emitir factura electrónica con esta línea."
-        }
+        markCalculationDirty(shouldScheduleAutomaticPreview: true)
     }
 
     func taxTreatment(for cartItemId: String) -> SaleLineTaxTreatmentOption {
@@ -506,8 +668,7 @@ final class SaleCartViewModel {
             errorMessage = "El descuento debe ser un valor válido."
             return
         }
-        preview = nil
-        infoMessage = "Calcula nuevamente el total para validar el descuento."
+        markCalculationDirty(shouldScheduleAutomaticPreview: true)
     }
 
     func isSelectedForDiscount(_ cartItemId: String) -> Bool {
@@ -577,8 +738,8 @@ final class SaleCartViewModel {
             let allocated = min(last.1, max(.zero, remaining))
             cartItems[index].discount = allocated > .zero ? MoneyAmount(amount: formatMoney(allocated)) : nil
         }
-        preview = nil
-        infoMessage = "Descuento aplicado. Calcula nuevamente el total antes de registrar la venta."
+        markCalculationDirty(shouldScheduleAutomaticPreview: false)
+        infoMessage = "Descuento aplicado."
     }
 
     func clearDiscounts() {
@@ -591,7 +752,7 @@ final class SaleCartViewModel {
         discountValue = ""
         discountReason = ""
         selectedDiscountItemIds = []
-        preview = nil
+        markCalculationDirty(shouldScheduleAutomaticPreview: false)
         infoMessage = "Descuentos eliminados."
     }
 
@@ -653,25 +814,20 @@ final class SaleCartViewModel {
         
         errorMessage = nil
         infoMessage = nil
-        preview = nil
-        
         if let index = cartItems.firstIndex(where: { $0.catalogItem.id == item.id }) {
             cartItems[index].quantity = incrementQuantity(cartItems[index].quantity)
+            markCalculationDirty(shouldScheduleAutomaticPreview: true)
             return
         }
         
-        let taxTreatment = SaleLineTaxTreatmentOption.defaultForCatalogItem(item)
         cartItems.append(
             SaleCartItem(
                 catalogItem: item,
                 quantity: "1",
-                taxTreatment: taxTreatment
+                taxTreatment: .defaultForCatalogItem(item)
             )
         )
-
-        if !taxTreatment.isElectronicInvoiceCompatible {
-            infoMessage = "\(item.name) está como Solo registro. Esta venta no podrá facturarse electrónicamente hasta cambiar el impuesto de esa línea."
-        }
+        markCalculationDirty(shouldScheduleAutomaticPreview: true)
     }
     
     func updateQuantity(cartItemId: String, quantity: String) {
@@ -680,7 +836,7 @@ final class SaleCartViewModel {
         
         let normalized = normalizeQuantity(quantity)
         cartItems[index].quantity = normalized
-        preview = nil
+        markCalculationDirty(shouldScheduleAutomaticPreview: true, showMessage: false)
     }
     
     func quantity(for cartItemId: String) -> String {
@@ -690,13 +846,16 @@ final class SaleCartViewModel {
     func removeFromCart(cartItemId: String) {
         guard ensureOrderIsEditable() else { return }
         cartItems.removeAll { $0.id == cartItemId }
-        preview = nil
+        markCalculationDirty(shouldScheduleAutomaticPreview: true)
     }
     
     func clearCart() {
         guard ensureOrderIsEditable() else { return }
         cartItems = []
         preview = nil
+        localCalculation = .empty
+        isPreviewDirty = false
+        scheduledPreviewTask?.cancel()
         errorMessage = nil
         infoMessage = nil
         orderState = .editing
@@ -707,6 +866,9 @@ final class SaleCartViewModel {
         searchResults = []
         cartItems = []
         preview = nil
+        localCalculation = .empty
+        isPreviewDirty = false
+        scheduledPreviewTask?.cancel()
         createdSale = nil
         selectedCustomer = nil
         errorMessage = nil
@@ -715,18 +877,25 @@ final class SaleCartViewModel {
     }
     
     func loadPreview() async {
+        await loadPreview(showUserMessages: true)
+    }
+
+    private func loadPreview(showUserMessages: Bool) async {
         guard !isOrderLocked else {
             errorMessage = "Esta venta ya fue registrada. Inicia una nueva venta para continuar."
             return
         }
 
-        guard validateCart() else { return }
+        guard validateCart(showErrors: showUserMessages) else { return }
         guard !isPreviewing, !isCreatingSale else { return }
 
+        scheduledPreviewTask?.cancel()
         isPreviewing = true
         orderState = .previewing
-        errorMessage = nil
-        infoMessage = nil
+        if showUserMessages {
+            errorMessage = nil
+            infoMessage = nil
+        }
 
         defer {
             isPreviewing = false
@@ -735,10 +904,10 @@ final class SaleCartViewModel {
             }
         }
 
-        await loadPreviewAttempt(allowContextRefreshRetry: true)
+        _ = await loadPreviewAttempt(allowContextRefreshRetry: true, showUserMessages: showUserMessages)
     }
 
-    private func loadPreviewAttempt(allowContextRefreshRetry: Bool) async {
+    private func loadPreviewAttempt(allowContextRefreshRetry: Bool, showUserMessages: Bool) async -> Bool {
         do {
             let response = try await salesRepository.preview(
                 organizationId: organizationId,
@@ -747,19 +916,26 @@ final class SaleCartViewModel {
             )
 
             preview = response
-            if !allowContextRefreshRetry {
+            isPreviewDirty = false
+            if !allowContextRefreshRetry && showUserMessages {
                 infoMessage = "Contexto actualizado y total recalculado."
             }
+            return true
         } catch let error as APIError {
             if error.isBusinessRevisionConflict,
                allowContextRefreshRetry,
                await refreshBusinessContextAfterRevisionConflict() {
-                await loadPreviewAttempt(allowContextRefreshRetry: false)
-                return
+                return await loadPreviewAttempt(allowContextRefreshRetry: false, showUserMessages: showUserMessages)
             }
-            handle(apiError: error)
+            if showUserMessages {
+                handle(apiError: error)
+            }
+            return false
         } catch {
-            errorMessage = error.localizedDescription
+            if showUserMessages {
+                errorMessage = error.localizedDescription
+            }
+            return false
         }
     }
 
@@ -772,7 +948,7 @@ final class SaleCartViewModel {
             return
         }
 
-        guard validateCart() else { return }
+        guard await ensureFreshPreviewBeforeCreatingSale() else { return }
 
         isCreatingSale = true
         orderState = .creating
@@ -804,6 +980,7 @@ final class SaleCartViewModel {
 
             createdSale = response.sale
             preview = nil
+            isPreviewDirty = false
             orderState = .created
             infoMessage = createdSaleSummaryMessage(
                 for: response.sale,
@@ -814,8 +991,10 @@ final class SaleCartViewModel {
             if error.isBusinessRevisionConflict,
                await refreshBusinessContextAfterRevisionConflict() {
                 preview = nil
+                isPreviewDirty = true
                 errorMessage = nil
-                infoMessage = "Contexto del negocio actualizado. Calcula nuevamente el total antes de registrar la venta."
+                infoMessage = "Contexto del negocio actualizado. Vuelve a registrar; el total local se actualizó y el servidor validará antes de guardar."
+                recalculateLocalCalculation()
                 return
             }
             handle(apiError: error)
@@ -836,6 +1015,61 @@ final class SaleCartViewModel {
         )
     }
     
+    private func ensureFreshPreviewBeforeCreatingSale() async -> Bool {
+        scheduledPreviewTask?.cancel()
+
+        guard validateCart(showErrors: true) else {
+            orderState = .editing
+            return false
+        }
+
+        if preview != nil && !isPreviewDirty {
+            return true
+        }
+
+        isPreviewing = true
+        orderState = .previewing
+        errorMessage = nil
+        infoMessage = "Recalculando total antes de registrar la venta…"
+
+        defer {
+            isPreviewing = false
+            if createdSale == nil {
+                orderState = .editing
+            }
+        }
+
+        let success = await loadPreviewAttempt(allowContextRefreshRetry: true, showUserMessages: true)
+        if !success {
+            infoMessage = nil
+        }
+        return success
+    }
+
+    private func markCalculationDirty(shouldScheduleAutomaticPreview: Bool, showMessage: Bool = false) {
+        preview = nil
+        isPreviewDirty = true
+        recalculateLocalCalculation()
+        if showMessage {
+            infoMessage = nil
+        }
+    }
+
+    private func recalculateLocalCalculation() {
+        localCalculation = LocalSaleCalculation.make(
+            cartItems: cartItems,
+            taxConfiguration: .ecuadorStagingFallback
+        )
+    }
+
+    private func scheduleAutomaticPreview() {
+        recalculateLocalCalculation()
+    }
+
+    private func runScheduledPreview() async {
+        recalculateLocalCalculation()
+    }
+
     private func createdSaleSummaryMessage(for sale: BusinessSale, replayed: Bool) -> String {
         if replayed {
             return sale.needsCollection
@@ -930,30 +1164,30 @@ final class SaleCartViewModel {
         }
     }
     
-    private func validateCart() -> Bool {
-        guard validateOperationalContext() else { return false }
+    private func validateCart(showErrors: Bool = true) -> Bool {
+        guard validateOperationalContext(showErrors: showErrors) else { return false }
         
         guard !cartItems.isEmpty else {
-            errorMessage = "Agrega al menos un producto o servicio."
+            if showErrors { errorMessage = "Agrega al menos un producto o servicio." }
             return false
         }
         
         guard cartItems.allSatisfy({ isValidQuantity($0.quantity) }) else {
-            errorMessage = "Revisa las cantidades. Deben ser mayores a cero."
+            if showErrors { errorMessage = "Revisa las cantidades. Deben ser mayores a cero." }
             return false
         }
         
         return true
     }
     
-    private func validateOperationalContext() -> Bool {
+    private func validateOperationalContext(showErrors: Bool = true) -> Bool {
         if organizationId.isEmpty || branchId.isEmpty || activityId.isEmpty {
-            errorMessage = "Falta organización, sucursal o actividad operativa. Actualiza el contexto."
+            if showErrors { errorMessage = "Falta organización, sucursal o actividad operativa. Actualiza el contexto." }
             return false
         }
         
         if revisions.catalogRevision.isEmpty || revisions.taxConfigurationRevision.isEmpty {
-            errorMessage = "Faltan revisiones de catálogo o impuestos. Actualiza el contexto."
+            if showErrors { errorMessage = "Faltan revisiones de catálogo o impuestos. Actualiza el contexto." }
             return false
         }
         
