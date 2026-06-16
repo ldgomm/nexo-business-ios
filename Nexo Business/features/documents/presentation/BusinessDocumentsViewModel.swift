@@ -249,16 +249,6 @@ final class BusinessDocumentsViewModel {
             failedSources.append("facturas electrónicas")
         }
 
-        do {
-            let response = try await repository.list(
-                organizationId: organizationId,
-                saleId: sale.id
-            )
-            loadedDocuments.append(contentsOf: response.documents)
-        } catch {
-            failedSources.append("documentos internos")
-        }
-
         let merged = uniqueDocuments(loadedDocuments)
         documents = merged
 

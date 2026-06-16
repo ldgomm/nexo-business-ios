@@ -8,14 +8,14 @@
 import SwiftUI
 
 struct BusinessDocumentsView: View {
-    @Bindable private var viewModel: BusinessDocumentsViewModel
+    @State private var viewModel: BusinessDocumentsViewModel
     private let onSaleUpdated: (BusinessSale) -> Void
 
     init(
         viewModel: BusinessDocumentsViewModel,
         onSaleUpdated: @escaping (BusinessSale) -> Void = { _ in }
     ) {
-        self.viewModel = viewModel
+        _viewModel = State(initialValue: viewModel)
         self.onSaleUpdated = onSaleUpdated
     }
 

@@ -10,8 +10,11 @@ import Foundation
 enum BusinessDocumentsRoutes {
     static let electronicDocuments = "/api/v1/business/electronic-documents"
 
-    static func list(saleId: String) -> String {
-        "/api/v1/business/sales/\(saleId)/documents"
+    static func listQueryItems(saleId: String, limit: Int = 25) -> [URLQueryItem] {
+        [
+            URLQueryItem(name: "limit", value: String(limit)),
+            URLQueryItem(name: "saleId", value: saleId)
+        ]
     }
 
     static func internalTicket(saleId: String) -> String {
@@ -86,7 +89,8 @@ final class BusinessDocumentsAPIRepository: BusinessDocumentsRepository, Busines
         try await apiClient.send(
             APIRequest(
                 method: .get,
-                path: BusinessDocumentsRoutes.list(saleId: saleId),
+                path: BusinessDocumentsRoutes.electronicDocuments,
+                queryItems: BusinessDocumentsRoutes.listQueryItems(saleId: saleId),
                 headers: [BusinessHeaders.organizationId: organizationId]
             )
         )

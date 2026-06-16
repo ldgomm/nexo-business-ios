@@ -65,6 +65,7 @@ final class PreviewCatalogRepository: CatalogRepository, @unchecked Sendable {
 }
 
 final class PreviewSalesRepository: SalesRepository, @unchecked Sendable {
+    
     init() {}
 
     func preview(
@@ -109,6 +110,36 @@ final class PreviewSalesRepository: SalesRepository, @unchecked Sendable {
         request: CancelSaleRequest
     ) async throws -> CancelSaleResponse {
         PreviewData.canceledSaleResponse
+    }
+    
+    func bulkAddItems(
+        organizationId: String,
+        saleId: String,
+        revisions: BusinessRevisions,
+        idempotencyKey: IdempotencyKey,
+        request: BulkAddSaleItemsRequest
+    ) async throws -> QuickSaleResponse {
+        PreviewData.quickSaleResponse
+    }
+
+    func bulkUpdateItems(
+        organizationId: String,
+        saleId: String,
+        revisions: BusinessRevisions,
+        idempotencyKey: IdempotencyKey,
+        request: BulkUpdateSaleItemsRequest
+    ) async throws -> QuickSaleResponse {
+        PreviewData.quickSaleResponse
+    }
+
+    func bulkRemoveItems(
+        organizationId: String,
+        saleId: String,
+        revisions: BusinessRevisions,
+        idempotencyKey: IdempotencyKey,
+        request: BulkRemoveSaleItemsRequest
+    ) async throws -> QuickSaleResponse {
+        PreviewData.quickSaleResponse
     }
 }
 

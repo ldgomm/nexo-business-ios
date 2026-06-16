@@ -9,6 +9,27 @@ import XCTest
 @testable import Nexo_Business
 
 final class BusinessDocumentsAPIRepositoryTests: XCTestCase {
+
+    func testListUsesCanonicalElectronicDocumentsRouteFilteredBySale() async throws {
+        let apiClient = CapturingDocumentsAPIClient(responseJSON: #"{"documents":[]}"#)
+        let repository = BusinessDocumentsAPIRepository(apiClient: apiClient)
+
+        _ = try await repository.list(
+            organizationId: "org_1",
+            saleId: "sale_1"
+        )
+
+        let request = try XCTUnwrap(apiClient.capturedRequests.last)
+        XCTAssertEqual(request.method, .get)
+        XCTAssertEqual(request.path, "/api/v1/business/electronic-documents")
+        XCTAssertEqual(request.headers[BusinessHeaders.organizationId], "org_1")
+
+        let query = Dictionary(uniqueKeysWithValues: request.queryItems.map { ($0.name, $0.value ?? "") })
+        XCTAssertEqual(query["saleId"], "sale_1")
+        XCTAssertEqual(query["limit"], "25")
+    }
+
+
     func testIssueElectronicInvoiceUsesCanonicalRouteAndBusinessHeaders() async throws {
         let apiClient = CapturingDocumentsAPIClient(responseJSON: Self.electronicIssueResponseJSON)
         let repository = BusinessDocumentsAPIRepository(apiClient: apiClient)

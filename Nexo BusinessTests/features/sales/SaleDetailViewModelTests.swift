@@ -107,11 +107,29 @@ final class SaleDetailViewModelTests: XCTestCase {
 
 private final class SaleLifecycleRepositorySpy: SalesRepository, @unchecked Sendable {
     var loadedSaleId: String?
+
     var lastConfirmRevisions: BusinessRevisions?
     var lastConfirmIdempotencyKey: IdempotencyKey?
+
     var lastCancelRevisions: BusinessRevisions?
     var lastCancelIdempotencyKey: IdempotencyKey?
     var lastCancelRequest: CancelSaleRequest?
+
+    var lastBulkAddSaleId: String?
+    var lastBulkAddRevisions: BusinessRevisions?
+    var lastBulkAddIdempotencyKey: IdempotencyKey?
+    var lastBulkAddRequest: BulkAddSaleItemsRequest?
+
+    var lastBulkUpdateSaleId: String?
+    var lastBulkUpdateRevisions: BusinessRevisions?
+    var lastBulkUpdateIdempotencyKey: IdempotencyKey?
+    var lastBulkUpdateRequest: BulkUpdateSaleItemsRequest?
+
+    var lastBulkRemoveSaleId: String?
+    var lastBulkRemoveRevisions: BusinessRevisions?
+    var lastBulkRemoveIdempotencyKey: IdempotencyKey?
+    var lastBulkRemoveRequest: BulkRemoveSaleItemsRequest?
+
     var confirmError: Error?
 
     init(confirmError: Error? = nil) {
@@ -141,6 +159,48 @@ private final class SaleLifecycleRepositorySpy: SalesRepository, @unchecked Send
     ) async throws -> BusinessSaleDetailResponse {
         loadedSaleId = saleId
         return BusinessSaleDetailResponse(sale: PreviewData.quickSaleResponse.sale)
+    }
+
+    func bulkAddItems(
+        organizationId: String,
+        saleId: String,
+        revisions: BusinessRevisions,
+        idempotencyKey: IdempotencyKey,
+        request: BulkAddSaleItemsRequest
+    ) async throws -> QuickSaleResponse {
+        lastBulkAddSaleId = saleId
+        lastBulkAddRevisions = revisions
+        lastBulkAddIdempotencyKey = idempotencyKey
+        lastBulkAddRequest = request
+        return PreviewData.quickSaleResponse
+    }
+
+    func bulkUpdateItems(
+        organizationId: String,
+        saleId: String,
+        revisions: BusinessRevisions,
+        idempotencyKey: IdempotencyKey,
+        request: BulkUpdateSaleItemsRequest
+    ) async throws -> QuickSaleResponse {
+        lastBulkUpdateSaleId = saleId
+        lastBulkUpdateRevisions = revisions
+        lastBulkUpdateIdempotencyKey = idempotencyKey
+        lastBulkUpdateRequest = request
+        return PreviewData.quickSaleResponse
+    }
+
+    func bulkRemoveItems(
+        organizationId: String,
+        saleId: String,
+        revisions: BusinessRevisions,
+        idempotencyKey: IdempotencyKey,
+        request: BulkRemoveSaleItemsRequest
+    ) async throws -> QuickSaleResponse {
+        lastBulkRemoveSaleId = saleId
+        lastBulkRemoveRevisions = revisions
+        lastBulkRemoveIdempotencyKey = idempotencyKey
+        lastBulkRemoveRequest = request
+        return PreviewData.quickSaleResponse
     }
 
     func confirm(
