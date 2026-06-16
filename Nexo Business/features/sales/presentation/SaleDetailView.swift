@@ -168,10 +168,10 @@ struct SaleDetailView: View {
             .font(.subheadline.weight(.semibold))
 
             if let document {
-                LabeledContent("Número", value: document.displayNumber)
+                LabeledContent("Número", value: document.businessDisplayNumber)
 
-                if let authorizationNumber = document.authorizationNumber, !authorizationNumber.isEmpty {
-                    LabeledContent("Autorización", value: authorizationNumber)
+                if let authorizationNumber = document.shortAuthorizationDisplay {
+                    LabeledContent("Autorización SRI", value: authorizationNumber)
                 }
 
                 if let error = BusinessDocumentTextSanitizer.sanitizedMessage(document.lastErrorMessage) {

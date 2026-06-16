@@ -79,7 +79,7 @@ final class BusinessElectronicDocumentsViewModel {
                     limit: 100
                 )
             )
-            documents = response.documents.sorted(by: sortDocuments)
+            documents = BusinessDocument.mergeUniquePreferBest(response.documents)
             infoMessage = response.documents.isEmpty ? "No hay comprobantes electrónicos para mostrar." : nil
         } catch let error as APIError {
             handle(apiError: error)
@@ -101,19 +101,7 @@ final class BusinessElectronicDocumentsViewModel {
     }
 
     private func sortDocuments(_ lhs: BusinessDocument, _ rhs: BusinessDocument) -> Bool {
-        let leftDate = lhs.issuedAt ?? lhs.createdAt ?? lhs.updatedAt
-        let rightDate = rhs.issuedAt ?? rhs.createdAt ?? rhs.updatedAt
-
-        switch (leftDate, rightDate) {
-        case let (left?, right?):
-            return left > right
-        case (_?, nil):
-            return true
-        case (nil, _?):
-            return false
-        case (nil, nil):
-            return lhs.id > rhs.id
-        }
+        BusinessDocument.businessSort(lhs, rhs)
     }
 
     private func handle(apiError: APIError) {

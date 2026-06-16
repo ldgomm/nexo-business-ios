@@ -161,6 +161,136 @@ struct BusinessDocument: Decodable, Equatable, Identifiable, Sendable {
     }
 }
 
+extension BusinessDocument {
+    var isElectronicInvoiceForBusinessUI: Bool {
+        let normalizedType = Self.normalized(type)
+        return normalizedType.contains("electronic_invoice") ||
+        normalizedType.contains("factura") ||
+        normalizedType.contains("invoice")
+    }
+
+    var businessDisplayNumber: String {
+        if let number = number?.trimmingCharacters(in: .whitespacesAndNewlines), !number.isEmpty {
+            return number
+        }
+
+        if isElectronicInvoiceForBusinessUI {
+            return "Factura electrónica"
+        }
+
+        return "Comprobante"
+    }
+
+    var shortAuthorizationDisplay: String? {
+        guard let value = authorizationNumber?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty else {
+            return nil
+        }
+
+        if value.count <= 18 { return value }
+        return "…" + String(value.suffix(12))
+    }
+
+    var businessIdentityKeys: [String] {
+        var keys: [String] = []
+        let candidates: [(String, String?)] = [
+            ("documentId", documentId),
+            ("id", id),
+            ("accessKey", accessKey),
+            ("authorization", authorizationNumber)
+        ]
+
+        for (prefix, value) in candidates {
+            if let normalized = Self.normalizedIdentifier(value), !normalized.isEmpty {
+                keys.append("\(prefix):\(normalized)")
+            }
+        }
+
+        return keys
+    }
+
+    var businessSortDate: Date? {
+        authorizedAt ?? deliveredAt ?? issuedAt ?? createdAt ?? updatedAt ?? rejectedAt
+    }
+
+    static func bestElectronicInvoice(in documents: [BusinessDocument]) -> BusinessDocument? {
+        documents
+            .filter(\.isElectronicInvoiceForBusinessUI)
+            .sorted(by: businessSort)
+            .first
+    }
+
+    static func mergeUniquePreferBest(_ documents: [BusinessDocument]) -> [BusinessDocument] {
+        var result: [BusinessDocument] = []
+
+        for document in documents {
+            if let index = result.firstIndex(where: { isSameBusinessDocument($0, document) }) {
+                let current = result[index]
+                result[index] = businessSort(document, current) ? document : current
+            } else {
+                result.append(document)
+            }
+        }
+
+        return result.sorted(by: businessSort)
+    }
+
+    static func isSameBusinessDocument(_ lhs: BusinessDocument, _ rhs: BusinessDocument) -> Bool {
+        let lhsKeys = Set(lhs.businessIdentityKeys)
+        let rhsKeys = Set(rhs.businessIdentityKeys)
+        return !lhsKeys.isDisjoint(with: rhsKeys)
+    }
+
+    static func businessSort(_ lhs: BusinessDocument, _ rhs: BusinessDocument) -> Bool {
+        let leftPriority = businessStatusPriority(lhs.effectiveStatus)
+        let rightPriority = businessStatusPriority(rhs.effectiveStatus)
+
+        if leftPriority != rightPriority {
+            return leftPriority < rightPriority
+        }
+
+        switch (lhs.businessSortDate, rhs.businessSortDate) {
+        case let (left?, right?):
+            return left > right
+        case (_?, nil):
+            return true
+        case (nil, _?):
+            return false
+        case (nil, nil):
+            return lhs.businessDisplayNumber.localizedCaseInsensitiveCompare(rhs.businessDisplayNumber) == .orderedAscending
+        }
+    }
+
+    private static func businessStatusPriority(_ status: String) -> Int {
+        switch normalized(status) {
+        case "authorized", "autorizado", "delivered", "sent_email", "email_sent":
+            return 0
+        case "received", "received_by_sri", "received_by_tax_authority", "recibida", "sent", "submitted", "submitted_to_sri", "submitted_to_reception", "signed", "validated":
+            return 1
+        case "generated", "access_key_generated", "registered", "draft":
+            return 2
+        case "rejected", "rechazado", "not_authorized", "notauthorized", "no_autorizada", "returned", "returned_by_sri", "devuelta", "signature_failed", "xsd_invalid", "reception_transport_failed", "error", "failed", "delivery_failed", "email_failed":
+            return 3
+        case "not_required", "no_required", "none", "without_document", "sin_documento", "":
+            return 5
+        default:
+            return 4
+        }
+    }
+
+    private static func normalized(_ value: String) -> String {
+        value
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+            .replacingOccurrences(of: "-", with: "_")
+    }
+
+    private static func normalizedIdentifier(_ value: String?) -> String? {
+        value?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+    }
+}
+
 private struct BusinessDocumentListEnvelope: Decodable, Equatable, Sendable {
     let documents: [BusinessDocument]
     let total: Int?

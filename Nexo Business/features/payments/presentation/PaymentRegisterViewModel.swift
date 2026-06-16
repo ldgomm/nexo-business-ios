@@ -235,13 +235,7 @@ final class PaymentRegisterViewModel {
     }
 
     var canEvaluateElectronicInvoiceReadinessForActions: Bool {
-        guard hasActionableElectronicInvoiceReadinessEvidence else { return false }
-
-        if salesRepository != nil {
-            return hasAttemptedSaleRefreshForInvoiceReadiness
-        }
-
-        return true
+        hasActionableElectronicInvoiceReadinessEvidence
     }
 
     var electronicDocumentAfterPaymentBlockedReason: String? {
@@ -249,9 +243,6 @@ final class PaymentRegisterViewModel {
         guard !sale.hasElectronicDocumentRegistered,
               BusinessDocumentStatusPresentation.isMissingElectronicDocument(sale.effectiveDocumentStatus) else { return nil }
 
-        if salesRepository != nil && !hasAttemptedSaleRefreshForInvoiceReadiness {
-            return "Estamos actualizando la venta antes de habilitar la factura electrónica."
-        }
         if !sale.electronicInvoiceReadiness.canIssue {
             return sale.electronicInvoiceReadiness.primaryMessage
         }
@@ -616,14 +607,10 @@ final class PaymentRegisterViewModel {
     }
 
     private func electronicInvoiceAfterPaymentFailureMessage(reason: String) -> String {
-        let paymentLine = registeredPaymentWasCash
-            ? "Cobro registrado.\nLa caja fue actualizada."
-            : "Cobro registrado.\nLa venta quedó cobrada."
-
         let cleanedReason = reason.trimmingCharacters(in: .whitespacesAndNewlines)
         let finalReason = cleanedReason.isEmpty ? "La factura electrónica no pudo emitirse." : cleanedReason
 
-        return "\(paymentLine)\n\nNo se pudo emitir la factura electrónica.\nMotivo: \(finalReason)\n\nLa venta ya quedó cobrada. No vuelvas a confirmar el cobro."
+        return "No se pudo emitir la factura electrónica.\nMotivo: \(finalReason)\n\nLa venta ya quedó cobrada. No vuelvas a confirmar el cobro."
     }
 
     func createReceivable() async {
@@ -672,13 +659,32 @@ final class PaymentRegisterViewModel {
     }
 
     private func salePreservingKnownElectronicDocument(_ loadedSale: BusinessSale) -> BusinessSale {
-        guard loadedSale.primaryElectronicDocument == nil,
-              BusinessDocumentStatusPresentation.isMissingElectronicDocument(loadedSale.documentStatus),
-              let currentDocument = sale.primaryElectronicDocument else {
-            return loadedSale
+        let candidates = [loadedSale.primaryElectronicDocument, sale.primaryElectronicDocument].compactMap { $0 }
+
+        if let bestDocument = BusinessDocument.bestElectronicInvoice(in: candidates) {
+            return loadedSale.replacingElectronicDocument(bestDocument)
         }
 
-        return loadedSale.replacingElectronicDocument(currentDocument)
+        return loadedSale
+    }
+
+
+    func makeBusinessDocumentsViewModel() -> BusinessDocumentsViewModel? {
+        guard let documentsRepository,
+              let activityId,
+              let revisions else {
+            return nil
+        }
+
+        return BusinessDocumentsViewModel(
+            organizationId: organizationId,
+            sale: sale,
+            effectivePermissions: effectivePermissions,
+            branchId: sale.branchId.isEmpty ? branchId : sale.branchId,
+            activityId: activityId,
+            revisions: revisions,
+            documentsRepository: documentsRepository
+        )
     }
 
     func makeCashDashboardViewModel() -> CashDashboardViewModel {

@@ -212,11 +212,11 @@ private struct BusinessDocumentRow: View {
                         .font(.subheadline.weight(.semibold))
 
                     Label(
-                        BusinessDocumentStatusPresentation.displayName(document.status),
-                        systemImage: BusinessDocumentStatusPresentation.systemImage(document.status)
+                        BusinessDocumentStatusPresentation.displayName(document.effectiveStatus),
+                        systemImage: BusinessDocumentStatusPresentation.systemImage(document.effectiveStatus)
                     )
                     .font(.caption)
-                    .foregroundStyle(BusinessDocumentStatusPresentation.isError(document.status) ? .red : .secondary)
+                    .foregroundStyle(BusinessDocumentStatusPresentation.isError(document.effectiveStatus) ? .red : .secondary)
                 }
 
                 Spacer()
@@ -227,13 +227,8 @@ private struct BusinessDocumentRow: View {
                     .font(.caption)
             }
 
-            if let accessKey = document.accessKey, !accessKey.isEmpty {
-                LabeledContent("Clave", value: accessKey)
-                    .font(.caption.monospaced())
-            }
-
-            if let authorizationNumber = document.authorizationNumber, !authorizationNumber.isEmpty {
-                LabeledContent("Autorización", value: authorizationNumber)
+            if let authorizationNumber = document.shortAuthorizationDisplay {
+                LabeledContent("Autorización SRI", value: authorizationNumber)
                     .font(.caption.monospaced())
             }
 
@@ -259,22 +254,8 @@ private struct BusinessDocumentRow: View {
                     .foregroundStyle(.secondary)
             }
 
-            if let pdfUrl = document.pdfUrl, !pdfUrl.isEmpty {
-                Text(pdfUrl)
-                    .font(.caption2.monospaced())
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-            }
         }
         .padding(.vertical, 4)
-    }
-}
-
-
-private extension BusinessDocument {
-    var isElectronicInvoiceForBusinessUI: Bool {
-        let normalizedType = type.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        return normalizedType.contains("electronic_invoice") || normalizedType.contains("factura") || normalizedType.contains("invoice")
     }
 }
 

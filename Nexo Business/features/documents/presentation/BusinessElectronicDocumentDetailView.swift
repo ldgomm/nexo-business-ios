@@ -75,10 +75,6 @@ struct BusinessElectronicDocumentDetailView: View {
                 LabeledContent("Total", value: "\(detail.currency) \(total)")
             }
 
-            if let saleId = detail.saleId, !saleId.isEmpty {
-                LabeledContent("Venta", value: saleId)
-            }
-
             if let issueDate = detail.issueDate {
                 LabeledContent("Emitido", value: issueDate.formatted(date: .abbreviated, time: .shortened))
             }

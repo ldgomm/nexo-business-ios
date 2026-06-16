@@ -236,7 +236,7 @@ extension BusinessSale {
     }
 
     var primaryElectronicDocument: BusinessDocument? {
-        electronicDocumentSummary
+        BusinessDocument.bestElectronicInvoice(in: [electronicDocumentSummary].compactMap { $0 })
     }
 
     var effectiveDocumentStatus: String? {
@@ -245,7 +245,7 @@ extension BusinessSale {
 
     var hasElectronicDocumentRegistered: Bool {
         if primaryElectronicDocument != nil { return true }
-        return !BusinessDocumentStatusPresentation.isMissingElectronicDocument(documentStatus)
+        return !BusinessDocumentStatusPresentation.isMissingElectronicDocument(effectiveDocumentStatus)
     }
 
     func replacingPaymentStatus(_ paymentStatus: String?) -> BusinessSale {
@@ -272,7 +272,11 @@ extension BusinessSale {
     }
 
     func replacingElectronicDocument(_ document: BusinessDocument?) -> BusinessSale {
-        BusinessSale(
+        let bestDocument = BusinessDocument.bestElectronicInvoice(
+            in: [document, electronicDocumentSummary].compactMap { $0 }
+        ) ?? document ?? electronicDocumentSummary
+
+        return BusinessSale(
             id: id,
             number: number,
             organizationId: organizationId,
@@ -283,8 +287,8 @@ extension BusinessSale {
             customer: customer,
             status: status,
             paymentStatus: paymentStatus,
-            documentStatus: document?.effectiveStatus ?? documentStatus,
-            electronicDocumentSummary: document ?? electronicDocumentSummary,
+            documentStatus: bestDocument?.effectiveStatus ?? documentStatus,
+            electronicDocumentSummary: bestDocument,
             totals: totals,
             items: items,
             createdAt: createdAt,

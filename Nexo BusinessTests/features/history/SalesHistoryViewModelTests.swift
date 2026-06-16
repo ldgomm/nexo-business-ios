@@ -41,7 +41,8 @@ final class SalesHistoryViewModelTests: XCTestCase {
             branchId: "br_1",
             revisions: BusinessRevisions(catalogRevision: "cat", taxConfigurationRevision: "tax"),
             effectivePermissions: [],
-            historyRepository: repository
+            historyRepository: repository,
+            documentsRepository: MockBusinessDocumentsRepository()
         )
 
         await viewModel.load()
@@ -99,7 +100,8 @@ final class SalesHistoryViewModelTests: XCTestCase {
             branchId: "br_1",
             revisions: BusinessRevisions(catalogRevision: "cat", taxConfigurationRevision: "tax"),
             effectivePermissions: ["business.sales.view"],
-            historyRepository: repository
+            historyRepository: repository,
+            documentsRepository: MockBusinessDocumentsRepository()
         )
     }
 

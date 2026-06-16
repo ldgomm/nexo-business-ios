@@ -219,10 +219,10 @@ private struct SalesHistoryRow: View {
                 HStack(spacing: 8) {
                     Image(systemName: "doc.text.magnifyingglass")
                         .foregroundStyle(.secondary)
-                    Text(document.displayNumber)
+                    Text(document.businessDisplayNumber)
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.secondary)
-                    if let error = document.lastErrorMessage, !error.isEmpty {
+                    if let error = BusinessDocumentTextSanitizer.sanitizedMessage(document.lastErrorMessage) {
                         Text("· \(error)")
                             .font(.caption)
                             .foregroundStyle(.red)

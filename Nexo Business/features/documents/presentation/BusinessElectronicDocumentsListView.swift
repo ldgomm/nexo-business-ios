@@ -47,7 +47,7 @@ struct BusinessElectronicDocumentsListView: View {
 
     private var filtersSection: some View {
         Section("Filtros") {
-            TextField("Estado: AUTHORIZED, REJECTED, FAILED…", text: $viewModel.statusFilter)
+            TextField("Estado: autorizado, no autorizado, fallido…", text: $viewModel.statusFilter)
                 .textInputAutocapitalization(.characters)
                 .autocorrectionDisabled()
 
@@ -55,7 +55,7 @@ struct BusinessElectronicDocumentsListView: View {
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
 
-            TextField("ID de venta opcional", text: $viewModel.saleIdFilter)
+            TextField("Buscar por venta", text: $viewModel.saleIdFilter)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
 
@@ -100,7 +100,7 @@ struct BusinessElectronicDocumentsListView: View {
                         BusinessElectronicDocumentDetailView(
                             viewModel: BusinessElectronicDocumentDetailViewModel(
                                 organizationId: viewModel.organizationId,
-                                documentId: document.id,
+                                documentId: document.documentId,
                                 effectivePermissions: viewModel.effectivePermissions,
                                 documentsRepository: documentsRepository
                             )
@@ -144,7 +144,7 @@ struct BusinessElectronicDocumentRow: View {
                     .frame(width: 28)
 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(document.displayNumber)
+                    Text(document.businessDisplayNumber)
                         .font(.subheadline.weight(.semibold))
 
                     Text(BusinessDocumentTypePresentation.displayName(document.type))
@@ -197,7 +197,7 @@ struct BusinessElectronicDocumentRow: View {
                     .foregroundStyle(.secondary)
             }
 
-            if let error = document.lastErrorMessage, !error.isEmpty {
+            if let error = BusinessDocumentTextSanitizer.sanitizedMessage(document.lastErrorMessage) {
                 Text(error)
                     .font(.caption)
                     .foregroundStyle(.red)

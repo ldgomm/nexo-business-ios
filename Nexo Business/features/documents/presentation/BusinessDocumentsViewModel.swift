@@ -47,11 +47,11 @@ final class BusinessDocumentsViewModel {
     }
 
     var electronicInvoiceDocuments: [BusinessDocument] {
-        documents.filter(Self.isElectronicInvoice)
+        documents.filter(\.isElectronicInvoiceForBusinessUI)
     }
 
     var latestElectronicInvoice: BusinessDocument? {
-        electronicInvoiceDocuments.sorted(by: sortDocuments).first
+        BusinessDocument.bestElectronicInvoice(in: electronicInvoiceDocuments)
     }
 
     var hasElectronicInvoiceRegistered: Bool {
@@ -252,7 +252,7 @@ final class BusinessDocumentsViewModel {
             failedSources.append("documentos internos")
         }
 
-        let merged = uniqueDocuments(loadedDocuments).sorted(by: sortDocuments)
+        let merged = uniqueDocuments(loadedDocuments)
         documents = merged
 
         if let latestElectronicInvoice {
@@ -406,49 +406,19 @@ final class BusinessDocumentsViewModel {
         } else {
             documents.append(document)
         }
-        documents = uniqueDocuments(documents).sorted(by: sortDocuments)
+        documents = uniqueDocuments(documents)
     }
 
     private func uniqueDocuments(_ input: [BusinessDocument]) -> [BusinessDocument] {
-        var seen = Set<String>()
-        var result: [BusinessDocument] = []
-
-        for document in input {
-            let key = documentIdentity(document)
-            guard !seen.contains(key) else { continue }
-            seen.insert(key)
-            result.append(document)
-        }
-
-        return result
-    }
-
-    private func documentIdentity(_ document: BusinessDocument) -> String {
-        if !document.documentId.isEmpty { return "documentId:\(document.documentId)" }
-        if let accessKey = document.accessKey, !accessKey.isEmpty { return "accessKey:\(accessKey)" }
-        return "id:\(document.id)"
+        BusinessDocument.mergeUniquePreferBest(input)
     }
 
     private func sameDocument(_ lhs: BusinessDocument, _ rhs: BusinessDocument) -> Bool {
-        documentIdentity(lhs) == documentIdentity(rhs)
+        BusinessDocument.isSameBusinessDocument(lhs, rhs)
     }
 
     private func sortDocuments(_ lhs: BusinessDocument, _ rhs: BusinessDocument) -> Bool {
-        switch (lhs.createdAt, rhs.createdAt) {
-        case let (left?, right?):
-            return left > right
-        case (_?, nil):
-            return true
-        case (nil, _?):
-            return false
-        case (nil, nil):
-            return lhs.id < rhs.id
-        }
-    }
-
-    private static func isElectronicInvoice(_ document: BusinessDocument) -> Bool {
-        let type = document.type.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        return type.contains("electronic_invoice") || type.contains("factura") || type.contains("invoice")
+        BusinessDocument.businessSort(lhs, rhs)
     }
 
     private func internalTicketValidationMessage() -> String {

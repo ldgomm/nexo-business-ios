@@ -219,55 +219,58 @@ final class SalesHistoryViewModel {
         var enrichedSales: [BusinessSale] = []
         var failedCount = 0
         var bulkDocuments: [BusinessDocument] = []
-        var usedDocumentIds = Set<String>()
+        var usedDocumentKeys = Set<String>()
 
         do {
             let response = try await documentsRepository.listElectronicDocuments(
                 organizationId: organizationId,
                 filters: BusinessElectronicDocumentFilters(limit: 250)
             )
-            bulkDocuments = response.documents.sorted(by: sortDocuments)
+            bulkDocuments = BusinessDocument.mergeUniquePreferBest(response.documents)
         } catch {
             failedCount += 1
         }
 
         for sale in inputSales {
+            var candidates: [BusinessDocument] = []
+
             if let document = sale.primaryElectronicDocument {
-                documentsBySaleId[sale.id] = document
-                usedDocumentIds.insert(document.id)
-                enrichedSales.append(sale.replacingElectronicDocument(document))
-                continue
+                candidates.append(document)
             }
 
-            if let document = bestDocument(for: sale, from: bulkDocuments, excluding: usedDocumentIds) {
-                documentsBySaleId[sale.id] = document
-                usedDocumentIds.insert(document.id)
-                enrichedSales.append(sale.replacingElectronicDocument(document))
-                continue
+            if let document = bestDocument(for: sale, from: bulkDocuments, excluding: usedDocumentKeys) {
+                candidates.append(document)
             }
 
-            if let document = await loadElectronicDocumentForSaleId(sale.id, failedCount: &failedCount) {
-                documentsBySaleId[sale.id] = document
-                usedDocumentIds.insert(document.id)
-                enrichedSales.append(sale.replacingElectronicDocument(document))
-                continue
+            var best = BusinessDocument.bestElectronicInvoice(in: candidates)
+
+            if best.map({ !BusinessDocumentStatusPresentation.isAuthorized($0.effectiveStatus) }) ?? true {
+                if let document = await loadElectronicDocumentForSaleId(sale.id, failedCount: &failedCount) {
+                    candidates.append(document)
+                }
             }
 
-            if let document = await loadElectronicDocumentForAlternateIdentifiers(sale, excluding: usedDocumentIds, failedCount: &failedCount) {
-                documentsBySaleId[sale.id] = document
-                usedDocumentIds.insert(document.id)
-                enrichedSales.append(sale.replacingElectronicDocument(document))
-                continue
+            best = BusinessDocument.bestElectronicInvoice(in: candidates)
+
+            if best.map({ !BusinessDocumentStatusPresentation.isAuthorized($0.effectiveStatus) }) ?? true {
+                if let document = await loadElectronicDocumentForAlternateIdentifiers(sale, excluding: usedDocumentKeys, failedCount: &failedCount) {
+                    candidates.append(document)
+                }
             }
 
-            if let document = await loadLegacyDocument(for: sale, failedCount: &failedCount) {
-                documentsBySaleId[sale.id] = document
-                usedDocumentIds.insert(document.id)
-                enrichedSales.append(sale.replacingElectronicDocument(document))
-                continue
+            best = BusinessDocument.bestElectronicInvoice(in: candidates)
+
+            if best == nil, let document = await loadLegacyDocument(for: sale, failedCount: &failedCount) {
+                candidates.append(document)
             }
 
-            enrichedSales.append(sale)
+            if let document = BusinessDocument.bestElectronicInvoice(in: candidates) {
+                documentsBySaleId[sale.id] = document
+                markDocumentUsed(document, in: &usedDocumentKeys)
+                enrichedSales.append(sale.replacingElectronicDocument(document))
+            } else {
+                enrichedSales.append(sale)
+            }
         }
 
         let missingPaidSales = enrichedSales.filter { sale in
@@ -278,7 +281,7 @@ final class SalesHistoryViewModel {
         if failedCount > 0 {
             warning = "Algunos comprobantes no pudieron actualizarse. Vuelve a intentar si ves estados incompletos."
         } else if missingPaidSales > 0 {
-            warning = "Hay ventas cobradas sin comprobante enlazado por saleId. Si Admin sí muestra el comprobante, el enlace quedó inconsistente en servidor."
+            warning = "Hay ventas cobradas que todavía no muestran factura electrónica. Actualiza el historial o revisa el enlace documental de la venta."
         } else {
             warning = nil
         }
@@ -296,7 +299,7 @@ final class SalesHistoryViewModel {
                 organizationId: organizationId,
                 filters: BusinessElectronicDocumentFilters(saleId: saleId, limit: 10)
             )
-            return response.documents.sorted(by: sortDocuments).first
+            return BusinessDocument.bestElectronicInvoice(in: response.documents)
         } catch {
             failedCount += 1
             return nil
@@ -316,7 +319,8 @@ final class SalesHistoryViewModel {
                     organizationId: organizationId,
                     filters: BusinessElectronicDocumentFilters(saleId: identifier, limit: 10)
                 )
-                if let document = response.documents.sorted(by: sortDocuments).first(where: { !usedDocumentIds.contains($0.id) }) {
+                let candidates = response.documents.filter { !hasDocumentBeenUsed($0, in: usedDocumentIds) }
+                if let document = BusinessDocument.bestElectronicInvoice(in: candidates) {
                     return document
                 }
             } catch {
@@ -333,7 +337,7 @@ final class SalesHistoryViewModel {
                 organizationId: organizationId,
                 saleId: sale.id
             )
-            return response.documents.sorted(by: sortDocuments).first
+            return BusinessDocument.bestElectronicInvoice(in: response.documents)
         } catch {
             failedCount += 1
             return nil
@@ -347,12 +351,24 @@ final class SalesHistoryViewModel {
     ) -> BusinessDocument? {
         let identifiers = Set(saleIdentifierCandidates(for: sale).map(normalizedIdentifier))
 
-        return documents.first { document in
-            guard !usedDocumentIds.contains(document.id) else { return false }
+        let candidates = documents.filter { document in
+            guard !hasDocumentBeenUsed(document, in: usedDocumentIds) else { return false }
             let documentSaleId = normalizedIdentifier(document.saleId)
             guard !documentSaleId.isEmpty else { return false }
             return identifiers.contains(documentSaleId)
         }
+
+        return BusinessDocument.bestElectronicInvoice(in: candidates)
+    }
+
+    private func markDocumentUsed(_ document: BusinessDocument, in usedDocumentKeys: inout Set<String>) {
+        for key in document.businessIdentityKeys {
+            usedDocumentKeys.insert(key)
+        }
+    }
+
+    private func hasDocumentBeenUsed(_ document: BusinessDocument, in usedDocumentKeys: Set<String>) -> Bool {
+        !Set(document.businessIdentityKeys).isDisjoint(with: usedDocumentKeys)
     }
 
     private func saleIdentifierCandidates(for sale: BusinessSale) -> [String] {
@@ -391,16 +407,7 @@ final class SalesHistoryViewModel {
     }
 
     private func sortDocuments(_ lhs: BusinessDocument, _ rhs: BusinessDocument) -> Bool {
-        switch (lhs.createdAt ?? lhs.issuedAt ?? lhs.authorizedAt, rhs.createdAt ?? rhs.issuedAt ?? rhs.authorizedAt) {
-        case let (left?, right?):
-            return left > right
-        case (_?, nil):
-            return true
-        case (nil, _?):
-            return false
-        case (nil, nil):
-            return lhs.id > rhs.id
-        }
+        BusinessDocument.businessSort(lhs, rhs)
     }
 
     private func sortSales(_ lhs: BusinessSale, _ rhs: BusinessSale) -> Bool {

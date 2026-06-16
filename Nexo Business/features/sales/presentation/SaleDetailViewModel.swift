@@ -308,13 +308,13 @@ final class SaleDetailViewModel {
     }
 
     private func salePreservingKnownElectronicDocument(_ loadedSale: BusinessSale) -> BusinessSale {
-        guard loadedSale.primaryElectronicDocument == nil,
-              BusinessDocumentStatusPresentation.isMissingElectronicDocument(loadedSale.documentStatus),
-              let currentDocument = sale?.primaryElectronicDocument else {
-            return loadedSale
+        let candidates = [loadedSale.primaryElectronicDocument, sale?.primaryElectronicDocument].compactMap { $0 }
+
+        if let bestDocument = BusinessDocument.bestElectronicInvoice(in: candidates) {
+            return loadedSale.replacingElectronicDocument(bestDocument)
         }
 
-        return loadedSale.replacingElectronicDocument(currentDocument)
+        return loadedSale
     }
 
     private func hasPermission(_ permissions: [String]) -> Bool {

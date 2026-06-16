@@ -230,35 +230,46 @@ struct PaymentRegisterView: View {
     @ViewBuilder
     private var resultSection: some View {
         if let payment = viewModel.paymentResult {
-            Section("Cobro registrado") {
-                Label("Cobro registrado correctamente", systemImage: "checkmark.seal.fill")
-                    .foregroundStyle(.green)
-                LabeledContent("ID", value: payment.id)
+            Section("Cobro") {
+                PaymentOutcomeMessageView(
+                    message: "Cobro registrado correctamente.",
+                    systemImage: "checkmark.seal.fill",
+                    tint: .green
+                )
+
                 LabeledContent("Método", value: viewModel.paymentMethodDisplayName(payment.method))
-                LabeledContent("Estado", value: PaymentStatusPresentation.displayName(payment.status))
-                LabeledContent("Monto", value: money(payment.amount))
+                LabeledContent("Monto cobrado", value: money(payment.amount))
 
                 if viewModel.registeredPaymentWasCash {
                     Divider()
-                    Label("Caja actualizada automáticamente", systemImage: "banknote.fill")
-                        .foregroundStyle(.green)
+                    PaymentOutcomeMessageView(
+                        message: "Caja actualizada automáticamente.",
+                        systemImage: "banknote.fill",
+                        tint: .green
+                    )
+
                     if let movement = viewModel.cashMovementResult {
-                        LabeledContent("Movimiento", value: movement.id)
-                        LabeledContent("Monto caja", value: movement.amount.displayText)
+                        LabeledContent("Monto en caja", value: movement.amount.displayText)
                     }
                     if let session = viewModel.currentCashSession, let expected = session.expectedAmount {
                         LabeledContent("Efectivo esperado", value: expected.displayText)
                     }
+
+                    Text("El movimiento de caja ya fue creado por el sistema. No registres este cobro como ajuste manual.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
                 }
             }
         }
 
         if let receivable = viewModel.receivableResult {
             Section("Cuenta por cobrar") {
-                Label("Cuenta por cobrar creada", systemImage: "person.crop.circle.badge.clock")
-                    .foregroundStyle(.orange)
-                LabeledContent("ID", value: receivable.id)
-                LabeledContent("Estado", value: ReceivableStatusPresentation.displayName(receivable.status))
+                PaymentOutcomeMessageView(
+                    message: "Cuenta por cobrar creada.",
+                    systemImage: "person.crop.circle.badge.clock",
+                    tint: .orange
+                )
+
                 LabeledContent("Monto", value: money(receivable.amount))
                 if let balance = receivable.balance {
                     LabeledContent("Saldo", value: money(balance))
@@ -268,21 +279,26 @@ struct PaymentRegisterView: View {
 
         if let document = viewModel.electronicDocumentResult {
             Section("Factura electrónica") {
-                Label(
-                    BusinessDocumentStatusPresentation.displayName(document.effectiveStatus),
-                    systemImage: BusinessDocumentStatusPresentation.systemImage(document.effectiveStatus)
+                PaymentOutcomeMessageView(
+                    message: PaymentDocumentOutcomePresentation.title(for: document),
+                    systemImage: PaymentDocumentOutcomePresentation.systemImage(for: document),
+                    tint: PaymentDocumentOutcomePresentation.tint(for: document)
                 )
-                .foregroundStyle(BusinessDocumentStatusPresentation.isError(document.effectiveStatus) ? .red : .secondary)
 
                 if let number = document.number, !number.isEmpty {
                     LabeledContent("Número", value: number)
                 }
+                if let authorizationNumber = document.authorizationNumber, !authorizationNumber.isEmpty {
+                    LabeledContent("Autorización", value: authorizationNumber)
+                }
                 if let error = BusinessDocumentTextSanitizer.sanitizedMessage(document.lastErrorMessage) {
-                    Label(error, systemImage: "exclamationmark.triangle")
-                        .font(.footnote)
-                        .foregroundStyle(.red)
+                    PaymentOutcomeMessageView(
+                        message: error,
+                        systemImage: "exclamationmark.triangle",
+                        tint: .red
+                    )
                 } else if BusinessDocumentStatusPresentation.isAuthorized(document.effectiveStatus) {
-                    Label("Disponible en Comprobantes para ver RIDE, XML o compartir.", systemImage: "doc.text.magnifyingglass")
+                    Text("Disponible en Comprobantes para revisar RIDE, XML o compartir con el cliente.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
@@ -293,18 +309,22 @@ struct PaymentRegisterView: View {
     @ViewBuilder
     private var messagesSection: some View {
         if let message = viewModel.errorMessage {
-            Section {
-                Label(message, systemImage: "exclamationmark.triangle")
-                    .font(.footnote)
-                    .foregroundStyle(.red)
+            Section("Atención") {
+                PaymentOutcomeMessageView(
+                    message: message,
+                    systemImage: "exclamationmark.triangle",
+                    tint: .red
+                )
             }
         }
 
-        if let message = viewModel.infoMessage {
+        if let message = viewModel.infoMessage, !viewModel.hasCompletedSubmission {
             Section {
-                Label(message, systemImage: "checkmark.circle")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
+                PaymentOutcomeMessageView(
+                    message: message,
+                    systemImage: "info.circle",
+                    tint: .secondary
+                )
             }
         }
     }
@@ -321,11 +341,24 @@ struct PaymentRegisterView: View {
                     Label(viewModel.registeredPaymentWasCash ? "Ver caja o cerrar caja" : "Ver caja", systemImage: "banknote")
                 }
 
+                if let documentsViewModel = viewModel.makeBusinessDocumentsViewModel() {
+                    NavigationLink {
+                        BusinessDocumentsView(
+                            viewModel: documentsViewModel,
+                            onSaleUpdated: { updatedSale in
+                                onSaleUpdated(updatedSale)
+                            }
+                        )
+                    } label: {
+                        Label("Ver comprobantes", systemImage: "doc.text.magnifyingglass")
+                    }
+                }
+
                 Button {
                     NexoKeyboard.dismiss()
                     Task { await viewModel.load() }
                 } label: {
-                    Label("Actualizar caja", systemImage: "arrow.clockwise")
+                    Label("Actualizar venta y caja", systemImage: "arrow.clockwise")
                 }
                 .disabled(viewModel.isLoadingCash)
             }
@@ -363,9 +396,11 @@ struct PaymentRegisterView: View {
                     }
 
                     if let reason = viewModel.electronicDocumentAfterPaymentBlockedReason {
-                        Label(reason, systemImage: "info.circle")
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
+                        PaymentOutcomeMessageView(
+                            message: reason,
+                            systemImage: "info.circle",
+                            tint: .secondary
+                        )
 
                         if let detail = viewModel.sale.electronicInvoiceReadiness.detailedMessage {
                             Text(detail)
@@ -422,6 +457,7 @@ struct PaymentRegisterInlineView: View {
                 paymentActionSection
             } else {
                 paymentResultSection
+                paymentNextActionSection
             }
 
             paymentMessagesSection
@@ -587,49 +623,26 @@ struct PaymentRegisterInlineView: View {
         }
     }
 
-    private var paymentActionSection: some View {
-        Section("Confirmación") {
-            Button {
-                shouldIssueDocumentAfterPayment = false
-                NexoKeyboard.dismiss()
-                showSubmitConfirmation = true
+    private var paymentNextActionSection: some View {
+        Section("Siguiente acción") {
+            NavigationLink {
+                CashDashboardView(
+                    viewModel: viewModel.makeCashDashboardViewModel()
+                )
             } label: {
-                if viewModel.isSubmitting {
-                    ProgressView()
-                } else if viewModel.selectedMode == .credit {
-                    Label("Crear cuenta por cobrar", systemImage: "person.crop.circle.badge.clock")
-                } else {
-                    Label("Confirmar cobro", systemImage: "checkmark.seal.fill")
-                }
+                Label(viewModel.registeredPaymentWasCash ? "Ver caja o cerrar caja" : "Ver caja", systemImage: "banknote")
             }
-            .disabled(viewModel.selectedMode == .credit ? !viewModel.canCreateReceivable : !viewModel.canSubmitPayment)
 
-            if viewModel.selectedMode != .credit {
-                if viewModel.shouldShowPaymentAndIssueElectronicDocumentAction {
-                    Button {
-                        shouldIssueDocumentAfterPayment = true
-                        NexoKeyboard.dismiss()
-                        showSubmitConfirmation = true
-                    } label: {
-                        if viewModel.isSubmitting || viewModel.isIssuingElectronicDocument {
-                            ProgressView()
-                        } else {
-                            Label("Confirmar cobro y emitir documento", systemImage: "doc.badge.plus")
+            if let documentsViewModel = viewModel.makeBusinessDocumentsViewModel() {
+                NavigationLink {
+                    BusinessDocumentsView(
+                        viewModel: documentsViewModel,
+                        onSaleUpdated: { updatedSale in
+                            onSaleUpdated(updatedSale)
                         }
-                    }
-                    .disabled(!viewModel.canSubmitPaymentAndIssueElectronicDocument)
-                }
-
-                if let reason = viewModel.electronicDocumentAfterPaymentBlockedReason {
-                    Label(reason, systemImage: "info.circle")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-
-                    if let detail = viewModel.sale.electronicInvoiceReadiness.detailedMessage {
-                        Text(detail)
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                    }
+                    )
+                } label: {
+                    Label("Ver comprobantes", systemImage: "doc.text.magnifyingglass")
                 }
             }
 
@@ -637,67 +650,176 @@ struct PaymentRegisterInlineView: View {
                 NexoKeyboard.dismiss()
                 Task { await viewModel.load() }
             } label: {
-                Label("Actualizar caja", systemImage: "arrow.clockwise")
+                Label("Actualizar venta y caja", systemImage: "arrow.clockwise")
             }
             .disabled(viewModel.isLoadingCash)
         }
     }
 
     @ViewBuilder
+    private var paymentActionSection: some View {
+        if viewModel.hasCompletedSubmission {
+            Section("Siguiente acción") {
+                NavigationLink {
+                    CashDashboardView(
+                        viewModel: viewModel.makeCashDashboardViewModel()
+                    )
+                } label: {
+                    Label(viewModel.registeredPaymentWasCash ? "Ver caja o cerrar caja" : "Ver caja", systemImage: "banknote")
+                }
+
+                if let documentsViewModel = viewModel.makeBusinessDocumentsViewModel() {
+                    NavigationLink {
+                        BusinessDocumentsView(
+                            viewModel: documentsViewModel,
+                            onSaleUpdated: { updatedSale in
+                                onSaleUpdated(updatedSale)
+                            }
+                        )
+                    } label: {
+                        Label("Ver comprobantes", systemImage: "doc.text.magnifyingglass")
+                    }
+                }
+
+                Button {
+                    NexoKeyboard.dismiss()
+                    Task { await viewModel.load() }
+                } label: {
+                    Label("Actualizar venta y caja", systemImage: "arrow.clockwise")
+                }
+                .disabled(viewModel.isLoadingCash)
+            }
+        } else {
+            Section("Confirmación") {
+                Button {
+                    shouldIssueDocumentAfterPayment = false
+                    NexoKeyboard.dismiss()
+                    showSubmitConfirmation = true
+                } label: {
+                    if viewModel.isSubmitting {
+                        ProgressView()
+                    } else if viewModel.selectedMode == .credit {
+                        Label("Crear cuenta por cobrar", systemImage: "person.crop.circle.badge.clock")
+                    } else {
+                        Label("Confirmar cobro", systemImage: "checkmark.seal")
+                    }
+                }
+                .disabled(viewModel.selectedMode == .credit ? !viewModel.canCreateReceivable : !viewModel.canSubmitPayment)
+
+                if viewModel.selectedMode != .credit {
+                    if viewModel.shouldShowPaymentAndIssueElectronicDocumentAction {
+                        Button {
+                            shouldIssueDocumentAfterPayment = true
+                            NexoKeyboard.dismiss()
+                            showSubmitConfirmation = true
+                        } label: {
+                            if viewModel.isSubmitting || viewModel.isIssuingElectronicDocument {
+                                ProgressView()
+                            } else {
+                                Label("Confirmar cobro y emitir documento", systemImage: "doc.badge.plus")
+                            }
+                        }
+                        .disabled(!viewModel.canSubmitPaymentAndIssueElectronicDocument)
+                    }
+
+                    if let reason = viewModel.electronicDocumentAfterPaymentBlockedReason {
+                        PaymentOutcomeMessageView(
+                            message: reason,
+                            systemImage: "info.circle",
+                            tint: .secondary
+                        )
+
+                        if let detail = viewModel.sale.electronicInvoiceReadiness.detailedMessage {
+                            Text(detail)
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+
+                Button {
+                    NexoKeyboard.dismiss()
+                    Task { await viewModel.load() }
+                } label: {
+                    Label("Actualizar caja", systemImage: "arrow.clockwise")
+                }
+                .disabled(viewModel.isLoadingCash)
+            }
+        }
+    }
+
+    @ViewBuilder
     private var paymentResultSection: some View {
         if let payment = viewModel.paymentResult {
-            Section("Cobro registrado") {
-                Label("Cobro registrado correctamente", systemImage: "checkmark.seal.fill")
-                    .foregroundStyle(.green)
+            Section("Cobro") {
+                PaymentOutcomeMessageView(
+                    message: "Cobro registrado correctamente.",
+                    systemImage: "checkmark.seal.fill",
+                    tint: .green
+                )
+
                 LabeledContent("Método", value: viewModel.paymentMethodDisplayName(payment.method))
-                LabeledContent("Monto", value: payment.amount.displayText)
+                LabeledContent("Monto cobrado", value: money(payment.amount))
 
                 if viewModel.registeredPaymentWasCash {
                     Divider()
-                    Label("Caja actualizada automáticamente", systemImage: "banknote.fill")
-                        .foregroundStyle(.green)
+                    PaymentOutcomeMessageView(
+                        message: "Caja actualizada automáticamente.",
+                        systemImage: "banknote.fill",
+                        tint: .green
+                    )
 
                     if let movement = viewModel.cashMovementResult {
-                        LabeledContent("Movimiento de caja", value: movement.id)
                         LabeledContent("Monto en caja", value: movement.amount.displayText)
                     }
-
                     if let session = viewModel.currentCashSession, let expected = session.expectedAmount {
                         LabeledContent("Efectivo esperado", value: expected.displayText)
                     }
+
+                    Text("El movimiento de caja ya fue creado por el sistema. No registres este cobro como ajuste manual.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
                 }
             }
         }
 
         if let receivable = viewModel.receivableResult {
             Section("Cuenta por cobrar") {
-                Label("Cuenta por cobrar creada", systemImage: "person.crop.circle.badge.clock")
-                    .foregroundStyle(.orange)
-                LabeledContent("ID", value: receivable.id)
-                LabeledContent("Monto", value: receivable.amount.displayText)
+                PaymentOutcomeMessageView(
+                    message: "Cuenta por cobrar creada.",
+                    systemImage: "person.crop.circle.badge.clock",
+                    tint: .orange
+                )
+
+                LabeledContent("Monto", value: money(receivable.amount))
                 if let balance = receivable.balance {
-                    LabeledContent("Saldo", value: balance.displayText)
+                    LabeledContent("Saldo", value: money(balance))
                 }
             }
         }
 
         if let document = viewModel.electronicDocumentResult {
             Section("Factura electrónica") {
-                Label(
-                    BusinessDocumentStatusPresentation.displayName(document.effectiveStatus),
-                    systemImage: BusinessDocumentStatusPresentation.systemImage(document.effectiveStatus)
+                PaymentOutcomeMessageView(
+                    message: PaymentDocumentOutcomePresentation.title(for: document),
+                    systemImage: PaymentDocumentOutcomePresentation.systemImage(for: document),
+                    tint: PaymentDocumentOutcomePresentation.tint(for: document)
                 )
-                .foregroundStyle(BusinessDocumentStatusPresentation.isError(document.effectiveStatus) ? .red : .secondary)
 
                 if let number = document.number, !number.isEmpty {
                     LabeledContent("Número", value: number)
                 }
+                if let authorizationNumber = document.authorizationNumber, !authorizationNumber.isEmpty {
+                    LabeledContent("Autorización", value: authorizationNumber)
+                }
                 if let error = BusinessDocumentTextSanitizer.sanitizedMessage(document.lastErrorMessage) {
-                    Label(error, systemImage: "exclamationmark.triangle")
-                        .font(.footnote)
-                        .foregroundStyle(.red)
+                    PaymentOutcomeMessageView(
+                        message: error,
+                        systemImage: "exclamationmark.triangle",
+                        tint: .red
+                    )
                 } else if BusinessDocumentStatusPresentation.isAuthorized(document.effectiveStatus) {
-                    Label("Disponible en Comprobantes para ver RIDE, XML o compartir.", systemImage: "doc.text.magnifyingglass")
+                    Text("Disponible en Comprobantes para revisar RIDE, XML o compartir con el cliente.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
@@ -708,20 +830,87 @@ struct PaymentRegisterInlineView: View {
     @ViewBuilder
     private var paymentMessagesSection: some View {
         if let message = viewModel.errorMessage {
-            Section {
-                Label(message, systemImage: "exclamationmark.triangle")
-                    .font(.footnote)
-                    .foregroundStyle(.red)
+            Section("Atención") {
+                PaymentOutcomeMessageView(
+                    message: message,
+                    systemImage: "exclamationmark.triangle",
+                    tint: .red
+                )
             }
         }
 
-        if let message = viewModel.infoMessage {
+        if let message = viewModel.infoMessage, !viewModel.hasCompletedSubmission {
             Section {
-                Label(message, systemImage: "checkmark.circle")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
+                PaymentOutcomeMessageView(
+                    message: message,
+                    systemImage: "info.circle",
+                    tint: .secondary
+                )
             }
         }
+    }
+
+    private func money(_ value: MoneyAmount) -> String {
+        value.displayText
+    }
+}
+
+
+private struct PaymentOutcomeMessageView: View {
+    let message: String
+    let systemImage: String
+    let tint: Color
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: systemImage)
+                .foregroundStyle(tint)
+                .frame(width: 22)
+
+            Text(message)
+                .font(.footnote)
+                .foregroundStyle(tint)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .accessibilityElement(children: .combine)
+    }
+}
+
+private enum PaymentDocumentOutcomePresentation {
+    static func title(for document: BusinessDocument) -> String {
+        if BusinessDocumentStatusPresentation.isAuthorized(document.effectiveStatus) {
+            return "Factura electrónica autorizada."
+        }
+
+        if BusinessDocumentStatusPresentation.isError(document.effectiveStatus) {
+            return "Factura electrónica no autorizada."
+        }
+
+        return "Factura electrónica: \(BusinessDocumentStatusPresentation.displayName(document.effectiveStatus))."
+    }
+
+    static func systemImage(for document: BusinessDocument) -> String {
+        if BusinessDocumentStatusPresentation.isAuthorized(document.effectiveStatus) {
+            return "checkmark.seal.fill"
+        }
+
+        if BusinessDocumentStatusPresentation.isError(document.effectiveStatus) {
+            return "exclamationmark.triangle.fill"
+        }
+
+        return BusinessDocumentStatusPresentation.systemImage(document.effectiveStatus)
+    }
+
+    static func tint(for document: BusinessDocument) -> Color {
+        if BusinessDocumentStatusPresentation.isAuthorized(document.effectiveStatus) {
+            return .green
+        }
+
+        if BusinessDocumentStatusPresentation.isError(document.effectiveStatus) {
+            return .red
+        }
+
+        return .secondary
     }
 }
 
