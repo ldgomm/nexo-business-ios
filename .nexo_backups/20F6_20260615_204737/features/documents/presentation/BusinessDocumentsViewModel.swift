@@ -471,20 +471,27 @@ final class BusinessDocumentsViewModel {
     }
 
     private func handle(apiError: APIError) {
-        let rawMessage = apiError.serverMessage ?? apiError.userMessage
+        let message = apiError.userMessage
 
-        if let invoiceBlocker = APIErrorHumanizer.electronicInvoiceTaxBlockerMessage(from: rawMessage) {
-            serverInvoiceBlockerMessage = invoiceBlocker
-            errorMessage = invoiceBlocker
-            infoMessage = "Puedes cobrar la venta como registro interno. Para facturar, corrige el producto en catálogo y registra una nueva venta con configuración tributaria válida."
+        if isInvalidTaxProfileError(message) {
+            serverInvoiceBlockerMessage = "No se puede emitir factura electrónica. La venta tiene productos configurados como Solo registro o sin código SRI válido."
+            errorMessage = serverInvoiceBlockerMessage
+            infoMessage = "Corrige el impuesto del producto en catálogo o registra una nueva venta con un tratamiento tributario válido para SRI."
             return
         }
 
-        errorMessage = apiError.userMessage
+        errorMessage = message
 
         if apiError.statusCode == 409 || apiError.statusCode == 428 {
             infoMessage = "Actualiza el contexto del negocio antes de continuar."
         }
+    }
+
+    private func isInvalidTaxProfileError(_ message: String) -> Bool {
+        message.localizedCaseInsensitiveContains("tax profile") ||
+        message.localizedCaseInsensitiveContains("NO_SRI_TAX_CODE") ||
+        message.localizedCaseInsensitiveContains("not valid for electronic invoicing") ||
+        message.localizedCaseInsensitiveContains("no es válido para facturación electrónica")
     }
 
     private func hasPermission(_ candidates: [String]) -> Bool {

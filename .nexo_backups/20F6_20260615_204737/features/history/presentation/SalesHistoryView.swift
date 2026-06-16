@@ -155,10 +155,7 @@ struct SalesHistoryView: View {
                             cashRepository: cashRepository,
                             paymentsRepository: paymentsRepository,
                             receivablesRepository: receivablesRepository,
-                            documentsRepository: documentsRepository,
-                            onSaleUpdated: { updatedSale in
-                                viewModel.applySaleUpdate(updatedSale)
-                            }
+                            documentsRepository: documentsRepository
                         )
                     } label: {
                         SalesHistoryRow(sale: sale, document: viewModel.primaryDocument(for: sale))

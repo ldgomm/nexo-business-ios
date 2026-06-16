@@ -710,19 +710,9 @@ enum BusinessDocumentTextSanitizer {
         let trimmed = message.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return nil }
 
-        if let humanized = APIErrorHumanizer.humanizedBusinessMessage(trimmed) {
-            return humanized
-        }
-
         let lowercased = trimmed.lowercased()
 
         let forbiddenFragments = [
-            "domain_rule_violation",
-            "sitem_",
-            "sale item",
-            "sritaxcode",
-            "sri_tax_code",
-            "tax profile",
             "electronic-invoicing/",
             "ride_pdf/",
             "signed_xml",

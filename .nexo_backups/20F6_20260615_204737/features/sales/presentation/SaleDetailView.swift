@@ -7,7 +7,6 @@ struct SaleDetailView: View {
     private let paymentsRepository: PaymentsRepository
     private let receivablesRepository: ReceivablesRepository
     private let documentsRepository: BusinessDocumentsRepository
-    private let onSaleUpdated: (BusinessSale) -> Void
 
     init(
         viewModel: SaleDetailViewModel,
@@ -15,8 +14,7 @@ struct SaleDetailView: View {
         cashRepository: CashRepository,
         paymentsRepository: PaymentsRepository,
         receivablesRepository: ReceivablesRepository,
-        documentsRepository: BusinessDocumentsRepository,
-        onSaleUpdated: @escaping (BusinessSale) -> Void = { _ in }
+        documentsRepository: BusinessDocumentsRepository
     ) {
         self.viewModel = viewModel
         self.customersRepository = customersRepository
@@ -24,7 +22,6 @@ struct SaleDetailView: View {
         self.paymentsRepository = paymentsRepository
         self.receivablesRepository = receivablesRepository
         self.documentsRepository = documentsRepository
-        self.onSaleUpdated = onSaleUpdated
     }
 
     var body: some View {
@@ -66,11 +63,6 @@ struct SaleDetailView: View {
         .task {
             if viewModel.shouldLoadOnAppear {
                 await viewModel.load()
-            }
-        }
-        .onChange(of: viewModel.sale) { _, sale in
-            if let sale {
-                onSaleUpdated(sale)
             }
         }
     }
@@ -251,10 +243,7 @@ struct SaleDetailView: View {
                             activityId: sale.activityId,
                             revisions: viewModel.revisions
                         ),
-                        customersRepository: customersRepository,
-                        onSaleUpdated: { updatedSale in
-                            viewModel.applySaleUpdate(updatedSale)
-                        }
+                        customersRepository: customersRepository
                     )
                 } label: {
                     Label("Cobrar venta", systemImage: "dollarsign.circle")
@@ -272,10 +261,7 @@ struct SaleDetailView: View {
                             activityId: sale.activityId,
                             revisions: viewModel.revisions,
                             documentsRepository: documentsRepository
-                        ),
-                        onSaleUpdated: { updatedSale in
-                            viewModel.applySaleUpdate(updatedSale)
-                        }
+                        )
                     )
                 } label: {
                     Label(

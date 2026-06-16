@@ -117,21 +117,27 @@ enum APIErrorHumanizer {
         code: String?,
         fallback: String
     ) -> String {
+        if let businessMessage = humanizedBusinessMessage(fallback) {
+            return businessMessage
+        }
+
+        let safeFallback = safeVisibleFallback(fallback)
+
         switch statusCode {
         case 400:
-            return fallback.isEmpty ? "La solicitud no es válida." : fallback
+            return safeFallback ?? "La solicitud no es válida."
         case 401:
             return "Tu sesión caducó. Vuelve a iniciar sesión."
         case 403:
             return "No tienes permiso para realizar esta acción."
         case 404:
-            return fallback.isEmpty ? "No encontramos la información solicitada." : fallback
+            return safeFallback ?? "No encontramos la información solicitada."
         case 408:
             return "La solicitud tardó demasiado. Inténtalo nuevamente."
         case 409:
             return "La información del negocio cambió. Actualiza el contexto e inténtalo otra vez."
         case 422:
-            return fallback.isEmpty ? "Hay datos inválidos en la solicitud." : fallback
+            return safeFallback ?? "Hay datos que deben corregirse antes de continuar."
         case 428:
             return "Falta una revisión requerida de catálogo o configuración tributaria. Actualiza el contexto."
         case 429:
@@ -139,8 +145,134 @@ enum APIErrorHumanizer {
         case 500, 502, 503, 504:
             return "El servidor no respondió correctamente. Inténtalo nuevamente en unos segundos."
         default:
-            return fallback.isEmpty ? "Solicitud rechazada." : fallback
+            return safeFallback ?? "Solicitud rechazada."
         }
+    }
+
+    static func humanizedBusinessMessage(_ rawMessage: String?) -> String? {
+        guard let rawMessage else { return nil }
+        let trimmed = rawMessage.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+
+        if let invoiceTaxMessage = electronicInvoiceTaxBlockerMessage(from: trimmed) {
+            return invoiceTaxMessage
+        }
+
+        let normalized = normalize(trimmed)
+
+        if normalized.contains("error en la identificacion del receptor") ||
+            (normalized.contains("identificacion") && normalized.contains("receptor")) ||
+            (normalized.contains("identification") && normalized.contains("receiver")) ||
+            (normalized.contains("comprador") && normalized.contains("identificacion")) {
+            return "La identificación del cliente no fue aceptada. Revisa cédula, RUC o pasaporte, o usa Consumidor final cuando corresponda."
+        }
+
+        if normalized.contains("firma") ||
+            normalized.contains("signature") ||
+            normalized.contains("certificate") ||
+            normalized.contains("certificado") ||
+            normalized.contains("pkcs12") ||
+            normalized.contains("p12") ||
+            normalized.contains("pfx") {
+            return "Falta configurar o validar la firma electrónica del negocio. Revisa la firma antes de emitir factura electrónica."
+        }
+
+        if normalized.contains("sequence") ||
+            normalized.contains("secuencia") ||
+            normalized.contains("secuencial") ||
+            normalized.contains("emission point") ||
+            normalized.contains("punto de emision") {
+            return "Hay un problema con la secuencia del punto de emisión. Revisa la configuración fiscal antes de emitir."
+        }
+
+        if normalized.contains("ride") && (normalized.contains("missing") || normalized.contains("not found") || normalized.contains("no disponible") || normalized.contains("no encontrado")) {
+            return "La factura existe, pero el RIDE no está disponible todavía. Intenta actualizar o revisa el detalle del comprobante."
+        }
+
+        if (normalized.contains("authorized xml") || normalized.contains("xml autorizado")) &&
+            (normalized.contains("missing") || normalized.contains("not found") || normalized.contains("no disponible") || normalized.contains("no encontrado")) {
+            return "La factura existe, pero el XML autorizado no está disponible todavía. Actualiza el comprobante o revisa su detalle."
+        }
+
+        if normalized.contains("clave de acceso") && normalized.contains("49") {
+            return "La clave de acceso del comprobante no es válida. Revisa la configuración fiscal y vuelve a intentar."
+        }
+
+        if normalized.contains("ambiente") && (normalized.contains("pruebas") || normalized.contains("produccion") || normalized.contains("production") || normalized.contains("test")) {
+            return "El ambiente de emisión no coincide con la configuración actual. Revisa si el negocio está en pruebas o producción."
+        }
+
+        return nil
+    }
+
+    static func electronicInvoiceTaxBlockerMessage(from rawMessage: String?) -> String? {
+        guard let rawMessage else { return nil }
+        let normalized = normalize(rawMessage)
+
+        let hasNoSriTaxCode = normalized.contains("no_sri_tax_code") || normalized.contains("no sri tax code")
+        let hasTaxProfile = normalized.contains("tax profile") || normalized.contains("perfil tributario") || normalized.contains("configuracion tributaria")
+        let hasElectronicInvoicing = normalized.contains("electronic invoicing") || normalized.contains("facturacion electronica") || normalized.contains("factura electronica")
+        let hasSoloRegistro = normalized.contains("solo registro") || normalized.contains("no_tax_internal") || normalized.contains("internal_no_tax") || normalized.contains("operational_no_tax") || normalized.contains("altos_staging_no_tax_internal")
+
+        if hasNoSriTaxCode || hasSoloRegistro || (hasTaxProfile && hasElectronicInvoicing) || normalized.contains("not valid for electronic invoicing") {
+            return "Esta venta contiene productos configurados como “Solo registro” o sin código tributario válido para factura electrónica. Puedes cobrarla como venta interna, pero no emitir factura electrónica."
+        }
+
+        return nil
+    }
+
+    private static func safeVisibleFallback(_ fallback: String?) -> String? {
+        guard let fallback else { return nil }
+        let trimmed = fallback.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+
+        if looksTechnical(trimmed) {
+            return nil
+        }
+
+        return trimmed
+    }
+
+    private static func looksTechnical(_ message: String) -> Bool {
+        let normalized = normalize(message)
+        let fragments = [
+            "domain_rule_violation",
+            "sritaxcode",
+            "sri_tax_code",
+            "taxprofile",
+            "tax profile",
+            "sitem_",
+            "sale item",
+            "objectkey",
+            "storagekey",
+            "bucket",
+            "electronic-invoicing/",
+            "ride_pdf/",
+            "signed_xml",
+            "authorized_xml",
+            "generated_xml",
+            "sri_request",
+            "sri_response",
+            "/tmp/",
+            "/var/",
+            ".p12",
+            ".pfx",
+            "privatekey",
+            "stacktrace",
+            "exception",
+            "traceback"
+        ]
+
+        return fragments.contains { normalized.contains($0) }
+    }
+
+    private static func normalize(_ value: String) -> String {
+        value
+            .folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current)
+            .lowercased()
+            .replacingOccurrences(of: "-", with: "_")
+            .replacingOccurrences(of: "\n", with: " ")
+            .replacingOccurrences(of: "\t", with: " ")
     }
 }
 

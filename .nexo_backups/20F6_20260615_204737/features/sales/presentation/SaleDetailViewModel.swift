@@ -74,12 +74,12 @@ final class SaleDetailViewModel {
             return nil
         }
 
-        if !sale.electronicInvoiceReadiness.canIssue {
-            return sale.electronicInvoiceReadiness.primaryMessage
-        }
-
         if !hasElectronicInvoiceIssuePermission {
             return "Tu usuario puede consultar comprobantes, pero no emitir factura electrónica. Pide al administrador activar Emitir factura electrónica."
+        }
+
+        if !sale.electronicInvoiceReadiness.canIssue {
+            return sale.electronicInvoiceReadiness.primaryMessage
         }
 
         if !hasValidEmissionContext(for: sale) {
@@ -206,10 +206,6 @@ final class SaleDetailViewModel {
 
     func refresh() async {
         await load()
-    }
-
-    func applySaleUpdate(_ updatedSale: BusinessSale) {
-        sale = salePreservingKnownElectronicDocument(updatedSale)
     }
 
     func confirm() async {

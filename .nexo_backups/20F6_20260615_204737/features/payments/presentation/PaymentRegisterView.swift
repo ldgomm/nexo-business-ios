@@ -269,22 +269,18 @@ struct PaymentRegisterView: View {
         if let document = viewModel.electronicDocumentResult {
             Section("Factura electrónica") {
                 Label(
-                    BusinessDocumentStatusPresentation.displayName(document.effectiveStatus),
-                    systemImage: BusinessDocumentStatusPresentation.systemImage(document.effectiveStatus)
+                    BusinessDocumentStatusPresentation.displayName(document.status),
+                    systemImage: BusinessDocumentStatusPresentation.systemImage(document.status)
                 )
-                .foregroundStyle(BusinessDocumentStatusPresentation.isError(document.effectiveStatus) ? .red : .secondary)
+                .foregroundStyle(BusinessDocumentStatusPresentation.isError(document.status) ? .red : .secondary)
 
                 if let number = document.number, !number.isEmpty {
                     LabeledContent("Número", value: number)
                 }
-                if let error = BusinessDocumentTextSanitizer.sanitizedMessage(document.lastErrorMessage) {
+                if let error = document.lastErrorMessage, !error.isEmpty {
                     Label(error, systemImage: "exclamationmark.triangle")
                         .font(.footnote)
                         .foregroundStyle(.red)
-                } else if BusinessDocumentStatusPresentation.isAuthorized(document.effectiveStatus) {
-                    Label("Disponible en Comprobantes para ver RIDE, XML o compartir.", systemImage: "doc.text.magnifyingglass")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
                 }
             }
         }
@@ -347,20 +343,18 @@ struct PaymentRegisterView: View {
                 .disabled(viewModel.selectedMode == .credit ? !viewModel.canCreateReceivable : !viewModel.canSubmitPayment)
 
                 if viewModel.selectedMode != .credit {
-                    if viewModel.shouldShowPaymentAndIssueElectronicDocumentAction {
-                        Button {
-                            shouldIssueDocumentAfterPayment = true
-                            NexoKeyboard.dismiss()
-                            showSubmitConfirmation = true
-                        } label: {
-                            if viewModel.isSubmitting || viewModel.isIssuingElectronicDocument {
-                                ProgressView()
-                            } else {
-                                Label("Confirmar cobro y emitir documento", systemImage: "doc.badge.plus")
-                            }
+                    Button {
+                        shouldIssueDocumentAfterPayment = true
+                        NexoKeyboard.dismiss()
+                        showSubmitConfirmation = true
+                    } label: {
+                        if viewModel.isSubmitting || viewModel.isIssuingElectronicDocument {
+                            ProgressView()
+                        } else {
+                            Label("Confirmar cobro y emitir documento", systemImage: "doc.badge.plus")
                         }
-                        .disabled(!viewModel.canSubmitPaymentAndIssueElectronicDocument)
                     }
+                    .disabled(!viewModel.canSubmitPaymentAndIssueElectronicDocument)
 
                     if let reason = viewModel.electronicDocumentAfterPaymentBlockedReason {
                         Label(reason, systemImage: "info.circle")
@@ -605,31 +599,23 @@ struct PaymentRegisterInlineView: View {
             .disabled(viewModel.selectedMode == .credit ? !viewModel.canCreateReceivable : !viewModel.canSubmitPayment)
 
             if viewModel.selectedMode != .credit {
-                if viewModel.shouldShowPaymentAndIssueElectronicDocumentAction {
-                    Button {
-                        shouldIssueDocumentAfterPayment = true
-                        NexoKeyboard.dismiss()
-                        showSubmitConfirmation = true
-                    } label: {
-                        if viewModel.isSubmitting || viewModel.isIssuingElectronicDocument {
-                            ProgressView()
-                        } else {
-                            Label("Confirmar cobro y emitir documento", systemImage: "doc.badge.plus")
-                        }
+                Button {
+                    shouldIssueDocumentAfterPayment = true
+                    NexoKeyboard.dismiss()
+                    showSubmitConfirmation = true
+                } label: {
+                    if viewModel.isSubmitting || viewModel.isIssuingElectronicDocument {
+                        ProgressView()
+                    } else {
+                        Label("Confirmar cobro y emitir documento", systemImage: "doc.badge.plus")
                     }
-                    .disabled(!viewModel.canSubmitPaymentAndIssueElectronicDocument)
                 }
+                .disabled(!viewModel.canSubmitPaymentAndIssueElectronicDocument)
 
                 if let reason = viewModel.electronicDocumentAfterPaymentBlockedReason {
                     Label(reason, systemImage: "info.circle")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
-
-                    if let detail = viewModel.sale.electronicInvoiceReadiness.detailedMessage {
-                        Text(detail)
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                    }
                 }
             }
 
@@ -684,22 +670,18 @@ struct PaymentRegisterInlineView: View {
         if let document = viewModel.electronicDocumentResult {
             Section("Factura electrónica") {
                 Label(
-                    BusinessDocumentStatusPresentation.displayName(document.effectiveStatus),
-                    systemImage: BusinessDocumentStatusPresentation.systemImage(document.effectiveStatus)
+                    BusinessDocumentStatusPresentation.displayName(document.status),
+                    systemImage: BusinessDocumentStatusPresentation.systemImage(document.status)
                 )
-                .foregroundStyle(BusinessDocumentStatusPresentation.isError(document.effectiveStatus) ? .red : .secondary)
+                .foregroundStyle(BusinessDocumentStatusPresentation.isError(document.status) ? .red : .secondary)
 
                 if let number = document.number, !number.isEmpty {
                     LabeledContent("Número", value: number)
                 }
-                if let error = BusinessDocumentTextSanitizer.sanitizedMessage(document.lastErrorMessage) {
+                if let error = document.lastErrorMessage, !error.isEmpty {
                     Label(error, systemImage: "exclamationmark.triangle")
                         .font(.footnote)
                         .foregroundStyle(.red)
-                } else if BusinessDocumentStatusPresentation.isAuthorized(document.effectiveStatus) {
-                    Label("Disponible en Comprobantes para ver RIDE, XML o compartir.", systemImage: "doc.text.magnifyingglass")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
                 }
             }
         }

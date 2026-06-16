@@ -124,19 +124,6 @@ final class SalesHistoryViewModel {
         sale.primaryElectronicDocument ?? primaryDocumentBySaleId[sale.id]
     }
 
-    func applySaleUpdate(_ updatedSale: BusinessSale) {
-        let knownDocument = updatedSale.primaryElectronicDocument ?? primaryDocumentBySaleId[updatedSale.id]
-        let enrichedSale = updatedSale.replacingElectronicDocument(knownDocument)
-
-        if let index = sales.firstIndex(where: { $0.id == updatedSale.id }) {
-            sales[index] = enrichedSale
-        }
-
-        if let knownDocument {
-            primaryDocumentBySaleId[updatedSale.id] = knownDocument
-        }
-    }
-
     private func load(force: Bool) async {
         guard canViewSales else {
             sales = []

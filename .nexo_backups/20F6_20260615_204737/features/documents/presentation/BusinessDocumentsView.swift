@@ -2,14 +2,9 @@ import SwiftUI
 
 struct BusinessDocumentsView: View {
     @Bindable private var viewModel: BusinessDocumentsViewModel
-    private let onSaleUpdated: (BusinessSale) -> Void
 
-    init(
-        viewModel: BusinessDocumentsViewModel,
-        onSaleUpdated: @escaping (BusinessSale) -> Void = { _ in }
-    ) {
+    init(viewModel: BusinessDocumentsViewModel) {
         self.viewModel = viewModel
-        self.onSaleUpdated = onSaleUpdated
     }
 
     var body: some View {
@@ -36,9 +31,6 @@ struct BusinessDocumentsView: View {
             if viewModel.shouldLoadOnAppear {
                 await viewModel.load()
             }
-        }
-        .onChange(of: viewModel.sale) { _, sale in
-            onSaleUpdated(sale)
         }
     }
 

@@ -535,7 +535,7 @@ struct ElectronicInvoiceReadiness: Equatable, Sendable {
             return first.message
         }
 
-        return "Esta venta contiene \(blockers.count) productos configurados como “Solo registro” o sin código tributario válido para factura electrónica."
+        return "No se puede emitir factura electrónica. Hay \(blockers.count) ítems con configuración tributaria no válida para SRI."
     }
 
     var detailedMessage: String? {
@@ -547,10 +547,10 @@ struct ElectronicInvoiceReadiness: Equatable, Sendable {
             .joined(separator: ", ")
 
         if blockers.count <= 3 {
-            return "Productos a revisar antes de facturar: \(names)."
+            return "Corrige el tratamiento tributario antes de emitir: \(names)."
         }
 
-        return "Productos a revisar antes de facturar: \(names) y \(blockers.count - 3) más."
+        return "Corrige el tratamiento tributario antes de emitir: \(names) y \(blockers.count - 3) más."
     }
 }
 
@@ -577,7 +577,7 @@ enum ElectronicInvoiceReadinessEvaluator {
         let name = itemName?.nilIfBlankForReadiness ?? "ítem"
         return ElectronicInvoiceReadinessBlocker(
             code: "invalid_tax_profile",
-            message: "\(name) está configurado como “Solo registro” o sin código tributario válido para factura electrónica. Puedes cobrarlo como venta interna, pero no emitir factura electrónica.",
+            message: "No se puede emitir factura electrónica. \(name) usa un impuesto de solo registro o sin código SRI válido.",
             itemId: itemId,
             itemName: itemName,
             technicalValue: "\(failed.label)=\(failed.value ?? "")"

@@ -183,14 +183,6 @@ final class PaymentRegisterViewModel {
         canSubmitPayment && canIssueElectronicDocumentAfterPayment
     }
 
-    var shouldShowPaymentAndIssueElectronicDocumentAction: Bool {
-        selectedMode != .credit &&
-        !hasCompletedSubmission &&
-        !sale.hasElectronicDocumentRegistered &&
-        BusinessDocumentStatusPresentation.isMissingElectronicDocument(sale.effectiveDocumentStatus) &&
-        sale.electronicInvoiceReadiness.canIssue
-    }
-
     var canIssueElectronicDocumentAfterPayment: Bool {
         documentsRepository != nil &&
         hasElectronicInvoiceIssuePermission &&
@@ -416,12 +408,6 @@ final class PaymentRegisterViewModel {
             return
         }
 
-        let shouldIssueElectronicDocument = issueElectronicDocumentAfterPayment && canIssueElectronicDocumentAfterPayment
-        guard !issueElectronicDocumentAfterPayment || shouldIssueElectronicDocument else {
-            errorMessage = electronicDocumentAfterPaymentBlockedReason ?? "No se puede emitir factura electrónica para esta venta."
-            return
-        }
-
         guard let method = selectedMode.paymentMethod else {
             errorMessage = "Método de cobro no válido."
             return
@@ -473,7 +459,7 @@ final class PaymentRegisterViewModel {
                 infoMessage = "Cobro registrado correctamente."
             }
 
-            if shouldIssueElectronicDocument {
+            if issueElectronicDocumentAfterPayment {
                 await issueElectronicInvoiceAfterPayment()
             }
         } catch let error as APIError {
@@ -514,48 +500,21 @@ final class PaymentRegisterViewModel {
 
             electronicDocumentResult = response.document
             sale = sale.replacingElectronicDocument(response.document)
-            infoMessage = electronicInvoiceAfterPaymentSuccessMessage(response: response)
+            let statusText = BusinessDocumentStatusPresentation.displayName(response.document.effectiveStatus)
+            if response.idempotencyReplayed {
+                infoMessage = "Cobro confirmado. Factura recuperada de un intento anterior: \(statusText)."
+            } else if response.authorized {
+                infoMessage = "Cobro confirmado y factura autorizada correctamente."
+            } else if let error = response.document.lastErrorMessage, !error.isEmpty {
+                infoMessage = "Cobro confirmado. La factura fue emitida, pero requiere revisión: \(error)."
+            } else {
+                infoMessage = "Cobro confirmado. Factura electrónica emitida: \(statusText)."
+            }
         } catch let error as APIError {
-            errorMessage = electronicInvoiceAfterPaymentFailureMessage(reason: humanMessage(for: error))
+            errorMessage = "Cobro confirmado, pero no se pudo emitir la factura: \(error.userMessage)"
         } catch {
-            errorMessage = electronicInvoiceAfterPaymentFailureMessage(reason: error.localizedDescription)
+            errorMessage = "Cobro confirmado, pero no se pudo emitir la factura: \(error.localizedDescription)"
         }
-    }
-
-    private func electronicInvoiceAfterPaymentSuccessMessage(response: BusinessElectronicDocumentIssueResponse) -> String {
-        let paymentLine = registeredPaymentWasCash
-            ? "Cobro registrado.\nLa caja fue actualizada."
-            : "Cobro registrado.\nLa venta quedó cobrada."
-
-        let document = response.document
-        let statusText = BusinessDocumentStatusPresentation.displayName(document.effectiveStatus)
-        let numberText = document.displayNumber.trimmingCharacters(in: .whitespacesAndNewlines)
-
-        if response.idempotencyReplayed {
-            return "\(paymentLine)\n\nFactura recuperada de un intento anterior.\nEstado: \(statusText)."
-        }
-
-        if response.authorized {
-            let numberLine = numberText.isEmpty ? "" : "\nNúmero: \(numberText)"
-            return "\(paymentLine)\n\nFactura electrónica autorizada.\(numberLine)\nPuedes verla en Comprobantes para revisar RIDE, XML o compartirla."
-        }
-
-        if let error = BusinessDocumentTextSanitizer.sanitizedMessage(document.lastErrorMessage) {
-            return "\(paymentLine)\n\nFactura electrónica no autorizada.\nMotivo: \(error)\nRevisa el comprobante antes de intentar otra acción."
-        }
-
-        return "\(paymentLine)\n\nFactura electrónica emitida.\nEstado: \(statusText).\nRevisa Comprobantes para ver RIDE, XML, correo y timeline."
-    }
-
-    private func electronicInvoiceAfterPaymentFailureMessage(reason: String) -> String {
-        let paymentLine = registeredPaymentWasCash
-            ? "Cobro registrado.\nLa caja fue actualizada."
-            : "Cobro registrado.\nLa venta quedó cobrada."
-
-        let cleanedReason = reason.trimmingCharacters(in: .whitespacesAndNewlines)
-        let finalReason = cleanedReason.isEmpty ? "La factura electrónica no pudo emitirse." : cleanedReason
-
-        return "\(paymentLine)\n\nNo se pudo emitir la factura electrónica.\nMotivo: \(finalReason)\n\nLa venta ya quedó cobrada. No vuelvas a confirmar el cobro."
     }
 
     func createReceivable() async {
