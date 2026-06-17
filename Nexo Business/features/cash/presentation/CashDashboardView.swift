@@ -9,11 +9,15 @@ import SwiftUI
 
 struct CashDashboardView: View {
     @Bindable private var viewModel: CashDashboardViewModel
+    private let refreshOnAppear: Bool
 
-    init(viewModel: CashDashboardViewModel) {
+    init(
+        viewModel: CashDashboardViewModel,
+        refreshOnAppear: Bool = false
+    ) {
         self.viewModel = viewModel
+        self.refreshOnAppear = refreshOnAppear
     }
-
 
     var body: some View {
         ScrollView {
@@ -69,7 +73,11 @@ struct CashDashboardView: View {
             Text(viewModel.closeConfirmationMessage)
         }
         .task {
-            await viewModel.loadIfNeeded()
+            if refreshOnAppear {
+                await viewModel.load()
+            } else {
+                await viewModel.loadIfNeeded()
+            }
         }
     }
 

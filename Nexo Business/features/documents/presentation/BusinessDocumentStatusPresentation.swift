@@ -123,3 +123,66 @@ enum BusinessDocumentStatusPresentation {
         return cleaned.prefix(1).uppercased() + cleaned.dropFirst()
     }
 }
+
+enum BusinessDocumentEmailStatusPresentation {
+    static func displayName(_ status: String?, recipient: String? = nil, sentAt: Date? = nil) -> String {
+        if sentAt != nil {
+            return "Enviado al cliente"
+        }
+
+        switch normalized(status) {
+        case "delivered", "sent", "sent_email", "email_sent":
+            return "Enviado al cliente"
+        case "pending", "delivery_pending", "queued", "accepted":
+            return "Pendiente de envío"
+        case "failed", "delivery_failed", "email_failed", "error":
+            return "No se pudo enviar"
+        case "not_started", "not_sent", "none", "":
+            return recipient?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+                ? "No enviado todavía"
+                : "Sin correo del cliente"
+        default:
+            if let status, !status.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                return BusinessDocumentStatusPresentation.displayName(status)
+            }
+            return recipient?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+                ? "No enviado todavía"
+                : "Sin correo del cliente"
+        }
+    }
+
+    static func systemImage(_ status: String?, sentAt: Date? = nil) -> String {
+        if sentAt != nil {
+            return "envelope.badge.checkmark"
+        }
+
+        switch normalized(status) {
+        case "delivered", "sent", "sent_email", "email_sent":
+            return "envelope.badge.checkmark"
+        case "pending", "delivery_pending", "queued", "accepted":
+            return "clock.badge"
+        case "failed", "delivery_failed", "email_failed", "error":
+            return "envelope.badge.exclamationmark"
+        case "not_started", "not_sent", "none", "":
+            return "envelope"
+        default:
+            return "envelope"
+        }
+    }
+
+    static func isError(_ status: String?) -> Bool {
+        switch normalized(status) {
+        case "failed", "delivery_failed", "email_failed", "error":
+            return true
+        default:
+            return false
+        }
+    }
+
+    private static func normalized(_ status: String?) -> String {
+        status?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+            .replacingOccurrences(of: "-", with: "_") ?? ""
+    }
+}

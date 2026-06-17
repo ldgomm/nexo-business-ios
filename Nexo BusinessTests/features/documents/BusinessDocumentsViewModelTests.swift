@@ -16,9 +16,9 @@ final class BusinessDocumentsViewModelTests: XCTestCase {
 
         await viewModel.load()
 
-        XCTAssertEqual(repository.listCalls, 1)
+        XCTAssertEqual(repository.listElectronicDocumentsCalls, 1)
         XCTAssertEqual(viewModel.documents.count, 1)
-        XCTAssertEqual(viewModel.documents.first?.type, "internal_ticket")
+        XCTAssertEqual(viewModel.documents.first?.type, "electronic_invoice")
         XCTAssertNil(viewModel.errorMessage)
     }
 
@@ -387,6 +387,7 @@ final class MockBusinessDocumentsRepository: BusinessDocumentFileDownloadingRepo
               "displayNumber": "001-001-000000123",
               "accessKey": "1234567890123456789012345678901234567890123456789",
               "status": "AUTHORIZED",
+              "customerEmail": "cliente@nexo.test",
               "environment": "test",
               "issueDate": "2026-06-11T14:00:00Z",
               "hasRide": true,
@@ -399,6 +400,7 @@ final class MockBusinessDocumentsRepository: BusinessDocumentFileDownloadingRepo
             "accessKey": "1234567890123456789012345678901234567890123456789",
             "status": "AUTHORIZED",
             "sriStatus": "AUTORIZADO",
+            "customerEmail": "cliente@nexo.test",
             "environment": "test",
             "issueDate": "2026-06-11T14:00:00Z",
             "sri": { "environment": "test", "authorizationStatus": "AUTORIZADO" },
@@ -407,7 +409,7 @@ final class MockBusinessDocumentsRepository: BusinessDocumentFileDownloadingRepo
             "timeline": [],
             "errors": [],
             "warnings": [],
-            "availableActions": ["view_detail", "view_timeline", "download_ride", "download_xml", "resend_email", "retry_reception", "retry_authorization", "regenerate_ride"],
+            "availableActions": ["view_detail", "view_timeline", "download_ride", "download_xml", "retry_reception", "retry_authorization", "regenerate_ride"\#(canResendEmail ? ", \"resend_email\"" : "")],
             "retrySummary": {
               "canRetryReception": true,
               "canRetryAuthorization": true,

@@ -99,7 +99,7 @@ final class SaleCartRevisionConflictTests: XCTestCase {
         XCTAssertEqual(sales.quickSaleRequests.count, 1)
         XCTAssertNil(viewModel.createdSale)
         XCTAssertNil(viewModel.errorMessage)
-        XCTAssertEqual(viewModel.infoMessage, "Contexto del negocio actualizado. Calcula nuevamente el total antes de registrar la venta.")
+        XCTAssertEqual(viewModel.infoMessage, "Contexto del negocio actualizado. Vuelve a registrar; el total local se actualizó y el servidor validará antes de guardar.")
     }
 }
 
@@ -131,11 +131,62 @@ private final class SalesRevisionConflictContextRepositorySpy: BusinessContextRe
 }
 
 private final class RevisionConflictSalesRepositorySpy: SalesRepository, @unchecked Sendable {
+    private(set) var bulkAddRequests: [BulkAddSaleItemsRequest] = []
+    private(set) var bulkUpdateRequests: [BulkUpdateSaleItemsRequest] = []
+    private(set) var bulkRemoveRequests: [BulkRemoveSaleItemsRequest] = []
     private var firstPreviewError: APIError?
     private let previewResponse: SalesPreviewResponse
     private let quickSaleError: APIError?
     private(set) var previewRequests: [SalesPreviewRequest] = []
     private(set) var quickSaleRequests: [QuickSaleRequest] = []
+    
+    func bulkAddItems(
+        organizationId: String,
+        saleId: String,
+        revisions: BusinessRevisions,
+        idempotencyKey: IdempotencyKey,
+        request: BulkAddSaleItemsRequest
+    ) async throws -> QuickSaleResponse {
+        bulkAddRequests.append(request)
+
+        if let quickSaleError {
+            throw quickSaleError
+        }
+
+        return PreviewData.quickSaleResponse
+    }
+
+    func bulkUpdateItems(
+        organizationId: String,
+        saleId: String,
+        revisions: BusinessRevisions,
+        idempotencyKey: IdempotencyKey,
+        request: BulkUpdateSaleItemsRequest
+    ) async throws -> QuickSaleResponse {
+        bulkUpdateRequests.append(request)
+
+        if let quickSaleError {
+            throw quickSaleError
+        }
+
+        return PreviewData.quickSaleResponse
+    }
+
+    func bulkRemoveItems(
+        organizationId: String,
+        saleId: String,
+        revisions: BusinessRevisions,
+        idempotencyKey: IdempotencyKey,
+        request: BulkRemoveSaleItemsRequest
+    ) async throws -> QuickSaleResponse {
+        bulkRemoveRequests.append(request)
+
+        if let quickSaleError {
+            throw quickSaleError
+        }
+
+        return PreviewData.quickSaleResponse
+    }
     
     init(
         firstPreviewError: APIError? = nil,

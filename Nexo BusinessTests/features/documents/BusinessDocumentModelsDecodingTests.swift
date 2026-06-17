@@ -330,4 +330,53 @@ final class BusinessDocumentModelsDecodingTests: XCTestCase {
         XCTAssertTrue(response.document.availableActions.contains(.unknown("future_action")))
     }
 
+
+    func testDecodesOperationalFieldsOnBusinessDocumentListItem() throws {
+        let json = #"""
+        {
+          "documents": [
+            {
+              "id": "edoc_1",
+              "documentId": "edoc_1",
+              "saleId": "sale_1",
+              "documentType": "electronic_invoice",
+              "displayNumber": "001-001-000000123",
+              "status": "DELIVERY_FAILED",
+              "sriStatus": "DELIVERY_FAILED",
+              "customerEmail": null,
+              "deliveryEmailTo": "cliente@nexo.test",
+              "emailStatus": "failed",
+              "availableActions": ["view_detail", "download_ride", "download_xml", "resend_email"],
+              "lastErrorSummary": {
+                "message": "Email sender returned false.",
+                "category": "email"
+              },
+              "retrySummary": {
+                "canResendEmail": true,
+                "emailAttempts": 1
+              }
+            }
+          ]
+        }
+        """#.data(using: .utf8)!
+
+        let response = try JSONDecoder.nexoDefault.decode(BusinessElectronicDocumentsResponse.self, from: json)
+        let document = try XCTUnwrap(response.documents.first)
+
+        XCTAssertEqual(document.effectiveCustomerEmail, "cliente@nexo.test")
+        XCTAssertEqual(document.emailStatus, "failed")
+        XCTAssertTrue(document.availableActions.contains(.resendEmail))
+        XCTAssertEqual(document.retrySummary?.canResendEmail, true)
+        XCTAssertEqual(document.retrySummary?.emailAttempts, 1)
+        XCTAssertEqual(document.lastErrorSummary?.message, "Email sender returned false.")
+        XCTAssertEqual(
+            BusinessDocumentEmailStatusPresentation.displayName(
+                document.emailStatus,
+                recipient: document.effectiveCustomerEmail,
+                sentAt: document.deliveredAt
+            ),
+            "No se pudo enviar"
+        )
+    }
+
 }

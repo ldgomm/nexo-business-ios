@@ -41,6 +41,11 @@ struct BusinessDocument: Decodable, Equatable, Identifiable, Sendable {
     let customerIdentification: String?
     let total: String?
     let currency: String
+    let deliveryEmailTo: String?
+    let emailStatus: String?
+    let availableActions: [BusinessElectronicDocumentAction]
+    let lastErrorSummary: BusinessElectronicDocumentOperationalErrorSummary?
+    let retrySummary: BusinessElectronicDocumentRetrySummary?
 
     init(
         id: String,
@@ -75,7 +80,12 @@ struct BusinessDocument: Decodable, Equatable, Identifiable, Sendable {
         customerName: String? = nil,
         customerIdentification: String? = nil,
         total: String? = nil,
-        currency: String = "USD"
+        currency: String = "USD",
+        deliveryEmailTo: String? = nil,
+        emailStatus: String? = nil,
+        availableActions: [BusinessElectronicDocumentAction] = [],
+        lastErrorSummary: BusinessElectronicDocumentOperationalErrorSummary? = nil,
+        retrySummary: BusinessElectronicDocumentRetrySummary? = nil
     ) {
         self.id = id
         self.saleId = saleId
@@ -110,6 +120,11 @@ struct BusinessDocument: Decodable, Equatable, Identifiable, Sendable {
         self.customerIdentification = customerIdentification
         self.total = total
         self.currency = currency
+        self.deliveryEmailTo = deliveryEmailTo
+        self.emailStatus = emailStatus
+        self.availableActions = availableActions.uniqueByPublicRawValue
+        self.lastErrorSummary = lastErrorSummary
+        self.retrySummary = retrySummary
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -120,6 +135,7 @@ struct BusinessDocument: Decodable, Equatable, Identifiable, Sendable {
         case total, grandTotal, currency, environment, pdfUrl, xmlUrl
         case createdAt, issueDate, issuedAt, updatedAt, authorizedAt, rejectedAt, rideGeneratedAt, deliveredAt, emailSentAt
         case hasRide, hasXml, hasErrors, lastSriReceptionStatus, lastSriAuthorizationStatus, lastErrorMessage
+        case deliveryEmailTo, emailStatus, availableActions, lastErrorSummary, retrySummary
     }
 
     init(from decoder: Decoder) throws {
@@ -138,7 +154,8 @@ struct BusinessDocument: Decodable, Equatable, Identifiable, Sendable {
         accessKey = try c.decodeFirstStringIfPresent(for: [.accessKey, .claveAcceso])
         customerName = try c.decodeFirstStringIfPresent(for: [.customerName, .customer])
         customerIdentification = try c.decodeFirstStringIfPresent(for: [.customerIdentification])
-        customerEmail = try c.decodeFirstStringIfPresent(for: [.customerEmail])
+        customerEmail = try c.decodeFirstStringIfPresent(for: [.customerEmail, .deliveryEmailTo])
+        deliveryEmailTo = try c.decodeFirstStringIfPresent(for: [.deliveryEmailTo])
         total = try c.decodeFirstStringIfPresent(for: [.total, .grandTotal])
         currency = try c.decodeFirstStringIfPresent(for: [.currency]) ?? "USD"
         pdfUrl = try c.decodeFirstStringIfPresent(for: [.pdfUrl])
@@ -157,6 +174,10 @@ struct BusinessDocument: Decodable, Equatable, Identifiable, Sendable {
         lastSriReceptionStatus = try c.decodeFirstStringIfPresent(for: [.lastSriReceptionStatus])
         lastSriAuthorizationStatus = try c.decodeFirstStringIfPresent(for: [.lastSriAuthorizationStatus])
         lastErrorMessage = try c.decodeFirstStringIfPresent(for: [.lastErrorMessage])
+        emailStatus = try c.decodeFirstStringIfPresent(for: [.emailStatus])
+        availableActions = (try c.decodeIfPresent([BusinessElectronicDocumentAction].self, forKey: .availableActions) ?? []).uniqueByPublicRawValue
+        lastErrorSummary = try c.decodeIfPresent(BusinessElectronicDocumentOperationalErrorSummary.self, forKey: .lastErrorSummary)
+        retrySummary = try c.decodeIfPresent(BusinessElectronicDocumentRetrySummary.self, forKey: .retrySummary)
     }
 
     var displayNumber: String {
@@ -165,6 +186,21 @@ struct BusinessDocument: Decodable, Equatable, Identifiable, Sendable {
 
     var effectiveStatus: String {
         sriStatus?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfBlank ?? status
+    }
+
+    var effectiveCustomerEmail: String? {
+        customerEmail?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfBlank
+            ?? deliveryEmailTo?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfBlank
+    }
+
+    var effectiveEmailStatus: String? {
+        emailStatus?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfBlank
+            ?? (deliveredAt == nil ? nil : "delivered")
+    }
+
+    var effectiveLastErrorMessage: String? {
+        BusinessDocumentTextSanitizer.sanitizedMessage(lastErrorSummary?.message)
+            ?? BusinessDocumentTextSanitizer.sanitizedMessage(lastErrorMessage)
     }
 }
 
@@ -501,6 +537,19 @@ enum BusinessElectronicDocumentAction: Equatable, Hashable, Codable, Sendable {
     }
 }
 
+struct BusinessElectronicDocumentOperationalErrorSummary: Decodable, Equatable, Sendable {
+    let code: String?
+    let message: String?
+    let category: String?
+    let reason: String?
+    let retryable: Bool?
+
+    var safeMessage: String? {
+        BusinessDocumentTextSanitizer.sanitizedMessage(message)
+            ?? BusinessDocumentTextSanitizer.sanitizedMessage(reason)
+    }
+}
+
 struct BusinessElectronicDocumentRetrySummary: Decodable, Equatable, Sendable {
     let canRetryReception: Bool
     let canRetryAuthorization: Bool
@@ -681,11 +730,11 @@ struct BusinessElectronicDocumentDetail: Decodable, Equatable, Identifiable, Sen
             xml: summary.hasXml ? BusinessDocumentArtifact(kind: "authorizedXml", fileName: "\(displayNumber)-authorized.xml", contentType: "application/xml") : nil
         )
         email = try c.decodeIfPresent(BusinessElectronicDocumentEmailState.self, forKey: .email) ?? BusinessElectronicDocumentEmailState(
-            recipient: summary.customerEmail,
-            status: summary.deliveredAt == nil ? nil : "sent",
+            recipient: summary.effectiveCustomerEmail,
+            status: summary.effectiveEmailStatus,
             sentAt: summary.deliveredAt,
-            lastError: nil,
-            attempts: nil
+            lastError: summary.effectiveLastErrorMessage,
+            attempts: summary.retrySummary?.emailAttempts
         )
         timeline = try c.decodeIfPresent([BusinessElectronicDocumentTimelineEvent].self, forKey: .timeline) ?? []
         errors = try c.decodeIfPresent([BusinessSriDocumentError].self, forKey: .errors) ?? []
@@ -847,10 +896,6 @@ enum BusinessDocumentTextSanitizer {
         let trimmed = message.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return nil }
 
-        if let humanized = APIErrorHumanizer.humanizedBusinessMessage(trimmed) {
-            return humanized
-        }
-
         let lowercased = trimmed.lowercased()
 
         let forbiddenFragments = [
@@ -882,6 +927,10 @@ enum BusinessDocumentTextSanitizer {
 
         guard forbiddenFragments.allSatisfy({ !lowercased.contains($0) }) else {
             return nil
+        }
+
+        if let humanized = APIErrorHumanizer.humanizedBusinessMessage(trimmed) {
+            return humanized
         }
 
         return trimmed

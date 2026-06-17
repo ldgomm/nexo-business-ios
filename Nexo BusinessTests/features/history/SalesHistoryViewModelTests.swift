@@ -22,16 +22,16 @@ final class SalesHistoryViewModelTests: XCTestCase {
         viewModel.query = "sale_1"
         viewModel.selectedStatus = .confirmed
         viewModel.useDateFilter = false
-
+        
         await viewModel.load()
-
+        
         XCTAssertEqual(viewModel.sales.map(\.id), ["sale_1"])
         XCTAssertEqual(viewModel.total, 1)
         XCTAssertEqual(repository.lastRequest?.query, "sale_1")
         XCTAssertEqual(repository.lastRequest?.status, .confirmed)
         XCTAssertNil(repository.lastRequest?.date)
     }
-
+    
     func testLoadRequiresPermission() async {
         let repository = SalesHistoryRepositorySpy(
             response: BusinessSalesHistoryResponse(sales: [])
@@ -44,13 +44,13 @@ final class SalesHistoryViewModelTests: XCTestCase {
             historyRepository: repository,
             documentsRepository: MockBusinessDocumentsRepository()
         )
-
+        
         await viewModel.load()
-
+        
         XCTAssertEqual(viewModel.errorMessage, "No tienes permiso para consultar ventas.")
         XCTAssertNil(repository.lastRequest)
     }
-
+    
     func testLoadMapsAPIErrorToHumanMessage() async {
         let repository = SalesHistoryRepositorySpy(
             error: APIError.server(
@@ -62,16 +62,16 @@ final class SalesHistoryViewModelTests: XCTestCase {
         )
         let viewModel = makeViewModel(repository: repository)
         viewModel.useDateFilter = false
-
+        
         await viewModel.load()
-
+        
         XCTAssertEqual(
             viewModel.errorMessage,
             "Falta una revisión requerida de catálogo o configuración tributaria. Actualiza el contexto."
         )
         XCTAssertEqual(viewModel.infoMessage, "Actualiza el contexto del negocio antes de continuar.")
     }
-
+    
     func testClearFiltersRestoresDefaults() {
         let repository = SalesHistoryRepositorySpy(
             response: BusinessSalesHistoryResponse(sales: [])
@@ -82,16 +82,16 @@ final class SalesHistoryViewModelTests: XCTestCase {
         viewModel.useDateFilter = false
         viewModel.errorMessage = "Error"
         viewModel.infoMessage = "Info"
-
+        
         viewModel.clearFilters()
-
+        
         XCTAssertEqual(viewModel.query, "")
         XCTAssertEqual(viewModel.selectedStatus, .all)
         XCTAssertTrue(viewModel.useDateFilter)
         XCTAssertNil(viewModel.errorMessage)
         XCTAssertNil(viewModel.infoMessage)
     }
-
+    
     private func makeViewModel(
         repository: SalesHistoryRepository
     ) -> SalesHistoryViewModel {
@@ -104,7 +104,7 @@ final class SalesHistoryViewModelTests: XCTestCase {
             documentsRepository: MockBusinessDocumentsRepository()
         )
     }
-
+    
     private func makeSale(
         id: String,
         status: String
@@ -133,7 +133,7 @@ private final class SalesHistoryRepositorySpy: SalesHistoryRepository, @unchecke
     private let error: Error?
     private(set) var lastOrganizationId: String?
     private(set) var lastRequest: SalesHistorySearchRequest?
-
+    
     init(
         response: BusinessSalesHistoryResponse? = nil,
         error: Error? = nil
@@ -141,18 +141,18 @@ private final class SalesHistoryRepositorySpy: SalesHistoryRepository, @unchecke
         self.response = response
         self.error = error
     }
-
+    
     func searchSales(
         organizationId: String,
         request: SalesHistorySearchRequest
     ) async throws -> BusinessSalesHistoryResponse {
         lastOrganizationId = organizationId
         lastRequest = request
-
+        
         if let error {
             throw error
         }
-
+        
         return response ?? BusinessSalesHistoryResponse(sales: [])
     }
 }

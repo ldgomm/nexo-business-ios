@@ -272,8 +272,15 @@ struct BusinessElectronicDocumentDetailView: View {
                 
                 BusinessDocumentInfoRow(
                     title: "Estado",
-                    value: detail.email.status.map(BusinessDocumentStatusPresentation.displayName) ?? "—",
-                    systemImage: "paperplane"
+                    value: BusinessDocumentEmailStatusPresentation.displayName(
+                        detail.email.status,
+                        recipient: detail.email.recipient ?? detail.customerEmail,
+                        sentAt: detail.email.sentAt
+                    ),
+                    systemImage: BusinessDocumentEmailStatusPresentation.systemImage(
+                        detail.email.status,
+                        sentAt: detail.email.sentAt
+                    )
                 )
                 
                 if let sentAt = detail.email.sentAt {

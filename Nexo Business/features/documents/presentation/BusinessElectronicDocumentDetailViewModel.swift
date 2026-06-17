@@ -39,18 +39,21 @@ final class BusinessElectronicDocumentDetailViewModel {
     let documentId: String
     let effectivePermissions: Set<String>
     private let repository: BusinessDocumentsRepository
+    private let onDocumentMutated: (() async -> Void)?
 
     init(
         organizationId: String,
         documentId: String,
         effectivePermissions: Set<String>,
         documentsRepository: BusinessDocumentsRepository,
-        initialDetail: BusinessElectronicDocumentDetail? = nil
+        initialDetail: BusinessElectronicDocumentDetail? = nil,
+        onDocumentMutated: (() async -> Void)? = nil
     ) {
         self.organizationId = organizationId
         self.documentId = documentId
         self.effectivePermissions = effectivePermissions
         self.repository = documentsRepository
+        self.onDocumentMutated = onDocumentMutated
         self.detail = initialDetail
         self.timeline = initialDetail?.timeline ?? []
     }
@@ -130,19 +133,21 @@ final class BusinessElectronicDocumentDetailViewModel {
     var canSendEmail: Bool {
         guard let detail else { return false }
 
-        let backendAllowsEmail = detail.allows(.resendEmail)
-        let retrySummaryAllowsEmail = detail.retrySummary.canResendEmail
+        let backendAllowsEmail = detail.allows(.resendEmail) || detail.retrySummary.canResendEmail
         let hasRecipient =
             emptyToNil(recipientOverride) != nil ||
             emptyToNil(detail.email.recipient ?? "") != nil ||
-            emptyToNil(detail.customerEmail ?? "") != nil
-        let hasLegacyPermission = hasPermission([
+            emptyToNil(detail.customerEmail ?? "") != nil ||
+            emptyToNil(detail.summary.effectiveCustomerEmail ?? "") != nil
+        let hasEmailPermission = hasPermission([
             "documents.electronic_invoice.email",
             "documents.electronic_invoice.resend_email",
             "documents.resend_email"
         ])
 
-        return backendAllowsEmail || retrySummaryAllowsEmail || (hasRecipient && hasLegacyPermission) || hasRecipient
+        // El usuario puede escribir un correo alternativo, pero la acción solo se habilita
+        // si backend la expone y el usuario tiene permiso. iOS no inventa acciones.
+        return backendAllowsEmail && hasRecipient && hasEmailPermission
     }
 
     var canRetryReception: Bool {
@@ -424,6 +429,7 @@ final class BusinessElectronicDocumentDetailViewModel {
         if canViewTimeline {
             await loadTimeline()
         }
+        await onDocumentMutated?()
     }
 
     private func prepareRideFile() async -> BusinessDocumentDownloadedFile? {

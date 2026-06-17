@@ -109,7 +109,7 @@ final class SalesHistoryViewModel {
         query = ""
         selectedStatus = .all
         selectedDate = Date()
-        useDateFilter = false
+        useDateFilter = true
         errorMessage = nil
         infoMessage = nil
     }

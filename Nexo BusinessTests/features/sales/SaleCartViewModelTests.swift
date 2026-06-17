@@ -208,6 +208,65 @@ private final class SalesRepositorySpy: SalesRepository, @unchecked Sendable {
     var lastQuickSaleRequest: QuickSaleRequest?
     var lastQuickSaleRevisions: BusinessRevisions?
     var lastIdempotencyKey: IdempotencyKey?
+    var lastBulkAddRequest: BulkAddSaleItemsRequest?
+    var lastBulkUpdateRequest: BulkUpdateSaleItemsRequest?
+    var lastBulkRemoveRequest: BulkRemoveSaleItemsRequest?
+    var lastBulkRevisions: BusinessRevisions?
+    var lastBulkIdempotencyKey: IdempotencyKey?
+    
+    func bulkAddItems(
+        organizationId: String,
+        saleId: String,
+        revisions: BusinessRevisions,
+        idempotencyKey: IdempotencyKey,
+        request: BulkAddSaleItemsRequest
+    ) async throws -> QuickSaleResponse {
+        lastBulkAddRequest = request
+        lastBulkRevisions = revisions
+        lastBulkIdempotencyKey = idempotencyKey
+
+        if let quickSaleError {
+            throw quickSaleError
+        }
+
+        return quickSaleResponse
+    }
+
+    func bulkUpdateItems(
+        organizationId: String,
+        saleId: String,
+        revisions: BusinessRevisions,
+        idempotencyKey: IdempotencyKey,
+        request: BulkUpdateSaleItemsRequest
+    ) async throws -> QuickSaleResponse {
+        lastBulkUpdateRequest = request
+        lastBulkRevisions = revisions
+        lastBulkIdempotencyKey = idempotencyKey
+
+        if let quickSaleError {
+            throw quickSaleError
+        }
+
+        return quickSaleResponse
+    }
+
+    func bulkRemoveItems(
+        organizationId: String,
+        saleId: String,
+        revisions: BusinessRevisions,
+        idempotencyKey: IdempotencyKey,
+        request: BulkRemoveSaleItemsRequest
+    ) async throws -> QuickSaleResponse {
+        lastBulkRemoveRequest = request
+        lastBulkRevisions = revisions
+        lastBulkIdempotencyKey = idempotencyKey
+
+        if let quickSaleError {
+            throw quickSaleError
+        }
+
+        return quickSaleResponse
+    }
 
     init(
         previewResponse: SalesPreviewResponse = PreviewData.previewResponse,

@@ -60,6 +60,46 @@ final class SaleCartCustomerSelectionTests: XCTestCase {
 final class SaleCartSalesRepositorySpy: SalesRepository, @unchecked Sendable {
     var lastPreviewRequest: SalesPreviewRequest?
     var lastQuickSaleRequest: QuickSaleRequest?
+    var lastBulkAddRequest: BulkAddSaleItemsRequest?
+    var lastBulkUpdateRequest: BulkUpdateSaleItemsRequest?
+    var lastBulkRemoveRequest: BulkRemoveSaleItemsRequest?
+    var lastBulkIdempotencyKey: IdempotencyKey?
+    
+    func bulkAddItems(
+        organizationId: String,
+        saleId: String,
+        revisions: BusinessRevisions,
+        idempotencyKey: IdempotencyKey,
+        request: BulkAddSaleItemsRequest
+    ) async throws -> QuickSaleResponse {
+        lastBulkAddRequest = request
+        lastBulkIdempotencyKey = idempotencyKey
+        return PreviewData.quickSaleResponse
+    }
+
+    func bulkUpdateItems(
+        organizationId: String,
+        saleId: String,
+        revisions: BusinessRevisions,
+        idempotencyKey: IdempotencyKey,
+        request: BulkUpdateSaleItemsRequest
+    ) async throws -> QuickSaleResponse {
+        lastBulkUpdateRequest = request
+        lastBulkIdempotencyKey = idempotencyKey
+        return PreviewData.quickSaleResponse
+    }
+
+    func bulkRemoveItems(
+        organizationId: String,
+        saleId: String,
+        revisions: BusinessRevisions,
+        idempotencyKey: IdempotencyKey,
+        request: BulkRemoveSaleItemsRequest
+    ) async throws -> QuickSaleResponse {
+        lastBulkRemoveRequest = request
+        lastBulkIdempotencyKey = idempotencyKey
+        return PreviewData.quickSaleResponse
+    }
 
     func preview(
         organizationId: String,

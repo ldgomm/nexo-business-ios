@@ -41,6 +41,7 @@ final class CashDashboardViewModel {
         branchId: String,
         permissions: Set<String>,
         cashCapabilities: CashCapabilities? = nil,
+        initialSession: CashSession? = nil,
         cashRepository: CashRepository
     ) {
         self.organizationId = organizationId
@@ -48,6 +49,15 @@ final class CashDashboardViewModel {
         self.permissions = permissions
         self.cashCapabilities = cashCapabilities
         self.repository = cashRepository
+
+        if let initialSession {
+            currentSession = initialSession
+            state = .loaded(initialSession)
+
+            if initialSession.isOpen {
+                prefillClosingFields(from: initialSession, forceIfBlank: true)
+            }
+        }
     }
 
     var isOpen: Bool {

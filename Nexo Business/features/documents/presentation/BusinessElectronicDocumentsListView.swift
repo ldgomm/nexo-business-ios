@@ -10,7 +10,7 @@ import SwiftUI
 struct BusinessElectronicDocumentsListView: View {
     @Bindable private var viewModel: BusinessElectronicDocumentsViewModel
     private let documentsRepository: BusinessDocumentsRepository
-
+    
     init(
         viewModel: BusinessElectronicDocumentsViewModel,
         documentsRepository: BusinessDocumentsRepository
@@ -18,7 +18,7 @@ struct BusinessElectronicDocumentsListView: View {
         self.viewModel = viewModel
         self.documentsRepository = documentsRepository
     }
-
+    
     var body: some View {
         List {
             filtersSection
@@ -44,23 +44,23 @@ struct BusinessElectronicDocumentsListView: View {
             }
         }
     }
-
+    
     private var filtersSection: some View {
         Section("Filtros") {
             TextField("Estado: autorizado, no autorizado, fallido…", text: $viewModel.statusFilter)
                 .textInputAutocapitalization(.characters)
                 .autocorrectionDisabled()
-
+            
             TextField("Ambiente: test o production", text: $viewModel.environmentFilter)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
-
+            
             TextField("Buscar por venta", text: $viewModel.saleIdFilter)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
-
+            
             LabeledContent("Actual", value: viewModel.activeFiltersDescription)
-
+            
             HStack {
                 Button {
                     NexoKeyboard.dismiss()
@@ -69,9 +69,9 @@ struct BusinessElectronicDocumentsListView: View {
                     Label("Aplicar", systemImage: "line.3.horizontal.decrease.circle")
                 }
                 .disabled(viewModel.isLoading)
-
+                
                 Spacer()
-
+                
                 Button {
                     NexoKeyboard.dismiss()
                     Task { await viewModel.clearFiltersAndReload() }
@@ -82,7 +82,7 @@ struct BusinessElectronicDocumentsListView: View {
             }
         }
     }
-
+    
     @ViewBuilder
     private var documentsSection: some View {
         Section("Historial") {
@@ -102,7 +102,8 @@ struct BusinessElectronicDocumentsListView: View {
                                 organizationId: viewModel.organizationId,
                                 documentId: document.documentId,
                                 effectivePermissions: viewModel.effectivePermissions,
-                                documentsRepository: documentsRepository
+                                documentsRepository: documentsRepository,
+                                onDocumentMutated: { await viewModel.load() }
                             )
                         )
                     } label: {
@@ -112,7 +113,7 @@ struct BusinessElectronicDocumentsListView: View {
             }
         }
     }
-
+    
     @ViewBuilder
     private var messagesSection: some View {
         if let message = viewModel.errorMessage {
@@ -122,7 +123,7 @@ struct BusinessElectronicDocumentsListView: View {
                     .foregroundStyle(.red)
             }
         }
-
+        
         if let message = viewModel.infoMessage {
             Section {
                 Label(message, systemImage: "info.circle")
@@ -135,68 +136,84 @@ struct BusinessElectronicDocumentsListView: View {
 
 struct BusinessElectronicDocumentRow: View {
     let document: BusinessDocument
-
+    
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .top, spacing: 12) {
                 Image(systemName: BusinessDocumentTypePresentation.systemImage(document.type))
                     .foregroundStyle(.secondary)
                     .frame(width: 28)
-
+                
                 VStack(alignment: .leading, spacing: 4) {
                     Text(document.businessDisplayNumber)
                         .font(.subheadline.weight(.semibold))
-
+                    
                     Text(BusinessDocumentTypePresentation.displayName(document.type))
                         .font(.caption)
                         .foregroundStyle(.secondary)
-
+                    
                     Label(
                         BusinessDocumentStatusPresentation.displayName(document.effectiveStatus),
                         systemImage: BusinessDocumentStatusPresentation.systemImage(document.effectiveStatus)
                     )
                     .font(.caption)
                     .foregroundStyle(BusinessDocumentStatusPresentation.isError(document.effectiveStatus) ? .red : .secondary)
+                    
+                    if document.emailStatus != nil || document.effectiveCustomerEmail != nil || document.deliveredAt != nil {
+                        Label(
+                            BusinessDocumentEmailStatusPresentation.displayName(
+                                document.emailStatus,
+                                recipient: document.effectiveCustomerEmail,
+                                sentAt: document.deliveredAt
+                            ),
+                            systemImage: BusinessDocumentEmailStatusPresentation.systemImage(
+                                document.emailStatus,
+                                sentAt: document.deliveredAt
+                            )
+                        )
+                        .font(.caption)
+                        .foregroundStyle(BusinessDocumentEmailStatusPresentation.isError(document.emailStatus) ? .red : .secondary)
+                    }
                 }
-
+                
                 Spacer()
-
+                
                 VStack(alignment: .trailing, spacing: 4) {
                     if let environment = document.environment, !environment.isEmpty {
                         Text(environment.uppercased())
                             .font(.caption2.weight(.semibold))
                             .foregroundStyle(.secondary)
                     }
-
+                    
                     if document.hasRide {
                         Image(systemName: "doc.richtext")
                             .foregroundStyle(.secondary)
                     }
-
+                    
                     if document.hasXml {
                         Image(systemName: "chevron.left.forwardslash.chevron.right")
                             .foregroundStyle(.secondary)
                     }
                 }
             }
-
+            
             if let customerName = document.customerName, !customerName.isEmpty {
                 Text(customerName)
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
-
+            
             if let total = document.total, !total.isEmpty {
                 LabeledContent("Total", value: "\(document.currency) \(total)")
                     .font(.caption)
             }
-
+            
             if let issuedAt = document.issuedAt ?? document.createdAt {
                 Text("Emitido: \(issuedAt.formatted(date: .abbreviated, time: .shortened))")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
-
+            
             if let error = BusinessDocumentTextSanitizer.sanitizedMessage(document.lastErrorMessage) {
                 Text(error)
                     .font(.caption)

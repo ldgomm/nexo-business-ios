@@ -100,7 +100,10 @@ struct BusinessDocumentsView: View {
                 if let document = viewModel.latestElectronicInvoice {
                     NavigationLink {
                         BusinessElectronicDocumentDetailView(
-                            viewModel: viewModel.makeElectronicDocumentDetailViewModel(for: document)
+                            viewModel: viewModel.makeElectronicDocumentDetailViewModel(
+                                for: document,
+                                onDocumentMutated: { await viewModel.load() }
+                            )
                         )
                     } label: {
                         BusinessDocumentsInlineNavigationLabel(
@@ -169,7 +172,10 @@ struct BusinessDocumentsView: View {
                         if document.isElectronicInvoiceForBusinessUI {
                             NavigationLink {
                                 BusinessElectronicDocumentDetailView(
-                                    viewModel: viewModel.makeElectronicDocumentDetailViewModel(for: document)
+                                    viewModel: viewModel.makeElectronicDocumentDetailViewModel(
+                                for: document,
+                                onDocumentMutated: { await viewModel.load() }
+                            )
                                 )
                             } label: {
                                 BusinessDocumentsHistoryRow(document: document)

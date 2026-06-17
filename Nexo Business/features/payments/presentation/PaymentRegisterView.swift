@@ -72,7 +72,7 @@ struct PaymentRegisterView: View {
             Text(viewModel.submitConfirmationMessage(issueElectronicDocumentAfterPayment: shouldIssueDocumentAfterPayment))
         }
         .task {
-            await viewModel.load()
+            await viewModel.prepareInitialLoadForPaymentScreen()
         }
         .onChange(of: viewModel.selectedMode) { _, _ in
             viewModel.resetResultMessages()
@@ -342,7 +342,8 @@ struct PaymentRegisterView: View {
             Section("Siguiente acción") {
                 NavigationLink {
                     CashDashboardRouteView(
-                        viewModel: viewModel.makeCashDashboardViewModel()
+                        viewModel: viewModel.makeCashDashboardViewModel(),
+                        refreshOnAppear: true
                     )
                 } label: {
                     Label(viewModel.registeredPaymentWasCash ? "Ver caja o cerrar caja" : "Ver caja", systemImage: "banknote")

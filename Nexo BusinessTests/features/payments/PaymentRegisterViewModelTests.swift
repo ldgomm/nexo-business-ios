@@ -163,7 +163,7 @@ final class PaymentRegisterViewModelTests: XCTestCase {
 
         XCTAssertEqual(
             viewModel.errorMessage,
-            "No tienes permiso para consultar caja o registrar cobros en efectivo. Pide a un cajero o administrador que registre el cobro."
+            "No puedes cobrar en efectivo con tu usuario actual. Pide que activen Ver caja actual y Registrar cobros."
         )
     }
 

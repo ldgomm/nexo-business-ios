@@ -92,6 +92,7 @@ final class PaymentRegisterViewModel {
     private let documentsRepository: BusinessDocumentsRepository?
     private let salesRepository: SalesRepository?
     private(set) var hasAttemptedSaleRefreshForInvoiceReadiness = false
+    private var hasPreparedInitialPaymentScreen = false
 
     init(
         organizationId: String,
@@ -399,6 +400,12 @@ final class PaymentRegisterViewModel {
     func load() async {
         await refreshSaleForElectronicInvoiceReadinessIfPossible()
         await refreshForSelectedMode()
+    }
+
+    func prepareInitialLoadForPaymentScreen() async {
+        guard !hasPreparedInitialPaymentScreen else { return }
+        hasPreparedInitialPaymentScreen = true
+        await prepareForCashCollectionIfNeeded()
     }
 
     private func refreshSaleForElectronicInvoiceReadinessIfPossible() async {
@@ -714,6 +721,7 @@ final class PaymentRegisterViewModel {
             organizationId: organizationId,
             branchId: branchId,
             permissions: effectivePermissions,
+            initialSession: currentCashSession,
             cashRepository: cashRepository
         )
     }

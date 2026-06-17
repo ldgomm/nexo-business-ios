@@ -234,6 +234,7 @@ final class BusinessDocumentsViewModel {
 
         var loadedDocuments: [BusinessDocument] = []
         var failedSources: [String] = []
+        var firstLoadAPIError: APIError?
 
         if let saleDocument = sale.primaryElectronicDocument {
             loadedDocuments.append(saleDocument)
@@ -245,6 +246,9 @@ final class BusinessDocumentsViewModel {
                 filters: BusinessElectronicDocumentFilters(saleId: sale.id, limit: 25)
             )
             loadedDocuments.append(contentsOf: response.documents)
+        } catch let error as APIError {
+            firstLoadAPIError = error
+            failedSources.append("facturas electrónicas")
         } catch {
             failedSources.append("facturas electrónicas")
         }
@@ -257,7 +261,11 @@ final class BusinessDocumentsViewModel {
         }
 
         if !failedSources.isEmpty, merged.isEmpty {
-            errorMessage = "No se pudieron cargar los comprobantes de esta venta."
+            if let firstLoadAPIError {
+                handle(apiError: firstLoadAPIError)
+            } else {
+                errorMessage = "No se pudieron cargar los comprobantes de esta venta."
+            }
         } else if !failedSources.isEmpty {
             infoMessage = "Algunos comprobantes no pudieron actualizarse: \(failedSources.joined(separator: ", "))."
         }
@@ -388,12 +396,13 @@ final class BusinessDocumentsViewModel {
         infoMessage = nil
     }
 
-    func makeElectronicDocumentDetailViewModel(for document: BusinessDocument) -> BusinessElectronicDocumentDetailViewModel {
+    func makeElectronicDocumentDetailViewModel(for document: BusinessDocument, onDocumentMutated: (() async -> Void)? = nil) -> BusinessElectronicDocumentDetailViewModel {
         BusinessElectronicDocumentDetailViewModel(
             organizationId: organizationId,
             documentId: document.documentId,
             effectivePermissions: effectivePermissions,
-            documentsRepository: repository
+            documentsRepository: repository,
+            onDocumentMutated: onDocumentMutated
         )
     }
 
