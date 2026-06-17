@@ -124,6 +124,11 @@ final class CashDashboardViewModel {
     var closeConfirmationMessage: String {
         "Vas a cerrar la caja con estos valores:\n\nEfectivo esperado: \(currentExpectedDisplay)\nMonto contado: \(MoneyAmount(amount: sanitizedAmount(countedAmount)).displayText)\nDiferencia: \(closingDifferencePreview.displayText)\n\nDespués de cerrar, no podrás registrar cobros en efectivo en esta caja."
     }
+    
+    func loadIfNeeded() async {
+        guard case .idle = state else { return }
+        await load()
+    }
 
     func load() async {
         guard !isLoading else { return }

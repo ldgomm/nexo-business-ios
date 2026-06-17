@@ -31,17 +31,46 @@ struct DailyClosureView: View {
         self.documentsRepository = documentsRepository
     }
 
+
     var body: some View {
-        Form {
-            businessDaySection
-            messagesSection
-            dailyStatsSection
-            cashSection
-            pendingSummarySection
-            pendingSalesSection
-            pendingReceivablesSection
-            pendingDocumentsSection
+        ScrollView {
+            LazyVStack(spacing: 16) {
+                businessDaySection
+                    .dailyClosureHeroSurface()
+
+                if (viewModel.errorMessage?.isEmpty == false) || (viewModel.infoMessage?.isEmpty == false) {
+                    messagesSection
+                        .dailyClosureSurface()
+                }
+
+                dailyStatsSection
+                    .dailyClosureSurface()
+
+                cashSection
+                    .dailyClosureSurface()
+
+                pendingSummarySection
+                    .dailyClosureSurface()
+
+                if !viewModel.pendingSales.isEmpty {
+                    pendingSalesSection
+                        .dailyClosureSurface()
+                }
+
+                if !viewModel.pendingReceivables.isEmpty {
+                    pendingReceivablesSection
+                        .dailyClosureSurface()
+                }
+
+                if !viewModel.pendingDocuments.isEmpty {
+                    pendingDocumentsSection
+                        .dailyClosureSurface()
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 14)
         }
+        .background(Color(uiColor: .systemGroupedBackground).ignoresSafeArea())
         .navigationTitle("Hoy")
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
@@ -338,6 +367,38 @@ struct DailyClosureView: View {
         )
     }
 }
+
+
+private struct DailyClosureSurfaceModifier: ViewModifier {
+    var isHero: Bool = false
+
+    func body(content: Content) -> some View {
+        content
+            .padding(isHero ? 18 : 14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background {
+                RoundedRectangle(cornerRadius: isHero ? 24 : 20, style: .continuous)
+                    .fill(Color(uiColor: .secondarySystemGroupedBackground))
+            }
+            .overlay {
+                RoundedRectangle(cornerRadius: isHero ? 24 : 20, style: .continuous)
+                    .strokeBorder(Color.primary.opacity(0.06), lineWidth: 1)
+            }
+            .shadow(color: Color.black.opacity(isHero ? 0.07 : 0.035), radius: isHero ? 14 : 8, x: 0, y: isHero ? 8 : 4)
+    }
+}
+
+private extension View {
+    func dailyClosureSurface() -> some View {
+        modifier(DailyClosureSurfaceModifier())
+    }
+
+    func dailyClosureHeroSurface() -> some View {
+        modifier(DailyClosureSurfaceModifier(isHero: true))
+    }
+}
+
+
 
 private struct TodayStatsView: View {
     let report: BusinessDailyReport?

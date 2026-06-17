@@ -123,6 +123,11 @@ final class PaymentRegisterViewModel {
         self.selectedMode = Self.initialMode(effectivePermissions: effectivePermissions)
     }
 
+    var completedSaleForDocuments: BusinessSale? {
+        guard hasCompletedSubmission else { return nil }
+        return sale
+    }
+    
     var hasCompletedSubmission: Bool {
         paymentResult != nil || receivableResult != nil
     }

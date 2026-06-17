@@ -14,18 +14,33 @@ struct CashDashboardView: View {
         self.viewModel = viewModel
     }
 
-    var body: some View {
-        Form {
-            statusSection
-            messagesSection
 
-            if viewModel.shouldShowCloseSection {
-                closingGuideSection
-                manualAdjustmentsSection
-            } else if viewModel.shouldShowOpenSection {
-                openingGuideSection
+    var body: some View {
+        ScrollView {
+            LazyVStack(spacing: 16) {
+                statusSection
+                    .cashDashboardHeroSurface()
+
+                if (viewModel.errorMessage?.isEmpty == false) || (viewModel.successMessage?.isEmpty == false) {
+                    messagesSection
+                        .cashDashboardSurface()
+                }
+
+                if viewModel.shouldShowCloseSection {
+                    closingGuideSection
+                        .cashDashboardSurface()
+
+                    manualAdjustmentsSection
+                        .cashDashboardSurface()
+                } else if viewModel.shouldShowOpenSection {
+                    openingGuideSection
+                        .cashDashboardSurface()
+                }
             }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 14)
         }
+        .background(Color(uiColor: .systemGroupedBackground).ignoresSafeArea())
         .nexoKeyboardDismissable()
         .navigationTitle("Caja")
         .toolbar {
@@ -54,7 +69,7 @@ struct CashDashboardView: View {
             Text(viewModel.closeConfirmationMessage)
         }
         .task {
-            await viewModel.load()
+            await viewModel.loadIfNeeded()
         }
     }
 
@@ -321,6 +336,38 @@ struct CashDashboardView: View {
         amount?.displayText ?? "—"
     }
 }
+
+
+private struct CashDashboardSurfaceModifier: ViewModifier {
+    var isHero: Bool = false
+
+    func body(content: Content) -> some View {
+        content
+            .padding(isHero ? 18 : 14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background {
+                RoundedRectangle(cornerRadius: isHero ? 24 : 20, style: .continuous)
+                    .fill(Color(uiColor: .secondarySystemGroupedBackground))
+            }
+            .overlay {
+                RoundedRectangle(cornerRadius: isHero ? 24 : 20, style: .continuous)
+                    .strokeBorder(Color.primary.opacity(0.06), lineWidth: 1)
+            }
+            .shadow(color: Color.black.opacity(isHero ? 0.07 : 0.035), radius: isHero ? 14 : 8, x: 0, y: isHero ? 8 : 4)
+    }
+}
+
+private extension View {
+    func cashDashboardSurface() -> some View {
+        modifier(CashDashboardSurfaceModifier())
+    }
+
+    func cashDashboardHeroSurface() -> some View {
+        modifier(CashDashboardSurfaceModifier(isHero: true))
+    }
+}
+
+
 
 private struct CashLoadingCard: View {
     var body: some View {

@@ -2,7 +2,7 @@
 //  SaleCartView.swift
 //  Nexo Business
 //
-//  Created by José Ruiz on 16/6/26.
+//  Created by José Ruiz on 11/6/26.
 //
 
 import SwiftUI
@@ -38,26 +38,20 @@ struct SaleCartView: View {
     }
 
     var body: some View {
-        Form {
-            orderStateSection
-            cashSection
-            customerSection
+        ScrollView {
+            LazyVStack(spacing: 14) {
+                operationGroup
+                saleBuilderGroup
 
-            if viewModel.createdSale == nil || viewModel.canEditRegisteredSaleItems {
-                searchSection
-                resultsSection
-                cartSection
-                discountSection
-                previewSection
-                registeredSaleEditSection
-            } else {
-                lockedCartSection
+                if shouldShowSummaryGroup {
+                    summaryGroup
+                }
             }
-
-            saleSection
-            messagesSection
-            actionsSection
+            .padding(.horizontal, 16)
+            .padding(.vertical, 14)
         }
+        .background(Color(uiColor: .systemGroupedBackground).ignoresSafeArea())
+        .scrollDismissesKeyboard(.interactively)
         .nexoKeyboardDismissable()
         .navigationTitle(navigationTitle)
         .navigationDestination(isPresented: $shouldShowPaymentRegister) {
@@ -74,8 +68,10 @@ struct SaleCartView: View {
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 if viewModel.canStartNewOrder {
-                    Button("Nueva") {
+                    Button {
                         requestStartNewOrder()
+                    } label: {
+                        Label("Nueva", systemImage: "plus.circle")
                     }
                 }
             }
@@ -96,31 +92,122 @@ struct SaleCartView: View {
         }
     }
 
-    private var orderStateSection: some View {
-        Section {
-            HStack(alignment: .center, spacing: 12) {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(orderStateTitle)
-                        .font(.headline)
+    private var shouldShowSummaryGroup: Bool {
+        !viewModel.cartItems.isEmpty ||
+        viewModel.createdSale != nil ||
+        viewModel.errorMessage != nil ||
+        viewModel.finalConsumerInvoiceWarning != nil ||
+        viewModel.infoMessage != nil
+    }
 
-                    Text(orderStateDescription)
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
+    private var operationGroup: some View {
+        SaleCartGroupedCard(
+            title: "Operación",
+            subtitle: selectedCustomerSummary,
+            systemImage: "sparkles.rectangle.stack",
+            isHero: true
+        ) {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack(alignment: .top, spacing: 12) {
+                    VStack(alignment: .leading, spacing: 5) {
+                        Text(orderStateTitle)
+                            .font(.title3.weight(.bold))
+
+                        Text(orderStateDescription)
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
+                    Spacer(minLength: 12)
+
+                    NexoStatusBadge(
+                        viewModel.orderState.displayName,
+                        systemImage: orderStateIcon,
+                        style: orderStateStyle
+                    )
                 }
 
-                Spacer()
+                Divider()
 
-                NexoStatusBadge(
-                    viewModel.orderState.displayName,
-                    systemImage: orderStateIcon,
-                    style: orderStateStyle
-                )
+                VStack(spacing: 12) {
+                    operationalCustomerBlock
+                    operationalCashBlock
+                }
             }
         }
     }
 
-    private var cashSection: some View {
-        Section("Caja") {
+    private var operationalCustomerBlock: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .center, spacing: 10) {
+                Image(systemName: viewModel.selectedCustomer == nil ? "person.crop.circle" : "person.crop.circle.fill")
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 24)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Cliente")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+
+                    Text(viewModel.selectedCustomer?.displayName ?? "Consumidor final")
+                        .font(.subheadline.weight(.semibold))
+                        .lineLimit(1)
+                }
+
+                Spacer(minLength: 8)
+
+                NavigationLink {
+                    CustomerPickerView(
+                        viewModel: CustomerPickerViewModel(
+                            organizationId: viewModel.organizationId,
+                            effectivePermissions: viewModel.effectivePermissions,
+                            customersRepository: customersRepository
+                        ),
+                        onSelect: { customer in
+                            viewModel.selectCustomer(customer)
+                        }
+                    )
+                } label: {
+                    Text(viewModel.selectedCustomer == nil ? "Elegir" : "Cambiar")
+                        .font(.footnote.weight(.semibold))
+                }
+                .disabled(!viewModel.canEditCart)
+            }
+
+            if let customer = viewModel.selectedCustomer {
+                CustomerRowView(customer: customer)
+
+                Button(role: .destructive) {
+                    viewModel.clearCustomer()
+                } label: {
+                    Label("Quitar cliente", systemImage: "xmark.circle")
+                        .font(.footnote.weight(.medium))
+                }
+                .buttonStyle(.plain)
+                .disabled(!viewModel.canEditCart)
+            }
+        }
+        .padding(12)
+        .background(Color(uiColor: .tertiarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+    }
+
+    private var operationalCashBlock: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 10) {
+                Image(systemName: "banknote")
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 24)
+
+                Text("Caja")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+
+                Spacer()
+            }
+
             SaleCartCashCard(
                 organizationId: viewModel.organizationId,
                 branchId: viewModel.branchId,
@@ -130,7 +217,7 @@ struct SaleCartView: View {
                     viewModel.cashSessionId = session?.isOpen == true ? session?.id : nil
                 },
                 dashboardDestination: {
-                    CashDashboardView(
+                    CashDashboardRouteView(
                         viewModel: CashDashboardViewModel(
                             organizationId: viewModel.organizationId,
                             branchId: viewModel.branchId,
@@ -141,44 +228,46 @@ struct SaleCartView: View {
                 }
             )
         }
+        .padding(12)
+        .background(Color(uiColor: .tertiarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 
-    private var customerSection: some View {
-        Section("Cliente") {
-            if let customer = viewModel.selectedCustomer {
-                CustomerRowView(customer: customer)
+    private var saleBuilderGroup: some View {
+        SaleCartGroupedCard(
+            title: saleBuilderTitle,
+            subtitle: saleBuilderSubtitle,
+            systemImage: "cart.badge.plus"
+        ) {
+            VStack(alignment: .leading, spacing: 14) {
+                if viewModel.createdSale == nil || viewModel.canEditRegisteredSaleItems {
+                    productSearchBlock
 
-                Button(role: .destructive) {
-                    viewModel.clearCustomer()
-                } label: {
-                    Label("Quitar cliente", systemImage: "xmark.circle")
-                }
-                .disabled(!viewModel.canEditCart)
-            } else {
-                Label("Consumidor final", systemImage: "person.crop.circle")
-                    .foregroundStyle(.secondary)
-            }
-
-            NavigationLink {
-                CustomerPickerView(
-                    viewModel: CustomerPickerViewModel(
-                        organizationId: viewModel.organizationId,
-                        effectivePermissions: viewModel.effectivePermissions,
-                        customersRepository: customersRepository
-                    ),
-                    onSelect: { customer in
-                        viewModel.selectCustomer(customer)
+                    if !viewModel.searchResults.isEmpty {
+                        Divider()
+                        searchResultsBlock
                     }
-                )
-            } label: {
-                Label("Seleccionar cliente", systemImage: "person.text.rectangle")
+
+                    Divider()
+                    cartBlock
+
+                    if !viewModel.cartItems.isEmpty {
+                        Divider()
+                        discountBlock
+                    }
+
+                    if viewModel.createdSale != nil {
+                        Divider()
+                        registeredSaleEditBlock
+                    }
+                } else {
+                    lockedCartBlock
+                }
             }
-            .disabled(!viewModel.canEditCart)
         }
     }
 
-    private var searchSection: some View {
-        Section("Agregar producto") {
+    private var productSearchBlock: some View {
+        VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 10) {
                 Image(systemName: "magnifyingglass")
                     .foregroundStyle(.secondary)
@@ -193,7 +282,7 @@ struct SaleCartView: View {
                         Task { await viewModel.searchCatalog() }
                     }
 
-                if !viewModel.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                if !viewModel.searchQuery.trimmed.isEmpty {
                     Button {
                         viewModel.clearSearch()
                         NexoKeyboard.dismiss()
@@ -201,51 +290,84 @@ struct SaleCartView: View {
                         Image(systemName: "xmark.circle.fill")
                             .foregroundStyle(.secondary)
                     }
-                    .buttonStyle(.borderless)
+                    .buttonStyle(.plain)
                     .accessibilityLabel("Limpiar búsqueda")
                 }
             }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 11)
+            .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
 
-            Button {
-                NexoKeyboard.dismiss()
-                Task { await viewModel.searchCatalog() }
-            } label: {
-                if viewModel.isSearching {
-                    ProgressView()
-                } else {
-                    Label("Buscar producto", systemImage: "magnifyingglass")
-                }
-            }
-            .disabled(!viewModel.canSearchCatalog)
-        }
-    }
+            HStack(spacing: 10) {
+                Text("Agrega productos y el total se actualizará en pantalla.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
 
-    @ViewBuilder
-    private var resultsSection: some View {
-        if !viewModel.searchResults.isEmpty {
-            Section("Resultados") {
-                ForEach(viewModel.searchResults) { item in
-                    Button {
-                        viewModel.addToCart(item)
-                        NexoKeyboard.dismiss()
-                    } label: {
-                        CatalogResultRow(item: item)
+                Spacer(minLength: 8)
+
+                Button {
+                    NexoKeyboard.dismiss()
+                    Task { await viewModel.searchCatalog() }
+                } label: {
+                    if viewModel.isSearching {
+                        ProgressView()
+                            .controlSize(.small)
+                    } else {
+                        Label("Buscar", systemImage: "magnifyingglass")
+                            .font(.footnote.weight(.semibold))
                     }
-                    .buttonStyle(.plain)
-                    .disabled(!viewModel.canEditCart)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .disabled(!viewModel.canSearchCatalog)
+            }
+        }
+    }
+
+    private var searchResultsBlock: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Resultados")
+                .font(.subheadline.weight(.semibold))
+
+            ForEach(viewModel.searchResults) { item in
+                Button {
+                    viewModel.addToCart(item)
+                    NexoKeyboard.dismiss()
+                } label: {
+                    CatalogResultRow(item: item)
+                }
+                .buttonStyle(.plain)
+                .disabled(!viewModel.canEditCart)
+
+                if item.id != viewModel.searchResults.last?.id {
+                    Divider()
                 }
             }
         }
     }
 
-    private var cartSection: some View {
-        Section("Carrito") {
+    private var cartBlock: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("Carrito")
+                    .font(.subheadline.weight(.semibold))
+
+                Spacer()
+
+                Text(cartCountText)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .monospacedDigit()
+            }
+
             if viewModel.cartItems.isEmpty {
                 ContentUnavailableView(
                     "Carrito vacío",
                     systemImage: "cart",
                     description: Text("Busca productos o servicios y agrégalos a la venta.")
                 )
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 6)
             } else {
                 ForEach(viewModel.cartItems) { item in
                     SaleCartRow(
@@ -261,13 +383,29 @@ struct SaleCartView: View {
                             viewModel.removeFromCart(cartItemId: item.id)
                         }
                     )
+
+                    if item.id != viewModel.cartItems.last?.id {
+                        Divider()
+                    }
                 }
             }
         }
     }
 
-    private var lockedCartSection: some View {
-        Section("Carrito registrado") {
+    private var lockedCartBlock: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("Carrito registrado")
+                    .font(.subheadline.weight(.semibold))
+
+                Spacer()
+
+                Text(cartCountText)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .monospacedDigit()
+            }
+
             ForEach(viewModel.cartItems) { item in
                 SaleCartRow(
                     item: item,
@@ -280,188 +418,134 @@ struct SaleCartView: View {
                     isEditable: false,
                     removeAction: {}
                 )
+
+                if item.id != viewModel.cartItems.last?.id {
+                    Divider()
+                }
             }
         }
     }
 
     @ViewBuilder
-    private var discountSection: some View {
-        if !viewModel.cartItems.isEmpty {
-            Section {
-                VStack(alignment: .leading, spacing: 12) {
-                    discountHeaderCard
-
-                    if discountEditorBinding.wrappedValue {
-                        Divider()
-                        discountConfigurationCard
-                        discountValueCard
-                        discountReasonCard
-                        discountFooterActions
-                    }
-                }
-                .padding(.vertical, 4)
-            } header: {
-                Text("Descuento")
-            } footer: {
-                Text(discountFooterText)
-            }
-            .onChange(of: viewModel.discountTarget) { _, _ in
-                autoApplyDiscountDraft()
-            }
-            .onChange(of: viewModel.discountType) { _, _ in
-                normalizeDiscountValueForCurrentType()
-                autoApplyDiscountDraft()
-            }
-            .onChange(of: viewModel.discountValue) { _, _ in
-                autoApplyDiscountDraft()
-            }
-            .onChange(of: viewModel.discountReason) { _, _ in
-                autoApplyDiscountDraft()
-            }
-        }
-    }
-
-    private var discountHeaderCard: some View {
-        HStack(alignment: .center, spacing: 12) {
-            Image(systemName: discountEditorBinding.wrappedValue ? "percent" : "tag")
-                .font(.body.weight(.semibold))
-                .foregroundStyle(.secondary)
-                .frame(width: 24)
-
-            VStack(alignment: .leading, spacing: 3) {
-                Text(discountEditorBinding.wrappedValue ? "Descuento activo" : "Sin descuento")
-                    .font(.subheadline.weight(.semibold))
-
-                Text(discountEditorBinding.wrappedValue ? discountActiveDescription : "Activa un descuento solo cuando aplique a esta venta.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            Spacer()
-
-            Toggle("", isOn: discountEditorBinding)
-                .labelsHidden()
-                .disabled(!viewModel.canEditCart)
-                .accessibilityLabel(discountEditorBinding.wrappedValue ? "Desactivar descuento" : "Activar descuento")
-        }
-    }
-
-    private var discountConfigurationCard: some View {
+    private var discountBlock: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Picker("Aplicar a", selection: $viewModel.discountTarget) {
-                ForEach(SaleDiscountTarget.allCases) { target in
-                    Text(target.displayName).tag(target)
+            HStack(alignment: .center, spacing: 12) {
+                Image(systemName: discountEditorBinding.wrappedValue ? "percent" : "tag")
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 24)
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(discountEditorBinding.wrappedValue ? "Descuento activo" : "Sin descuento")
+                        .font(.subheadline.weight(.semibold))
+
+                    Text(discountEditorBinding.wrappedValue ? discountActiveDescription : "Actívalo solo si aplica a esta venta.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
-            }
-            .pickerStyle(.segmented)
-            .disabled(!viewModel.canEditCart)
-
-            Picker("Tipo", selection: $viewModel.discountType) {
-                ForEach(SaleDiscountInputType.allCases) { type in
-                    Text(type.displayName).tag(type)
-                }
-            }
-            .pickerStyle(.segmented)
-            .disabled(!viewModel.canEditCart)
-
-            if viewModel.discountTarget == .selectedItems {
-                Label(selectedItemsDiscountHint, systemImage: selectedItemsDiscountIcon)
-                    .font(.caption)
-                    .foregroundStyle(viewModel.canApplyDiscount ? .secondary : Color.orange)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-        }
-    }
-
-    private var discountValueCard: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .firstTextBaseline, spacing: 12) {
-                Text(discountValueTitle)
-                    .font(.subheadline.weight(.semibold))
 
                 Spacer()
 
-                Text(discountEstimatedValue)
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                    .monospacedDigit()
-            }
-
-            HStack(spacing: 10) {
-                TextField(discountFieldPrompt, text: $viewModel.discountValue)
-                    .keyboardType(.decimalPad)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-                    .multilineTextAlignment(.trailing)
-                    .monospacedDigit()
-                    .textFieldStyle(.roundedBorder)
-                    .disabled(!viewModel.canEditCart)
-                    .accessibilityLabel("Valor del descuento")
-
-                Stepper("", value: discountStepperBinding, in: discountRange, step: discountStep)
+                Toggle("", isOn: discountEditorBinding)
                     .labelsHidden()
                     .disabled(!viewModel.canEditCart)
+                    .accessibilityLabel(discountEditorBinding.wrappedValue ? "Desactivar descuento" : "Activar descuento")
             }
 
-            HStack(spacing: 8) {
-                ForEach(discountPresetValues, id: \.self) { preset in
-                    Button {
-                        viewModel.discountValue = preset
-                        normalizeDiscountValueForCurrentType()
-                        autoApplyDiscountDraft()
-                        NexoKeyboard.dismiss()
-                    } label: {
-                        Text(discountPresetTitle(for: preset))
-                            .font(.caption.weight(.medium))
-                            .foregroundStyle(isSelectedDiscountPreset(preset) ? .primary : .secondary)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 6)
-                            .background(
-                                Capsule(style: .continuous)
-                                    .fill(
-                                        isSelectedDiscountPreset(preset)
-                                        ? Color.accentColor.opacity(0.12)
-                                        : Color(.tertiarySystemGroupedBackground)
-                                    )
-                            )
+            if discountEditorBinding.wrappedValue {
+                VStack(alignment: .leading, spacing: 12) {
+                    Picker("Aplicar a", selection: $viewModel.discountTarget) {
+                        ForEach(SaleDiscountTarget.allCases) { target in
+                            Text(target.displayName).tag(target)
+                        }
                     }
-                    .buttonStyle(.plain)
+                    .pickerStyle(.segmented)
                     .disabled(!viewModel.canEditCart)
+
+                    Picker("Tipo", selection: $viewModel.discountType) {
+                        ForEach(SaleDiscountInputType.allCases) { type in
+                            Text(type.displayName).tag(type)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .disabled(!viewModel.canEditCart)
+
+                    HStack(spacing: 10) {
+                        TextField(discountFieldPrompt, text: $viewModel.discountValue)
+                            .keyboardType(.decimalPad)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                            .multilineTextAlignment(.trailing)
+                            .monospacedDigit()
+                            .textFieldStyle(.roundedBorder)
+                            .disabled(!viewModel.canEditCart)
+                            .accessibilityLabel("Valor del descuento")
+
+                        Stepper("", value: discountStepperBinding, in: discountRange, step: discountStep)
+                            .labelsHidden()
+                            .disabled(!viewModel.canEditCart)
+                    }
+
+                    HStack(spacing: 8) {
+                        ForEach(discountPresetValues, id: \.self) { preset in
+                            discountPresetButton(for: preset)
+                        }
+                    }
+
+                    TextField("Motivo opcional", text: $viewModel.discountReason)
+                        .textInputAutocapitalization(.sentences)
+                        .disabled(!viewModel.canEditCart)
+
+                    if viewModel.discountTarget == .selectedItems {
+                        Label(selectedItemsDiscountHint, systemImage: selectedItemsDiscountIcon)
+                            .font(.caption)
+                            .foregroundStyle(viewModel.canApplyDiscount ? .secondary : Color.orange)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
+                    HStack(alignment: .firstTextBaseline, spacing: 10) {
+                        Label(discountAutoApplyStatusText, systemImage: discountAutoApplyStatusIcon)
+                            .font(.caption)
+                            .foregroundStyle(viewModel.canApplyDiscount ? .secondary : Color.orange)
+                            .fixedSize(horizontal: false, vertical: true)
+
+                        Spacer(minLength: 8)
+
+                        Text(discountEstimatedValue)
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(.secondary)
+                            .monospacedDigit()
+                    }
+
+                    if viewModel.canClearDiscounts || !viewModel.discountValue.trimmed.isEmpty || !viewModel.discountReason.trimmed.isEmpty {
+                        Button(role: .destructive) {
+                            viewModel.clearDiscounts()
+                            NexoKeyboard.dismiss()
+                        } label: {
+                            Text("Quitar descuento")
+                                .font(.caption.weight(.medium))
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(!viewModel.canEditCart)
+                    }
                 }
+                .padding(12)
+                .background(Color(uiColor: .tertiarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
             }
         }
-    }
-
-    private var discountReasonCard: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("Motivo")
-                .font(.subheadline.weight(.semibold))
-
-            TextField("Opcional", text: $viewModel.discountReason)
-                .textInputAutocapitalization(.sentences)
-                .disabled(!viewModel.canEditCart)
+        .onChange(of: viewModel.discountTarget) { _, _ in
+            autoApplyDiscountDraft()
         }
-    }
-
-    private var discountFooterActions: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Label(discountAutoApplyStatusText, systemImage: discountAutoApplyStatusIcon)
-                .font(.caption)
-                .foregroundStyle(viewModel.canApplyDiscount ? .secondary : Color.orange)
-                .fixedSize(horizontal: false, vertical: true)
-
-            if viewModel.canClearDiscounts || !viewModel.discountValue.trimmed.isEmpty || !viewModel.discountReason.trimmed.isEmpty {
-                Button(role: .destructive) {
-                    viewModel.clearDiscounts()
-                    NexoKeyboard.dismiss()
-                } label: {
-                    Text("Quitar descuento")
-                        .font(.caption.weight(.medium))
-                }
-                .buttonStyle(.plain)
-                .disabled(!viewModel.canEditCart)
-            }
+        .onChange(of: viewModel.discountType) { _, _ in
+            normalizeDiscountValueForCurrentType()
+            autoApplyDiscountDraft()
+        }
+        .onChange(of: viewModel.discountValue) { _, _ in
+            autoApplyDiscountDraft()
+        }
+        .onChange(of: viewModel.discountReason) { _, _ in
+            autoApplyDiscountDraft()
         }
     }
     
@@ -469,47 +553,127 @@ struct SaleCartView: View {
         viewModel.discountValue.trimmed == preset
     }
 
-    @ViewBuilder
-    private var previewSection: some View {
-        if !viewModel.cartItems.isEmpty {
-            Section {
-                ForEach(viewModel.localCalculation.lines) { item in
-                    VStack(alignment: .leading, spacing: 6) {
-                        HStack(alignment: .firstTextBaseline) {
-                            VStack(alignment: .leading, spacing: 3) {
-                                Text(item.name)
-                                    .font(.subheadline.weight(.semibold))
-                                Text("Cantidad: \(item.quantity.cleanQuantityText) · \(item.taxTreatment.displayName)")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                            Spacer()
-                            Text(item.total.displayText)
-                                .font(.subheadline.weight(.semibold))
-                                .monospacedDigit()
-                        }
+    private func discountPresetButton(for preset: String) -> some View {
+        let title = discountPresetTitle(for: preset)
+        let isSelected = isSelectedDiscountPreset(preset)
 
-                        if item.discount.amount != "0.00" {
-                            LabeledContent("Descuento", value: item.discount.displayText)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
+        return Button {
+            viewModel.discountValue = preset
+            normalizeDiscountValueForCurrentType()
+            autoApplyDiscountDraft()
+            NexoKeyboard.dismiss()
+        } label: {
+            DiscountPresetChip(title: title, isSelected: isSelected)
+        }
+        .buttonStyle(.plain)
+        .disabled(!viewModel.canEditCart)
+    }
 
-                        if item.taxAmount.amount != "0.00" {
-                            LabeledContent("IVA \(item.taxRatePercent)%", value: item.taxAmount.displayText)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
+    private var registeredSaleEditBlock: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Edición antes de facturar")
+                .font(.subheadline.weight(.semibold))
 
-                        if let warning = item.warning {
-                            Label(warning, systemImage: "exclamationmark.triangle")
-                                .font(.caption)
-                                .foregroundStyle(.orange)
-                        }
-                    }
-                    .padding(.vertical, 4)
+            if viewModel.registeredSaleHasUnsavedChanges {
+                Label("Hay cambios sin guardar. Guarda antes de cobrar o facturar.", systemImage: "exclamationmark.triangle")
+                    .font(.footnote)
+                    .foregroundStyle(Color.orange)
+            } else {
+                Label("Puedes corregir productos mientras la venta no tenga factura electrónica enviada o autorizada.", systemImage: "pencil.and.list.clipboard")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+
+            Button {
+                NexoKeyboard.dismiss()
+                Task { await viewModel.saveRegisteredSaleChanges() }
+            } label: {
+                if viewModel.isCreatingSale {
+                    ProgressView()
+                } else {
+                    Label("Guardar cambios de productos", systemImage: "checkmark.circle")
+                }
+            }
+            .buttonStyle(.bordered)
+            .disabled(!viewModel.canSaveRegisteredSaleChanges)
+        }
+    }
+
+    private var summaryGroup: some View {
+        SaleCartGroupedCard(
+            title: "Resumen y acción",
+            subtitle: summarySubtitle,
+            systemImage: "checkmark.seal"
+        ) {
+            VStack(alignment: .leading, spacing: 14) {
+                messagesBlock
+
+                if viewModel.createdSale != nil && hasVisibleMessage {
+                    Divider()
                 }
 
+                if let sale = viewModel.createdSale {
+                    NexoSaleSuccessCard(sale: sale)
+
+                    if !viewModel.cartItems.isEmpty || viewModel.createdSale != nil {
+                        Divider()
+                    }
+                }
+
+                if !viewModel.cartItems.isEmpty {
+                    totalBlock
+                    Divider()
+                }
+
+                actionsBlock
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var messagesBlock: some View {
+        if let message = viewModel.errorMessage {
+            NexoMessageBanner(message, style: .error)
+        }
+
+        if let warning = viewModel.finalConsumerInvoiceWarning {
+            NexoMessageBanner(warning, style: .warning)
+        }
+
+        if let message = viewModel.infoMessage {
+            NexoMessageBanner(message, style: viewModel.createdSale == nil ? .info : viewModel.createdSaleMessageStyle)
+        }
+    }
+
+    private var hasVisibleMessage: Bool {
+        viewModel.errorMessage != nil ||
+        viewModel.finalConsumerInvoiceWarning != nil ||
+        viewModel.infoMessage != nil
+    }
+
+    @ViewBuilder
+    private var totalBlock: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .firstTextBaseline) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Total estimado")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+
+                    Text(viewModel.localCalculation.totals.grandTotal.displayText)
+                        .font(.title2.weight(.bold))
+                        .monospacedDigit()
+                }
+
+                Spacer()
+
+                if viewModel.isPreviewing {
+                    ProgressView()
+                        .controlSize(.small)
+                }
+            }
+
+            VStack(spacing: 8) {
                 NexoMoneyTotalView(title: "Subtotal", amount: viewModel.localCalculation.totals.subtotalWithoutTaxes)
 
                 if viewModel.localCalculation.hasDiscount {
@@ -517,96 +681,102 @@ struct SaleCartView: View {
                 }
 
                 NexoMoneyTotalView(title: "Impuestos", amount: viewModel.localCalculation.totals.taxTotal)
-                NexoMoneyTotalView(title: "Total estimado", amount: viewModel.localCalculation.totals.grandTotal, isProminent: true)
-
-                if viewModel.isPreviewing {
-                    Label("Validando con servidor…", systemImage: "arrow.triangle.2.circlepath")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                } else {
-                    Label("Calculado en este dispositivo. El servidor validará antes de registrar.", systemImage: "iphone")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                }
-            } header: {
-                Text("Total")
-            } footer: {
-                if let warning = viewModel.localCalculation.primaryWarning {
-                    Text(warning)
-                } else {
-                    Text("El total se actualiza en pantalla al cambiar productos, cantidades, impuestos o descuentos.")
-                }
             }
-        }
-    }
 
+            DisclosureGroup {
+                VStack(alignment: .leading, spacing: 10) {
+                    ForEach(viewModel.localCalculation.lines) { item in
+                        VStack(alignment: .leading, spacing: 6) {
+                            HStack(alignment: .firstTextBaseline) {
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text(item.name)
+                                        .font(.subheadline.weight(.semibold))
 
-    @ViewBuilder
-    private var registeredSaleEditSection: some View {
-        if viewModel.createdSale != nil {
-            Section("Edición antes de facturar") {
-                if viewModel.registeredSaleHasUnsavedChanges {
-                    Label("Hay cambios sin guardar. Guarda antes de cobrar o facturar.", systemImage: "exclamationmark.triangle")
-                        .font(.footnote)
-                        .foregroundStyle(Color.orange)
-                } else {
-                    Label("Puedes corregir productos mientras la venta no tenga factura electrónica enviada o autorizada.", systemImage: "pencil.and.list.clipboard")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                }
+                                    Text("Cantidad: \(item.quantity.cleanQuantityText) · \(item.taxTreatment.displayName)")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
 
-                Button {
-                    NexoKeyboard.dismiss()
-                    Task { await viewModel.saveRegisteredSaleChanges() }
-                } label: {
-                    if viewModel.isCreatingSale {
-                        ProgressView()
-                    } else {
-                        Label("Guardar cambios de productos", systemImage: "checkmark.circle")
+                                Spacer()
+
+                                Text(item.total.displayText)
+                                    .font(.subheadline.weight(.semibold))
+                                    .monospacedDigit()
+                            }
+
+                            if item.discount.amount != "0.00" {
+                                LabeledContent("Descuento", value: item.discount.displayText)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+
+                            if item.taxAmount.amount != "0.00" {
+                                LabeledContent("IVA \(item.taxRatePercent)%", value: item.taxAmount.displayText)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+
+                            if let warning = item.warning {
+                                Label(warning, systemImage: "exclamationmark.triangle")
+                                    .font(.caption)
+                                    .foregroundStyle(.orange)
+                            }
+                        }
+
+                        if item.id != viewModel.localCalculation.lines.last?.id {
+                            Divider()
+                        }
                     }
                 }
-                .disabled(!viewModel.canSaveRegisteredSaleChanges)
+                .padding(.top, 8)
+            } label: {
+                Text("Detalle del cálculo")
+                    .font(.footnote.weight(.semibold))
             }
+
+            if viewModel.isPreviewing {
+                Label("Validando con servidor…", systemImage: "arrow.triangle.2.circlepath")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            } else if let warning = viewModel.localCalculation.primaryWarning {
+                Label(warning, systemImage: "exclamationmark.triangle")
+                    .font(.footnote)
+                    .foregroundStyle(.orange)
+            } else {
+                Label("Calculado en este dispositivo. El servidor validará antes de registrar.", systemImage: "iphone")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+    
+    private struct DiscountPresetChip: View {
+        let title: String
+        let isSelected: Bool
+
+        var body: some View {
+            Text(title)
+                .font(.caption.weight(.medium))
+                .foregroundStyle(isSelected ? Color.primary : Color.secondary)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background {
+                    Capsule(style: .continuous)
+                        .fill(backgroundColor)
+                }
+        }
+
+        private var backgroundColor: Color {
+            isSelected
+            ? Color.accentColor.opacity(0.12)
+            : Color(uiColor: .secondarySystemGroupedBackground)
         }
     }
 
     @ViewBuilder
-    private var saleSection: some View {
+    private var actionsBlock: some View {
         if let sale = viewModel.createdSale {
-            Section {
-                NexoSaleSuccessCard(sale: sale)
-            }
-        }
-    }
-
-    @ViewBuilder
-    private var messagesSection: some View {
-        if let message = viewModel.errorMessage {
-            Section {
-                NexoMessageBanner(message, style: .error)
-            }
-        }
-
-
-        if let warning = viewModel.finalConsumerInvoiceWarning {
-            Section {
-                NexoMessageBanner(warning, style: .warning)
-            }
-        }
-
-
-        if let message = viewModel.infoMessage {
-            Section {
-                NexoMessageBanner(message, style: viewModel.createdSale == nil ? .info : viewModel.createdSaleMessageStyle)
-            }
-        }
-    }
-
-    @ViewBuilder
-    private var actionsSection: some View {
-        if let sale = viewModel.createdSale {
-            Section("Siguiente acción") {
-
+            VStack(alignment: .leading, spacing: 10) {
                 if viewModel.registeredSaleHasUnsavedChanges {
                     Label("Guarda los cambios de productos antes de cobrar o facturar.", systemImage: "exclamationmark.triangle")
                         .font(.footnote)
@@ -619,7 +789,10 @@ struct SaleCartView: View {
                         Task { await viewModel.saveRegisteredSaleChanges() }
                     } label: {
                         Label("Guardar cambios de productos", systemImage: "checkmark.circle")
+                            .frame(maxWidth: .infinity)
                     }
+                    .buttonStyle(.bordered)
+                    .controlSize(.large)
                 }
 
                 if viewModel.canCollectCreatedSale {
@@ -627,11 +800,15 @@ struct SaleCartView: View {
                         preparePaymentNavigation(for: sale)
                     } label: {
                         if isPreparingPaymentNavigation {
-                            Label("Preparando cobro...", systemImage: "clock")
+                            Label("Preparando cobro…", systemImage: "clock")
+                                .frame(maxWidth: .infinity)
                         } else {
                             Label("Cobrar ahora", systemImage: "dollarsign.circle.fill")
+                                .frame(maxWidth: .infinity)
                         }
                     }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.large)
                     .disabled(isPreparingPaymentNavigation)
                 } else {
                     Label("Este usuario puede registrar ventas, pero no cobrar.", systemImage: "lock")
@@ -639,30 +816,36 @@ struct SaleCartView: View {
                         .foregroundStyle(.secondary)
                 }
 
-                Button {
-                    requestStartNewOrder()
-                } label: {
-                    Label(
-                        viewModel.createdSaleNeedsCollection ? "Guardar pendiente y crear otra" : "Nueva venta",
-                        systemImage: "plus.circle"
-                    )
-                }
+                HStack(spacing: 10) {
+                    Button {
+                        requestStartNewOrder()
+                    } label: {
+                        Label(
+                            viewModel.createdSaleNeedsCollection ? "Guardar pendiente" : "Nueva venta",
+                            systemImage: "plus.circle"
+                        )
+                        .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
 
-                NavigationLink {
-                    SaleDetailView(
-                        viewModel: viewModel.makeSaleDetailViewModel(for: sale),
-                        customersRepository: customersRepository,
-                        cashRepository: cashRepository,
-                        paymentsRepository: paymentsRepository,
-                        receivablesRepository: receivablesRepository,
-                        documentsRepository: documentsRepository
-                    )
-                } label: {
-                    Label("Ver detalle", systemImage: "doc.text.magnifyingglass")
+                    NavigationLink {
+                        SaleDetailView(
+                            viewModel: viewModel.makeSaleDetailViewModel(for: sale),
+                            customersRepository: customersRepository,
+                            cashRepository: cashRepository,
+                            paymentsRepository: paymentsRepository,
+                            receivablesRepository: receivablesRepository,
+                            documentsRepository: documentsRepository
+                        )
+                    } label: {
+                        Label("Detalle", systemImage: "doc.text.magnifyingglass")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
                 }
             }
         } else if !viewModel.cartItems.isEmpty {
-            Section("Acciones") {
+            VStack(alignment: .leading, spacing: 10) {
                 if let status = viewModel.calculationStatusText {
                     Label(status, systemImage: viewModel.isPreviewing ? "arrow.triangle.2.circlepath" : "checkmark.seal")
                         .font(.footnote)
@@ -675,10 +858,14 @@ struct SaleCartView: View {
                 } label: {
                     if viewModel.isPreviewing || viewModel.isCreatingSale {
                         ProgressView()
+                            .frame(maxWidth: .infinity)
                     } else {
                         Label("Registrar venta", systemImage: "checkmark.seal.fill")
+                            .frame(maxWidth: .infinity)
                     }
                 }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
                 .disabled(!viewModel.canCreateSale)
 
                 if viewModel.canClearCart {
@@ -687,12 +874,54 @@ struct SaleCartView: View {
                         NexoKeyboard.dismiss()
                     } label: {
                         Label("Limpiar carrito", systemImage: "trash")
+                            .frame(maxWidth: .infinity)
                     }
+                    .buttonStyle(.bordered)
                 }
             }
         }
     }
-    
+
+    private var selectedCustomerSummary: String {
+        if let customer = viewModel.selectedCustomer {
+            return customer.displayName
+        }
+
+        return "Consumidor final"
+    }
+
+    private var saleBuilderTitle: String {
+        if viewModel.createdSale == nil || viewModel.canEditRegisteredSaleItems {
+            return "Construir venta"
+        }
+
+        return "Venta registrada"
+    }
+
+    private var saleBuilderSubtitle: String {
+        if viewModel.cartItems.isEmpty {
+            return "Busca y agrega productos"
+        }
+
+        return cartCountText
+    }
+
+    private var summarySubtitle: String {
+        if let sale = viewModel.createdSale {
+            return sale.displayNumber
+        }
+
+        if viewModel.cartItems.isEmpty {
+            return "Sin productos todavía"
+        }
+
+        return viewModel.localCalculation.totals.grandTotal.displayText
+    }
+
+    private var cartCountText: String {
+        let count = viewModel.cartItems.count
+        return count == 1 ? "1 ítem" : "\(count) ítems"
+    }
     private func preparePaymentNavigation(for sale: BusinessSale) {
         guard !isPreparingPaymentNavigation else { return }
 
@@ -1007,6 +1236,66 @@ struct SaleCartView: View {
 
     private func money(_ value: MoneyAmount) -> String {
         value.displayText
+    }
+}
+
+
+private struct SaleCartGroupedCard<Content: View>: View {
+    let title: String
+    let subtitle: String
+    let systemImage: String
+    var isHero: Bool = false
+    @ViewBuilder let content: Content
+
+    init(
+        title: String,
+        subtitle: String,
+        systemImage: String,
+        isHero: Bool = false,
+        @ViewBuilder content: () -> Content
+    ) {
+        self.title = title
+        self.subtitle = subtitle
+        self.systemImage = systemImage
+        self.isHero = isHero
+        self.content = content()
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .top, spacing: 12) {
+                Image(systemName: systemImage)
+                    .font((isHero ? Font.title3 : Font.body).weight(.semibold))
+                    .foregroundStyle(Color.accentColor)
+                    .frame(width: isHero ? 36 : 30, height: isHero ? 36 : 30)
+                    .background(Color.accentColor.opacity(0.12), in: RoundedRectangle(cornerRadius: isHero ? 13 : 11, style: .continuous))
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(title)
+                        .font(isHero ? .headline.weight(.bold) : .subheadline.weight(.bold))
+
+                    Text(subtitle)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                }
+
+                Spacer(minLength: 0)
+            }
+
+            content
+        }
+        .padding(isHero ? 18 : 16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background {
+            RoundedRectangle(cornerRadius: isHero ? 24 : 22, style: .continuous)
+                .fill(Color(uiColor: .secondarySystemGroupedBackground))
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: isHero ? 24 : 22, style: .continuous)
+                .strokeBorder(Color.primary.opacity(0.055), lineWidth: 1)
+        }
+        .shadow(color: Color.black.opacity(isHero ? 0.055 : 0.025), radius: isHero ? 12 : 7, x: 0, y: isHero ? 7 : 3)
     }
 }
 

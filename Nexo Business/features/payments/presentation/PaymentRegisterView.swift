@@ -341,7 +341,7 @@ struct PaymentRegisterView: View {
         if viewModel.hasCompletedSubmission {
             Section("Siguiente acción") {
                 NavigationLink {
-                    CashDashboardView(
+                    CashDashboardRouteView(
                         viewModel: viewModel.makeCashDashboardViewModel()
                     )
                 } label: {
@@ -350,7 +350,7 @@ struct PaymentRegisterView: View {
 
                 if let documentsViewModel = viewModel.makeBusinessDocumentsViewModel() {
                     NavigationLink {
-                        BusinessDocumentsView(
+                        BusinessDocumentsRouteView(
                             viewModel: documentsViewModel,
                             onSaleUpdated: { updatedSale in
                                 onSaleUpdated(updatedSale)
@@ -633,7 +633,7 @@ struct PaymentRegisterInlineView: View {
     private var paymentNextActionSection: some View {
         Section("Siguiente acción") {
             NavigationLink {
-                CashDashboardView(
+                CashDashboardRouteView(
                     viewModel: viewModel.makeCashDashboardViewModel()
                 )
             } label: {
@@ -642,7 +642,7 @@ struct PaymentRegisterInlineView: View {
 
             if let documentsViewModel = viewModel.makeBusinessDocumentsViewModel() {
                 NavigationLink {
-                    BusinessDocumentsView(
+                    BusinessDocumentsRouteView(
                         viewModel: documentsViewModel,
                         onSaleUpdated: { updatedSale in
                             onSaleUpdated(updatedSale)
@@ -668,7 +668,7 @@ struct PaymentRegisterInlineView: View {
         if viewModel.hasCompletedSubmission {
             Section("Siguiente acción") {
                 NavigationLink {
-                    CashDashboardView(
+                    CashDashboardRouteView(
                         viewModel: viewModel.makeCashDashboardViewModel()
                     )
                 } label: {
@@ -677,7 +677,7 @@ struct PaymentRegisterInlineView: View {
 
                 if let documentsViewModel = viewModel.makeBusinessDocumentsViewModel() {
                     NavigationLink {
-                        BusinessDocumentsView(
+                        BusinessDocumentsRouteView(
                             viewModel: documentsViewModel,
                             onSaleUpdated: { updatedSale in
                                 onSaleUpdated(updatedSale)
