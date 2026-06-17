@@ -495,7 +495,7 @@ final class SaleCartViewModel {
             return "Esta venta ya tiene un comprobante electrónico generado, enviado o autorizado. Para cambiar productos debes usar un flujo fiscal correctivo, no edición directa."
         }
         if registeredSaleHasUnsavedChanges {
-            return "Guarda los cambios de productos antes de cobrar o emitir factura electrónica."
+            return "Guarda los cambios de la venta antes de cobrar o emitir factura electrónica."
         }
         return nil
     }
@@ -684,7 +684,7 @@ final class SaleCartViewModel {
         isCreatingSale = true
         orderState = .creating
         errorMessage = nil
-        infoMessage = "Guardando cambios de productos…"
+        infoMessage = "Guardando cambios de venta…"
 
         defer {
             isCreatingSale = false
@@ -753,6 +753,23 @@ final class SaleCartViewModel {
                 latestSale = response.sale
             }
 
+            if registeredSaleCustomerChanged(from: latestSale) {
+                let identity = BusinessMutationIdentity.generate(prefix: "sale-customer-update")
+                let response = try await salesRepository.updateCustomer(
+                    organizationId: organizationId,
+                    saleId: latestSale.id,
+                    revisions: revisions,
+                    idempotencyKey: identity.idempotencyKey,
+                    request: UpdateSaleCustomerRequest(
+                        requestId: identity.requestId,
+                        customerId: customerIdForRequest,
+                        customerSnapshot: customerSnapshotForRequest(),
+                        reason: "Corrección de cliente antes de emitir factura electrónica"
+                    )
+                )
+                latestSale = response.sale
+            }
+
             let enrichedSale = latestSale.withLocalCartTaxProfileFallback(from: cartItems)
             createdSale = enrichedSale
             realignCartItemsWithCreatedSale(enrichedSale)
@@ -760,7 +777,7 @@ final class SaleCartViewModel {
             registeredSaleHasUnsavedChanges = false
             isPreviewDirty = false
             recalculateLocalCalculation()
-            infoMessage = "Cambios guardados. Ahora puedes cobrar o emitir factura con los productos corregidos."
+            infoMessage = "Cambios guardados. Ahora puedes cobrar o emitir factura con la venta corregida."
         } catch let error as APIError {
             orderState = .created
             handle(apiError: error)
@@ -1351,6 +1368,23 @@ final class SaleCartViewModel {
             taxProfileCode: item.taxTreatment.taxProfileCode,
             notes: item.note?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfBlankForUI
         )
+    }
+
+    private func registeredSaleCustomerChanged(from sale: BusinessSale) -> Bool {
+        guard selectedCustomer != nil else { return false }
+        let persistedCustomerId = sale.customerId?.nilIfBlank
+        let selectedCustomerId = customerIdForRequest?.nilIfBlank
+
+        if persistedCustomerId != selectedCustomerId {
+            return true
+        }
+
+        if persistedCustomerId == nil && selectedCustomerId == nil {
+            return BusinessElectronicInvoiceCustomerPolicy.isFinalConsumer(sale: sale) !=
+            BusinessElectronicInvoiceCustomerPolicy.isFinalConsumer(selectedCustomer)
+        }
+
+        return false
     }
 
     private func customerSnapshotForRequest() -> BusinessSaleCustomerSnapshot? {

@@ -58,6 +58,23 @@ final class SaleCartCustomerSelectionTests: XCTestCase {
 }
 
 final class SaleCartSalesRepositorySpy: SalesRepository, @unchecked Sendable {
+    
+    func updateCustomer(
+        organizationId: String,
+        saleId: String,
+        revisions: Nexo_Business.BusinessRevisions,
+        idempotencyKey: Nexo_Business.IdempotencyKey,
+        request: Nexo_Business.UpdateSaleCustomerRequest
+    ) async throws -> Nexo_Business.QuickSaleResponse {
+        lastUpdateCustomerRequest = request
+        lastUpdateCustomerIdempotencyKey = idempotencyKey
+        return updateCustomerResponse
+    }
+
+    var lastUpdateCustomerRequest: UpdateSaleCustomerRequest?
+    var lastUpdateCustomerIdempotencyKey: IdempotencyKey?
+    var updateCustomerResponse: QuickSaleResponse = PreviewData.quickSaleResponse
+    
     var lastPreviewRequest: SalesPreviewRequest?
     var lastQuickSaleRequest: QuickSaleRequest?
     var lastBulkAddRequest: BulkAddSaleItemsRequest?

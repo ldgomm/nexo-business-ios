@@ -45,6 +45,14 @@ protocol SalesRepository: Sendable {
         request: BulkRemoveSaleItemsRequest
     ) async throws -> QuickSaleResponse
 
+    func updateCustomer(
+        organizationId: String,
+        saleId: String,
+        revisions: BusinessRevisions,
+        idempotencyKey: IdempotencyKey,
+        request: UpdateSaleCustomerRequest
+    ) async throws -> QuickSaleResponse
+
     func getSale(
         organizationId: String,
         saleId: String

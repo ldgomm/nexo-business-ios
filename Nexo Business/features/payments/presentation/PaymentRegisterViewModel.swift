@@ -201,7 +201,13 @@ final class PaymentRegisterViewModel {
     }
 
     var finalConsumerInvoiceBlockedReason: String? {
-        BusinessElectronicInvoiceCustomerPolicy.blockingMessageForInvoice(sale: sale)
+        if let selectedCustomer {
+            return BusinessElectronicInvoiceCustomerPolicy.blockingMessageForInvoice(
+                total: sale.totals.grandTotal,
+                selectedCustomer: selectedCustomer
+            )
+        }
+        return BusinessElectronicInvoiceCustomerPolicy.blockingMessageForInvoice(sale: sale)
     }
 
     var shouldShowPaymentAndIssueElectronicDocumentAction: Bool {
@@ -525,6 +531,10 @@ final class PaymentRegisterViewModel {
         }
 
         do {
+            if !(await persistSelectedCustomerForSaleIfNeeded(requireForInvoice: shouldIssueElectronicDocument)) {
+                return
+            }
+
             let submittedMode = selectedMode
             let identity = BusinessMutationIdentity.generate(prefix: "payment-register")
             let response = try await paymentsRepository.register(
@@ -686,6 +696,52 @@ final class PaymentRegisterViewModel {
     func resetResultMessages() {
         errorMessage = nil
         infoMessage = nil
+    }
+
+    private func persistSelectedCustomerForSaleIfNeeded(requireForInvoice: Bool) async -> Bool {
+        guard let selectedCustomer else { return true }
+        let selectedCustomerId = selectedCustomer.identificationType == .finalConsumer ? nil : selectedCustomer.id.nilIfBlank
+        let persistedCustomerId = sale.customerId?.nilIfBlank
+        guard selectedCustomerId != persistedCustomerId else { return true }
+
+        guard let salesRepository, let revisions else {
+            if requireForInvoice {
+                errorMessage = "Seleccionaste un cliente, pero no se pudo guardar en la venta antes de emitir factura electrónica. Vuelve a la venta, guarda cambios e intenta de nuevo."
+                return false
+            }
+            return true
+        }
+
+        let identity = BusinessMutationIdentity.generate(prefix: "sale-customer-update")
+        do {
+            let response = try await salesRepository.updateCustomer(
+                organizationId: organizationId,
+                saleId: sale.id,
+                revisions: revisions,
+                idempotencyKey: identity.idempotencyKey,
+                request: UpdateSaleCustomerRequest(
+                    requestId: identity.requestId,
+                    customerId: selectedCustomerId,
+                    customerSnapshot: selectedCustomer.identificationType == .finalConsumer ? nil : BusinessSaleCustomerSnapshot(
+                        id: selectedCustomer.id,
+                        displayName: selectedCustomer.displayName,
+                        identificationType: selectedCustomer.identificationType.rawValue,
+                        identificationNumber: selectedCustomer.identificationNumber,
+                        email: selectedCustomer.email
+                    ),
+                    reason: "Corrección de cliente antes de cobrar y emitir factura electrónica"
+                )
+            )
+            sale = salePreservingKnownElectronicDocument(response.sale)
+            customerId = sale.customerId ?? ""
+            return true
+        } catch let error as APIError {
+            errorMessage = humanMessage(for: error)
+            return false
+        } catch {
+            errorMessage = error.localizedDescription
+            return false
+        }
     }
 
     private func salePreservingKnownElectronicDocument(_ loadedSale: BusinessSale) -> BusinessSale {
@@ -960,5 +1016,12 @@ final class PaymentRegisterViewModel {
             currentCashSession = nil
             errorMessage = error.localizedDescription
         }
+    }
+}
+
+private extension String {
+    var nilIfBlank: String? {
+        let trimmed = trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
     }
 }

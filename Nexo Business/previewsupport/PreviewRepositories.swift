@@ -85,6 +85,16 @@ final class PreviewSalesRepository: SalesRepository, @unchecked Sendable {
         PreviewData.quickSaleResponse
     }
 
+    func updateCustomer(
+        organizationId: String,
+        saleId: String,
+        revisions: BusinessRevisions,
+        idempotencyKey: IdempotencyKey,
+        request: UpdateSaleCustomerRequest
+    ) async throws -> QuickSaleResponse {
+        PreviewData.quickSaleResponse
+    }
+
     func getSale(
         organizationId: String,
         saleId: String

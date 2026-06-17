@@ -131,6 +131,20 @@ private final class SalesRevisionConflictContextRepositorySpy: BusinessContextRe
 }
 
 private final class RevisionConflictSalesRepositorySpy: SalesRepository, @unchecked Sendable {
+    func updateCustomer(organizationId: String, saleId: String, revisions: Nexo_Business.BusinessRevisions, idempotencyKey: Nexo_Business.IdempotencyKey, request: Nexo_Business.UpdateSaleCustomerRequest) async throws -> Nexo_Business.QuickSaleResponse {
+        lastUpdateCustomerRequest = request
+        lastUpdateCustomerIdempotencyKey = idempotencyKey
+        if let updateCustomerError {
+            throw updateCustomerError
+        }
+        return updateCustomerResponse
+    }
+    
+    var lastUpdateCustomerRequest: UpdateSaleCustomerRequest?
+    var lastUpdateCustomerIdempotencyKey: IdempotencyKey?
+    var updateCustomerResponse: QuickSaleResponse = PreviewData.quickSaleResponse
+    var updateCustomerError: Error?
+    
     private(set) var bulkAddRequests: [BulkAddSaleItemsRequest] = []
     private(set) var bulkUpdateRequests: [BulkUpdateSaleItemsRequest] = []
     private(set) var bulkRemoveRequests: [BulkRemoveSaleItemsRequest] = []

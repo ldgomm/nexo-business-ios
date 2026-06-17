@@ -130,6 +130,38 @@ struct BusinessSaleCustomerSnapshot: Codable, Equatable, Sendable {
         self.identificationNumber = identificationNumber
         self.email = email
     }
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case customerId
+        case displayName
+        case identificationType
+        case identificationNumber
+        case taxIdType
+        case taxId
+        case email
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = (try? container.decodeIfPresent(String.self, forKey: .customerId))
+        ?? (try? container.decodeIfPresent(String.self, forKey: .id))
+        displayName = (try? container.decodeIfPresent(String.self, forKey: .displayName)) ?? "Consumidor final"
+        identificationType = (try? container.decodeIfPresent(String.self, forKey: .taxIdType))
+        ?? (try? container.decodeIfPresent(String.self, forKey: .identificationType))
+        identificationNumber = (try? container.decodeIfPresent(String.self, forKey: .taxId))
+        ?? (try? container.decodeIfPresent(String.self, forKey: .identificationNumber))
+        email = try? container.decodeIfPresent(String.self, forKey: .email)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encodeIfPresent(id, forKey: .customerId)
+        try container.encode(displayName, forKey: .displayName)
+        try container.encodeIfPresent(identificationNumber, forKey: .taxId)
+        try container.encodeIfPresent(identificationType, forKey: .taxIdType)
+        try container.encodeIfPresent(email, forKey: .email)
+    }
 }
 
 struct SalesPreviewRequest: Encodable, Equatable, Sendable {
@@ -1083,6 +1115,26 @@ struct BulkRemoveSaleItemsRequest: Encodable, Equatable, Sendable {
         self.catalogRevision = catalogRevision
         self.taxConfigurationRevision = taxConfigurationRevision
         self.saleItemIds = saleItemIds
+    }
+}
+
+
+struct UpdateSaleCustomerRequest: Encodable, Equatable, Sendable {
+    let requestId: String
+    let customerId: String?
+    let customerSnapshot: BusinessSaleCustomerSnapshot?
+    let reason: String
+
+    init(
+        requestId: String = "sale-customer-update-\(UUID().uuidString.lowercased())",
+        customerId: String? = nil,
+        customerSnapshot: BusinessSaleCustomerSnapshot? = nil,
+        reason: String = "Corrección de cliente antes de emitir factura electrónica"
+    ) {
+        self.requestId = requestId
+        self.customerId = customerId
+        self.customerSnapshot = customerSnapshot
+        self.reason = reason
     }
 }
 

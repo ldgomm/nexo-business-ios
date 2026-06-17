@@ -199,6 +199,20 @@ private final class CatalogRepositorySpy: CatalogRepository, @unchecked Sendable
 }
 
 private final class SalesRepositorySpy: SalesRepository, @unchecked Sendable {
+    func updateCustomer(organizationId: String, saleId: String, revisions: Nexo_Business.BusinessRevisions, idempotencyKey: Nexo_Business.IdempotencyKey, request: Nexo_Business.UpdateSaleCustomerRequest) async throws -> Nexo_Business.QuickSaleResponse {
+        lastUpdateCustomerRequest = request
+        lastUpdateCustomerIdempotencyKey = idempotencyKey
+        if let updateCustomerError {
+            throw updateCustomerError
+        }
+        return updateCustomerResponse
+    }
+    
+    var lastUpdateCustomerRequest: UpdateSaleCustomerRequest?
+    var lastUpdateCustomerIdempotencyKey: IdempotencyKey?
+    var updateCustomerResponse: QuickSaleResponse = PreviewData.quickSaleResponse
+    var updateCustomerError: Error?
+    
     var previewResponse: SalesPreviewResponse
     var quickSaleResponse: QuickSaleResponse
     var previewError: Error?
