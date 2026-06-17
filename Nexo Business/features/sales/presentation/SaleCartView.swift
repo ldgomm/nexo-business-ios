@@ -821,7 +821,7 @@ struct SaleCartView: View {
                         requestStartNewOrder()
                     } label: {
                         Label(
-                            viewModel.createdSaleNeedsCollection ? "Guardar pendiente" : "Nueva venta",
+                            viewModel.createdSaleNeedsCollection ? "Guardar" : "Nueva venta",
                             systemImage: "plus.circle"
                         )
                         .frame(maxWidth: .infinity)
