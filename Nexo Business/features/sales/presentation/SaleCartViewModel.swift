@@ -501,6 +501,13 @@ final class SaleCartViewModel {
     }
 
     var finalConsumerInvoiceWarning: String? {
+        if createdSale != nil && registeredSaleHasUnsavedChanges {
+            return BusinessElectronicInvoiceCustomerPolicy.blockingMessageForInvoice(
+                total: localCalculation.totals.grandTotal,
+                selectedCustomer: selectedCustomer
+            )
+        }
+
         if let sale = createdSale {
             return BusinessElectronicInvoiceCustomerPolicy.blockingMessageForInvoice(sale: sale)
         }
@@ -627,9 +634,16 @@ final class SaleCartViewModel {
 
     var calculationStatusText: String? {
         guard createdSale == nil, !cartItems.isEmpty else { return nil }
-        if isPreviewing { return "Validando total con servidor antes de registrar…" }
-        if isPreviewDirty || preview == nil { return "Total calculado en este dispositivo. El servidor validará la venta al registrar." }
-        return "Total validado con servidor."
+
+        if isPreviewing {
+            return "Validando total…"
+        }
+
+        if localCalculation.primaryWarning != nil {
+            return nil
+        }
+
+        return nil
     }
 
     var createdSaleNeedsCollection: Bool {
@@ -801,7 +815,7 @@ final class SaleCartViewModel {
     
     func clearCustomer() {
         guard ensureOrderIsEditable() else { return }
-        selectedCustomer = nil
+        selectedCustomer = createdSale == nil ? nil : BusinessCustomerPresentation.finalConsumer
         errorMessage = nil
         markCalculationDirty(shouldScheduleAutomaticPreview: true)
     }
@@ -1371,7 +1385,6 @@ final class SaleCartViewModel {
     }
 
     private func registeredSaleCustomerChanged(from sale: BusinessSale) -> Bool {
-        guard selectedCustomer != nil else { return false }
         let persistedCustomerId = sale.customerId?.nilIfBlank
         let selectedCustomerId = customerIdForRequest?.nilIfBlank
 
@@ -1379,12 +1392,8 @@ final class SaleCartViewModel {
             return true
         }
 
-        if persistedCustomerId == nil && selectedCustomerId == nil {
-            return BusinessElectronicInvoiceCustomerPolicy.isFinalConsumer(sale: sale) !=
-            BusinessElectronicInvoiceCustomerPolicy.isFinalConsumer(selectedCustomer)
-        }
-
-        return false
+        return BusinessElectronicInvoiceCustomerPolicy.isFinalConsumer(sale: sale) !=
+        BusinessElectronicInvoiceCustomerPolicy.isFinalConsumer(selectedCustomer)
     }
 
     private func customerSnapshotForRequest() -> BusinessSaleCustomerSnapshot? {

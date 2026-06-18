@@ -398,8 +398,8 @@ final class PaymentRegisterViewModel {
 
     func clearCustomer() {
         guard !hasCompletedSubmission else { return }
-        selectedCustomer = nil
-        customerId = sale.customerId ?? ""
+        selectedCustomer = BusinessCustomerPresentation.finalConsumer
+        customerId = ""
         resetResultMessages()
     }
 
@@ -408,10 +408,15 @@ final class PaymentRegisterViewModel {
         await refreshForSelectedMode()
     }
 
-    func prepareInitialLoadForPaymentScreen() async {
+    func prepareInitialLoadForPaymentScreen(autoPrepareCash: Bool = false) async {
         guard !hasPreparedInitialPaymentScreen else { return }
         hasPreparedInitialPaymentScreen = true
-        await prepareForCashCollectionIfNeeded()
+
+        if autoPrepareCash {
+            await prepareForCashCollectionIfNeeded()
+        } else {
+            await load()
+        }
     }
 
     private func refreshSaleForElectronicInvoiceReadinessIfPossible() async {
@@ -699,10 +704,15 @@ final class PaymentRegisterViewModel {
     }
 
     private func persistSelectedCustomerForSaleIfNeeded(requireForInvoice: Bool) async -> Bool {
-        guard let selectedCustomer else { return true }
-        let selectedCustomerId = selectedCustomer.identificationType == .finalConsumer ? nil : selectedCustomer.id.nilIfBlank
+        let effectiveSelectedCustomer = selectedCustomer ?? (customerId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? BusinessCustomerPresentation.finalConsumer : nil)
+        guard let effectiveSelectedCustomer else { return true }
+
+        let selectedCustomerId = effectiveSelectedCustomer.identificationType == .finalConsumer ? nil : effectiveSelectedCustomer.id.nilIfBlank
         let persistedCustomerId = sale.customerId?.nilIfBlank
-        guard selectedCustomerId != persistedCustomerId else { return true }
+        let selectedIsFinalConsumer = BusinessElectronicInvoiceCustomerPolicy.isFinalConsumer(effectiveSelectedCustomer)
+        let persistedIsFinalConsumer = BusinessElectronicInvoiceCustomerPolicy.isFinalConsumer(sale: sale)
+
+        guard selectedCustomerId != persistedCustomerId || selectedIsFinalConsumer != persistedIsFinalConsumer else { return true }
 
         guard let salesRepository, let revisions else {
             if requireForInvoice {
@@ -722,12 +732,12 @@ final class PaymentRegisterViewModel {
                 request: UpdateSaleCustomerRequest(
                     requestId: identity.requestId,
                     customerId: selectedCustomerId,
-                    customerSnapshot: selectedCustomer.identificationType == .finalConsumer ? nil : BusinessSaleCustomerSnapshot(
-                        id: selectedCustomer.id,
-                        displayName: selectedCustomer.displayName,
-                        identificationType: selectedCustomer.identificationType.rawValue,
-                        identificationNumber: selectedCustomer.identificationNumber,
-                        email: selectedCustomer.email
+                    customerSnapshot: selectedIsFinalConsumer ? nil : BusinessSaleCustomerSnapshot(
+                        id: effectiveSelectedCustomer.id,
+                        displayName: effectiveSelectedCustomer.displayName,
+                        identificationType: effectiveSelectedCustomer.identificationType.rawValue,
+                        identificationNumber: effectiveSelectedCustomer.identificationNumber,
+                        email: effectiveSelectedCustomer.email
                     ),
                     reason: "Corrección de cliente antes de cobrar y emitir factura electrónica"
                 )

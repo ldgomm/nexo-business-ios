@@ -58,6 +58,7 @@ struct SaleCartView: View {
             if let preparedPaymentViewModel {
                 PaymentRegisterView(
                     viewModel: preparedPaymentViewModel,
+                    autoPrepareCashOnAppear: true,
                     customersRepository: customersRepository,
                     onSaleUpdated: { updatedSale in
                         viewModel.updateCreatedSale(updatedSale)
@@ -732,20 +733,6 @@ struct SaleCartView: View {
             } label: {
                 Text("Detalle del cálculo")
                     .font(.footnote.weight(.semibold))
-            }
-
-            if viewModel.isPreviewing {
-                Label("Validando con servidor…", systemImage: "arrow.triangle.2.circlepath")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-            } else if let warning = viewModel.localCalculation.primaryWarning {
-                Label(warning, systemImage: "exclamationmark.triangle")
-                    .font(.footnote)
-                    .foregroundStyle(.orange)
-            } else {
-                Label("Calculado en este dispositivo. El servidor validará antes de registrar.", systemImage: "iphone")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
             }
         }
     }

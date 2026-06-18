@@ -11,15 +11,18 @@ struct PaymentRegisterView: View {
     @Bindable private var viewModel: PaymentRegisterViewModel
     private let customersRepository: CustomersRepository
     private let onSaleUpdated: (BusinessSale) -> Void
+    private let autoPrepareCashOnAppear: Bool
     @State private var showSubmitConfirmation = false
     @State private var shouldIssueDocumentAfterPayment = false
 
     init(
         viewModel: PaymentRegisterViewModel,
+        autoPrepareCashOnAppear: Bool = false,
         customersRepository: CustomersRepository = UnavailableCustomersRepository(),
         onSaleUpdated: @escaping (BusinessSale) -> Void = { _ in }
     ) {
         self.viewModel = viewModel
+        self.autoPrepareCashOnAppear = autoPrepareCashOnAppear
         self.customersRepository = customersRepository
         self.onSaleUpdated = onSaleUpdated
     }
@@ -72,7 +75,9 @@ struct PaymentRegisterView: View {
             Text(viewModel.submitConfirmationMessage(issueElectronicDocumentAfterPayment: shouldIssueDocumentAfterPayment))
         }
         .task {
-            await viewModel.prepareInitialLoadForPaymentScreen()
+            await viewModel.prepareInitialLoadForPaymentScreen(
+                autoPrepareCash: autoPrepareCashOnAppear
+            )
         }
         .onChange(of: viewModel.selectedMode) { _, _ in
             viewModel.resetResultMessages()
