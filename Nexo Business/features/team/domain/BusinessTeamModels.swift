@@ -385,6 +385,26 @@ struct BusinessTeamBranch: Identifiable, Equatable, Decodable, Sendable {
     let status: String
 }
 
+struct BusinessCapabilityGroupSummary: Identifiable, Equatable, Sendable {
+    let code: String
+    let title: String
+    let description: String
+    let humanBullets: [String]
+    let sensitive: Bool
+
+    var id: String { code }
+}
+
+struct BusinessTechnicalPermissionRow: Identifiable, Equatable, Sendable {
+    let code: String
+    let label: String
+    let category: String
+    let riskLevel: String?
+    let requiresReason: Bool
+
+    var id: String { code }
+}
+
 struct CreateBusinessTeamUserInput: Encodable, Equatable, Sendable {
     let email: String
     let displayName: String

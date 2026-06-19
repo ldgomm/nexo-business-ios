@@ -27,6 +27,7 @@ struct BusinessTeamView: View {
                     } label: {
                         Label("Crear usuario", systemImage: "person.badge.plus")
                     }
+                    .disabled(!viewModel.canCreateTeamUsers || viewModel.isMutating)
 
                     Button {
                         Task { await viewModel.load() }
@@ -129,6 +130,7 @@ struct BusinessTeamView: View {
 
         case .loaded:
             heroSection
+            readOnlyNoticeSection
             filterSection
             usersSection
             discountRolesSection
@@ -149,6 +151,7 @@ struct BusinessTeamView: View {
                 } label: {
                     Label("Crear primer usuario", systemImage: "person.badge.plus")
                 }
+                .disabled(!viewModel.canCreateTeamUsers || viewModel.isMutating)
             }
         }
     }
@@ -184,9 +187,20 @@ struct BusinessTeamView: View {
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
-                .disabled(viewModel.isMutating)
+                .disabled(!viewModel.canCreateTeamUsers || viewModel.isMutating)
             }
             .padding(.vertical, 6)
+        }
+    }
+
+    @ViewBuilder
+    private var readOnlyNoticeSection: some View {
+        if let reason = viewModel.readOnlyTeamReason {
+            Section {
+                Label(reason, systemImage: "eye")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
         }
     }
 
@@ -254,7 +268,15 @@ struct BusinessTeamView: View {
     private var rolesSection: some View {
         Section("Roles del negocio") {
             ForEach(viewModel.activeRoles) { role in
-                BusinessTeamRoleRow(role: role, capabilities: viewModel.readableCapabilities(for: role.permissionKeys), subtitle: viewModel.roleDescription(for: role))
+                NavigationLink {
+                    BusinessTeamRoleDetailView(role: role, viewModel: viewModel)
+                } label: {
+                    BusinessTeamRoleRow(
+                        role: role,
+                        capabilities: viewModel.readableCapabilities(for: role.permissionKeys),
+                        subtitle: viewModel.roleDescription(for: role)
+                    )
+                }
             }
         }
     }
@@ -273,13 +295,13 @@ struct BusinessTeamView: View {
                     ) {
                         Task { await viewModel.createRoleFromTemplate(template, reason: "Crear rol \(template.name) desde plantilla") }
                     }
-                    .disabled(viewModel.isMutating || viewModel.roles.contains { $0.code == template.roleCode })
+                    .disabled(!viewModel.canCreateRolesFromTemplates || viewModel.isMutating || viewModel.roles.contains { $0.code == template.roleCode })
                 }
             }
         } header: {
             Text("Plantillas disponibles")
         }  footer: {
-            Text("Las plantillas se copian como roles locales del negocio. No se asignan directamente a usuarios.")
+            Text(viewModel.canCreateRolesFromTemplates ? "Las plantillas se copian como roles locales del negocio. No se asignan directamente a usuarios." : "Tu rol permite revisar plantillas, pero no crear roles nuevos.")
         }
     }
 
@@ -333,6 +355,7 @@ private struct BusinessTeamCreateUserView: View {
                                 Text(viewModel.roleDescription(for: role))
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
+                                BusinessTeamCapabilityChips(titles: viewModel.readableCapabilities(for: role.permissionKeys), limit: 3)
                             }
                         }
                     }
@@ -340,7 +363,7 @@ private struct BusinessTeamCreateUserView: View {
             } header: {
                 Text("Roles")
             } footer: {
-                Text("Puedes asignar un rol base y agregar Encargado de descuentos como rol complementario.")
+                Text(viewModel.canCreateTeamUsers ? "Puedes asignar un rol base y agregar roles complementarios según lo permitido por el negocio." : "Tu rol no permite crear usuarios. Esta pantalla queda solo para revisión.")
             }
 
             Section("Motivo") {
@@ -361,7 +384,7 @@ private struct BusinessTeamCreateUserView: View {
                         Text("Crear usuario")
                     }
                 }
-                .disabled(!viewModel.canCreateUser || viewModel.isMutating)
+                .disabled(!viewModel.canSubmitCreateUser || viewModel.isMutating)
             }
         }
         .navigationTitle("Crear usuario")
@@ -417,7 +440,15 @@ private struct BusinessTeamUserDetailView: View {
 
                 Section("Roles asignados") {
                     ForEach(viewModel.roles(for: user)) { role in
-                        BusinessTeamRoleRow(role: role, capabilities: viewModel.readableCapabilities(for: role.permissionKeys), subtitle: viewModel.roleDescription(for: role))
+                        NavigationLink {
+                            BusinessTeamRoleDetailView(role: role, viewModel: viewModel)
+                        } label: {
+                            BusinessTeamRoleRow(
+                                role: role,
+                                capabilities: viewModel.readableCapabilities(for: role.permissionKeys),
+                                subtitle: viewModel.roleDescription(for: role)
+                            )
+                        }
                     }
                 }
 
@@ -425,30 +456,47 @@ private struct BusinessTeamUserDetailView: View {
                     LabeledContent("Sesiones activas", value: "\(user.activeSessionCount)")
                 }
 
-                Section("Acciones") {
+                Section {
+                    TextField("Ej. Cambio solicitado por el dueño", text: $actionReason, axis: .vertical)
+                        .lineLimit(2...4)
+                } header: {
+                    Text("Motivo de acciones sensibles")
+                } footer: {
+                    Text("Bloquear, resetear contraseña o revocar sesiones debe quedar explicado para auditoría.")
+                }
+
+                Section {
                     Button {
                         showingRoleEditor = true
                     } label: {
                         Label("Editar roles", systemImage: "checklist")
                     }
+                    .disabled(!viewModel.canAssignRoles)
 
                     Button {
                         confirmation = user.isBlocked ? .unblock(user) : .block(user)
                     } label: {
                         Label(user.isBlocked ? "Desbloquear" : "Bloquear", systemImage: user.isBlocked ? "lock.open" : "lock")
                     }
+                    .disabled(!canToggleBlock(user))
 
                     Button {
                         confirmation = .resetPassword(user)
                     } label: {
                         Label("Resetear contraseña", systemImage: "key")
                     }
+                    .disabled(!viewModel.canResetPasswords || actionReason.trimmed.isEmpty)
 
                     Button(role: .destructive) {
                         confirmation = .revokeSessions(user)
                     } label: {
                         Label("Revocar sesiones", systemImage: "iphone.slash")
                     }
+                    .disabled(!viewModel.canRevokeSessions || actionReason.trimmed.isEmpty)
+                } header: {
+                    Text("Acciones")
+                } footer: {
+                    Text(actionFooter(for: user))
                 }
             } else {
                 Section {
@@ -485,6 +533,25 @@ private struct BusinessTeamUserDetailView: View {
             get: { confirmation != nil },
             set: { if !$0 { confirmation = nil } }
         )
+    }
+
+    private func canToggleBlock(_ user: BusinessTeamUser) -> Bool {
+        let hasPermission = user.isBlocked ? viewModel.canUnblockUsers : viewModel.canBlockUsers
+        return hasPermission && !actionReason.trimmed.isEmpty
+    }
+
+    private func actionFooter(for user: BusinessTeamUser) -> String {
+        if actionReason.trimmed.isEmpty {
+            return "Ingresa un motivo para habilitar bloqueo, desbloqueo, reseteo o revocación de sesiones."
+        }
+
+        if user.isBlocked, !viewModel.canUnblockUsers { return "Tu rol no permite desbloquear usuarios." }
+        if !user.isBlocked, !viewModel.canBlockUsers { return "Tu rol no permite bloquear usuarios." }
+        if !viewModel.canResetPasswords && !viewModel.canRevokeSessions && !viewModel.canAssignRoles {
+            return "Tu rol no permite ejecutar acciones sensibles sobre usuarios."
+        }
+
+        return "Las acciones sensibles se ejecutan en backend y quedan auditadas."
     }
 
     private func run(_ confirmation: Confirmation) async {
@@ -567,13 +634,14 @@ private struct BusinessTeamRoleEditorView: View {
                             Text(viewModel.roleDescription(for: role))
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
+                            BusinessTeamCapabilityChips(titles: viewModel.readableCapabilities(for: role.permissionKeys), limit: 3)
                         }
                     }
                 }
             } header: {
                 Text("Roles del negocio")
             } footer: {
-                Text("Desmarca Encargado de descuentos para retirar permisos de descuento. Mantén activada la revocación de sesiones para aplicar el cambio inmediatamente.")
+                Text(viewModel.canAssignRoles ? "Cambia roles con motivo y mantén activada la revocación de sesiones para aplicar permisos inmediatamente." : "Tu rol no permite cambiar roles de usuarios.")
             }
 
             Section("Aplicación del cambio") {
@@ -597,7 +665,7 @@ private struct BusinessTeamRoleEditorView: View {
                     if viewModel.isMutating { ProgressView() }
                     else { Text("Guardar roles") }
                 }
-                .disabled(selectedRoleIds.isEmpty || reason.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || viewModel.isMutating)
+                .disabled(!viewModel.canAssignRoles || selectedRoleIds.isEmpty || reason.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || viewModel.isMutating)
             }
         }
         .navigationTitle("Editar roles")
@@ -616,6 +684,68 @@ private struct BusinessTeamRoleEditorView: View {
                 else { selectedRoleIds.remove(roleId) }
             }
         )
+    }
+}
+
+private struct BusinessTeamRoleDetailView: View {
+    let role: BusinessTeamRole
+    @Bindable var viewModel: BusinessTeamViewModel
+
+    var body: some View {
+        List {
+            Section {
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack(alignment: .firstTextBaseline) {
+                        Text(role.name)
+                            .font(.title3.bold())
+                        Spacer()
+                        Text(role.critical ? "Sensible" : "Operativo")
+                            .font(.caption2.bold())
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(role.critical ? .orange.opacity(0.16) : .green.opacity(0.14))
+                            .foregroundStyle(role.critical ? .orange : .green)
+                            .clipShape(Capsule())
+                    }
+
+                    Text(role.description.isEmpty ? "Rol local del negocio." : role.description)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+
+                    BusinessTeamCapabilityChips(
+                        titles: viewModel.readableCapabilities(for: role.permissionKeys),
+                        limit: 6
+                    )
+                }
+                .padding(.vertical, 4)
+
+                LabeledContent("Código", value: role.code)
+                LabeledContent("Alcance", value: role.scopeType)
+                LabeledContent("Rango", value: "\(role.rank)")
+                LabeledContent("Permisos técnicos", value: "\(role.permissionKeys.count)")
+            } header: {
+                Text("Resumen humano")
+            } footer: {
+                Text("Este rol pertenece al negocio. La plantilla solo se usa para crearlo; luego puede evolucionar con auditoría.")
+            }
+
+            Section("Qué puede hacer") {
+                ForEach(viewModel.capabilityGroupSummaries(for: role)) { summary in
+                    BusinessTeamCapabilityGroupCard(summary: summary)
+                }
+            }
+
+            Section {
+                DisclosureGroup("Ver permisos técnicos") {
+                    ForEach(viewModel.technicalPermissionRows(for: role.permissionKeys)) { permission in
+                        BusinessTeamTechnicalPermissionRow(permission: permission)
+                    }
+                }
+            } footer: {
+                Text("Los permisos técnicos son auditables, pero no son la experiencia principal para el dueño del negocio.")
+            }
+        }
+        .navigationTitle("Detalle del rol")
     }
 }
 
@@ -777,6 +907,108 @@ private struct BusinessRoleTemplateRow: View {
     }
 }
 
+private struct BusinessTeamCapabilityChips: View {
+    let titles: [String]
+    let limit: Int
+
+    var body: some View {
+        let visible = Array(titles.prefix(limit))
+        let remaining = max(titles.count - visible.count, 0)
+
+        if !visible.isEmpty {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 6) {
+                    ForEach(visible, id: \.self) { title in
+                        Text(title)
+                            .font(.caption2)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(.quaternary.opacity(0.45))
+                            .clipShape(Capsule())
+                    }
+
+                    if remaining > 0 {
+                        Text("+\(remaining)")
+                            .font(.caption2.weight(.medium))
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(.quaternary.opacity(0.45))
+                            .clipShape(Capsule())
+                    }
+                }
+            }
+        }
+    }
+}
+
+private struct BusinessTeamCapabilityGroupCard: View {
+    let summary: BusinessCapabilityGroupSummary
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .firstTextBaseline) {
+                Label(summary.title, systemImage: summary.sensitive ? "exclamationmark.shield" : "checkmark.circle")
+                    .font(.headline)
+                    .foregroundStyle(summary.sensitive ? .orange : .primary)
+                Spacer()
+            }
+
+            if !summary.description.isEmpty {
+                Text(summary.description)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            if summary.humanBullets.isEmpty {
+                Text("Capacidad operativa disponible para este rol.")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            } else {
+                VStack(alignment: .leading, spacing: 4) {
+                    ForEach(summary.humanBullets, id: \.self) { bullet in
+                        Label(bullet, systemImage: "checkmark")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+        }
+        .padding(.vertical, 4)
+    }
+}
+
+private struct BusinessTeamTechnicalPermissionRow: View {
+    let permission: BusinessTechnicalPermissionRow
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Text(permission.label)
+                    .font(.footnote.weight(.medium))
+                Spacer()
+                if permission.requiresReason {
+                    Text("Auditado")
+                        .font(.caption2.bold())
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 3)
+                        .background(.orange.opacity(0.14))
+                        .foregroundStyle(.orange)
+                        .clipShape(Capsule())
+                }
+            }
+
+            Text(permission.code)
+                .font(.caption2.monospaced())
+                .foregroundStyle(.secondary)
+
+            Text([permission.category, permission.riskLevel].compactMap { $0 }.joined(separator: " · "))
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+        }
+        .padding(.vertical, 4)
+    }
+}
+
 private enum BusinessTeamFilter: String, CaseIterable, Identifiable {
     case all
     case active
@@ -805,4 +1037,9 @@ private enum BusinessTeamFilter: String, CaseIterable, Identifiable {
         case .superBusiness: return "Usuarios con control crítico del negocio."
         }
     }
+}
+
+
+private extension String {
+    var trimmed: String { trimmingCharacters(in: .whitespacesAndNewlines) }
 }

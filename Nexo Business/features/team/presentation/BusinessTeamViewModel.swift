@@ -21,6 +21,7 @@ final class BusinessTeamViewModel {
     }
 
     private let repository: BusinessTeamRepository
+    private let effectivePermissions: Set<String>
 
     var state: State = .idle
     var users: [BusinessTeamUser] = []
@@ -42,8 +43,9 @@ final class BusinessTeamViewModel {
     var infoMessage: String?
     var isMutating = false
 
-    init(repository: BusinessTeamRepository) {
+    init(repository: BusinessTeamRepository, effectivePermissions: Set<String> = ["*"]) {
         self.repository = repository
+        self.effectivePermissions = effectivePermissions
     }
 
     var activeRoles: [BusinessTeamRole] {
@@ -78,6 +80,75 @@ final class BusinessTeamViewModel {
         !createDisplayName.trimmed.isEmpty &&
         !selectedRoleIds.isEmpty &&
         !createReason.trimmed.isEmpty
+    }
+
+    var canSubmitCreateUser: Bool {
+        canCreateTeamUsers && canCreateUser
+    }
+
+    var canCreateTeamUsers: Bool {
+        allowsAny([
+            "credentials.users.create",
+            "access.users.create",
+            "business.team.users.create"
+        ])
+    }
+
+    var canAssignRoles: Bool {
+        allowsAny([
+            "credentials.roles.assign",
+            "credentials.roles.manage",
+            "access.roles.assign",
+            "business.team.roles.manage"
+        ])
+    }
+
+    var canCreateRolesFromTemplates: Bool {
+        allowsAny([
+            "credentials.roles.manage",
+            "access.roles.manage",
+            "business.team.roles.manage"
+        ])
+    }
+
+    var canBlockUsers: Bool {
+        allowsAny([
+            "credentials.users.block",
+            "access.users.block",
+            "business.team.users.block"
+        ])
+    }
+
+    var canUnblockUsers: Bool {
+        allowsAny([
+            "credentials.users.unblock",
+            "access.users.unblock",
+            "business.team.users.unblock"
+        ])
+    }
+
+    var canResetPasswords: Bool {
+        allowsAny([
+            "credentials.users.reset_password",
+            "access.users.reset_password",
+            "business.team.users.reset_password"
+        ])
+    }
+
+    var canRevokeSessions: Bool {
+        allowsAny([
+            "credentials.sessions.revoke",
+            "access.users.revoke_sessions",
+            "business.team.sessions.revoke"
+        ])
+    }
+
+    var readOnlyTeamReason: String? {
+        if canCreateTeamUsers || canAssignRoles || canCreateRolesFromTemplates || canBlockUsers || canUnblockUsers || canResetPasswords || canRevokeSessions {
+            return nil
+        }
+
+        return "Tu rol permite revisar el equipo, pero no hacer cambios."
     }
 
     func load() async {
@@ -182,6 +253,51 @@ final class BusinessTeamViewModel {
         return resolved.isEmpty ? ["Permisos operativos básicos"] : resolved
     }
 
+    func capabilityGroupSummaries(for role: BusinessTeamRole) -> [BusinessCapabilityGroupSummary] {
+        let resolved = resolvedCapabilityGroups(for: role.permissionKeys)
+        return capabilityGroupSummaries(from: resolved, fallbackPermissionKeys: role.permissionKeys)
+    }
+
+    func capabilityGroupSummaries(for template: BusinessRoleTemplate) -> [BusinessCapabilityGroupSummary] {
+        if !template.capabilityGroups.isEmpty {
+            return capabilityGroupSummaries(from: template.capabilityGroups.sorted(by: capabilityGroupSort), fallbackPermissionKeys: template.permissionKeys)
+        }
+
+        let resolvedFromCodes = template.capabilityGroupCodes
+            .compactMap { code in capabilityGroups.first { $0.code.caseInsensitiveCompare(code) == .orderedSame } }
+            .sorted(by: capabilityGroupSort)
+
+        if !resolvedFromCodes.isEmpty {
+            return capabilityGroupSummaries(from: resolvedFromCodes, fallbackPermissionKeys: template.permissionKeys)
+        }
+
+        return capabilityGroupSummaries(from: resolvedCapabilityGroups(for: template.permissionKeys), fallbackPermissionKeys: template.permissionKeys)
+    }
+
+    func technicalPermissionRows(for permissionKeys: Set<String>) -> [BusinessTechnicalPermissionRow] {
+        permissionKeys
+            .sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+            .map { key in
+                if let permission = permissions.first(where: { $0.code.caseInsensitiveCompare(key) == .orderedSame }) {
+                    return BusinessTechnicalPermissionRow(
+                        code: permission.code,
+                        label: permission.humanLabel,
+                        category: permission.category,
+                        riskLevel: permission.riskLevel,
+                        requiresReason: permission.requiresReason == true || permission.requiresAudit == true
+                    )
+                }
+
+                return BusinessTechnicalPermissionRow(
+                    code: key,
+                    label: key,
+                    category: "Sin clasificar",
+                    riskLevel: nil,
+                    requiresReason: false
+                )
+            }
+    }
+
     func readableCapabilities(for template: BusinessRoleTemplate) -> [String] {
         let directGroups = template.capabilityGroups
             .sorted(by: capabilityGroupSort)
@@ -217,12 +333,44 @@ final class BusinessTeamViewModel {
             .sorted(by: capabilityGroupSort)
     }
 
+    private func capabilityGroupSummaries(
+        from groups: [BusinessHumanCapabilityGroup],
+        fallbackPermissionKeys: Set<String>
+    ) -> [BusinessCapabilityGroupSummary] {
+        let summaries = groups.map { group in
+            BusinessCapabilityGroupSummary(
+                code: group.code,
+                title: group.title,
+                description: group.description,
+                humanBullets: group.humanBullets,
+                sensitive: group.sensitive
+            )
+        }
+
+        if !summaries.isEmpty { return summaries }
+
+        return [
+            BusinessCapabilityGroupSummary(
+                code: "TECHNICAL_PERMISSIONS",
+                title: "Permisos operativos básicos",
+                description: "Este rol tiene permisos técnicos que todavía no están agrupados para la experiencia humana.",
+                humanBullets: fallbackPermissionKeys.isEmpty ? [] : ["Incluye \(fallbackPermissionKeys.count) permisos técnicos."],
+                sensitive: false
+            )
+        ]
+    }
+
     private func capabilityGroupSort(_ lhs: BusinessHumanCapabilityGroup, _ rhs: BusinessHumanCapabilityGroup) -> Bool {
         if lhs.rank != rhs.rank { return lhs.rank > rhs.rank }
         return lhs.title.localizedCaseInsensitiveCompare(rhs.title) == .orderedAscending
     }
 
     func createUser() async {
+        guard canCreateTeamUsers else {
+            errorMessage = "Tu rol no permite crear usuarios."
+            return
+        }
+
         guard canCreateUser else {
             errorMessage = "Completa correo, nombre, rol y motivo."
             return
@@ -255,6 +403,11 @@ final class BusinessTeamViewModel {
         revokeSessions: Bool
     ) async -> Bool {
         let normalizedReason = reason.trimmed
+
+        guard canAssignRoles else {
+            errorMessage = "Tu rol no permite cambiar roles de usuarios."
+            return false
+        }
 
         guard !roleIds.isEmpty else {
             errorMessage = "Selecciona al menos un rol para el usuario."
@@ -289,6 +442,11 @@ final class BusinessTeamViewModel {
     }
 
     func createRoleFromTemplate(_ template: BusinessRoleTemplate, reason: String) async {
+        guard canCreateRolesFromTemplates else {
+            errorMessage = "Tu rol no permite crear roles desde plantillas."
+            return
+        }
+
         let normalizedReason = reason.trimmed.nilIfBlank ?? "Crear rol desde plantilla \(template.name)"
         await mutate(successMessage: "Rol \(template.name) creado desde plantilla.") {
             let role = try await repository.createRoleFromTemplate(
@@ -302,6 +460,11 @@ final class BusinessTeamViewModel {
     }
 
     func block(_ user: BusinessTeamUser, reason: String) async {
+        guard canBlockUsers else {
+            errorMessage = "Tu rol no permite bloquear usuarios."
+            return
+        }
+
         let normalizedReason = reason.trimmed.nilIfBlank ?? "Bloquear usuario desde Business"
         await mutate(successMessage: "Usuario bloqueado correctamente.") {
             let updated = try await repository.blockUser(id: user.id, reason: normalizedReason)
@@ -310,6 +473,11 @@ final class BusinessTeamViewModel {
     }
 
     func unblock(_ user: BusinessTeamUser, reason: String) async {
+        guard canUnblockUsers else {
+            errorMessage = "Tu rol no permite desbloquear usuarios."
+            return
+        }
+
         let normalizedReason = reason.trimmed.nilIfBlank ?? "Desbloquear usuario desde Business"
         await mutate(successMessage: "Usuario desbloqueado correctamente.") {
             let updated = try await repository.unblockUser(id: user.id, reason: normalizedReason)
@@ -318,6 +486,11 @@ final class BusinessTeamViewModel {
     }
 
     func resetPassword(_ user: BusinessTeamUser, reason: String) async {
+        guard canResetPasswords else {
+            errorMessage = "Tu rol no permite resetear contraseñas."
+            return
+        }
+
         let normalizedReason = reason.trimmed.nilIfBlank ?? "Resetear contraseña desde Business"
         await mutate(successMessage: "Contraseña temporal generada.") {
             let response = try await repository.resetPassword(
@@ -331,6 +504,11 @@ final class BusinessTeamViewModel {
     }
 
     func revokeSessions(_ user: BusinessTeamUser, reason: String) async {
+        guard canRevokeSessions else {
+            errorMessage = "Tu rol no permite revocar sesiones."
+            return
+        }
+
         let normalizedReason = reason.trimmed.nilIfBlank ?? "Revocar sesiones desde Business"
         await mutate(successMessage: "Sesiones revocadas correctamente.") {
             _ = try await repository.revokeSessions(userId: user.id, reason: normalizedReason)
@@ -363,6 +541,10 @@ final class BusinessTeamViewModel {
             errorMessage = error.localizedDescription
             return false
         }
+    }
+
+    private func allowsAny(_ permissions: [String]) -> Bool {
+        effectivePermissions.contains("*") || permissions.contains { effectivePermissions.contains($0) }
     }
 
     private func upsert(_ user: BusinessTeamUser) {

@@ -104,6 +104,40 @@ final class BusinessTeamViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.readableCapabilities(for: template), ["Descuentos"])
     }
 
+    func testTeamActionsAreReadOnlyWithoutMutationPermissions() async {
+        let repository = BusinessTeamRepositorySpy()
+        let viewModel = BusinessTeamViewModel(
+            repository: repository,
+            effectivePermissions: ["credentials.users.view", "credentials.roles.view"]
+        )
+        await viewModel.load()
+
+        XCTAssertFalse(viewModel.canCreateTeamUsers)
+        XCTAssertFalse(viewModel.canAssignRoles)
+        XCTAssertFalse(viewModel.canCreateRolesFromTemplates)
+        XCTAssertEqual(viewModel.readOnlyTeamReason, "Tu rol permite revisar el equipo, pero no hacer cambios.")
+
+        await viewModel.createRoleFromTemplate(.fixture(templateCode: "core.cashier", name: "Cajero"), reason: "Crear")
+
+        XCTAssertEqual(viewModel.errorMessage, "Tu rol no permite crear roles desde plantillas.")
+        XCTAssertTrue(repository.createdTemplateInputs.isEmpty)
+    }
+
+    func testCapabilitySummariesExposeHumanBulletsAndTechnicalRows() async {
+        let repository = BusinessTeamRepositorySpy()
+        let viewModel = BusinessTeamViewModel(repository: repository)
+        await viewModel.load()
+
+        let summaries = viewModel.capabilityGroupSummaries(for: BusinessTeamRole.cashier)
+        XCTAssertEqual(summaries.map(\.title), ["Ventas"])
+        XCTAssertEqual(summaries.first?.humanBullets, ["Puede crear ventas"])
+
+        let rows = viewModel.technicalPermissionRows(for: ["sales.create", "unknown.permission"])
+        XCTAssertEqual(rows.map(\.code), ["sales.create", "unknown.permission"])
+        XCTAssertEqual(rows.first?.label, "Crear ventas")
+        XCTAssertEqual(rows.last?.category, "Sin clasificar")
+    }
+
     func testCreateRoleFromTemplateAddsCreatedRole() async {
         let repository = BusinessTeamRepositorySpy()
         let viewModel = BusinessTeamViewModel(repository: repository)
@@ -129,6 +163,8 @@ private final class BusinessTeamRepositorySpy: BusinessTeamRepository, @unchecke
         BusinessHumanCapabilityGroup(
             code: "SALES",
             title: "Ventas",
+            description: "Permite vender desde el negocio.",
+            humanBullets: ["Puede crear ventas"],
             permissionKeys: ["sales.create"],
             rank: 100
         ),
@@ -141,7 +177,7 @@ private final class BusinessTeamRepositorySpy: BusinessTeamRepository, @unchecke
         )
     ]
     var permissions: [BusinessTeamPermission] = [
-        BusinessTeamPermission(code: "sales.create", name: "Crear ventas", description: "", category: "SALES"),
+        BusinessTeamPermission(code: "sales.create", name: "Crear ventas", description: "", category: "SALES", humanLabel: "Crear ventas"),
         BusinessTeamPermission(code: "sales.apply_discount", name: "Aplicar descuentos", description: "", category: "SALES")
     ]
     var branches: [BusinessTeamBranch] = [BusinessTeamBranch(id: "br_1", name: "Matriz", code: "001", status: "ACTIVE")]

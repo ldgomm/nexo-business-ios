@@ -287,7 +287,10 @@ struct BusinessHomeView: View {
                 if canAccessTeamManagement {
                     NavigationLink {
                         BusinessTeamView(
-                            viewModel: BusinessTeamViewModel(repository: container.teamRepository)
+                            viewModel: BusinessTeamViewModel(
+                                repository: container.teamRepository,
+                                effectivePermissions: permissions
+                            )
                         )
                     } label: {
                         BusinessHomeToolTile(
