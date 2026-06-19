@@ -16,11 +16,6 @@ struct SaleDetailView: View {
     private let documentsRepository: BusinessDocumentsRepository
     private let onSaleUpdated: (BusinessSale) -> Void
 
-    @State private var preparedPaymentViewModel: PaymentRegisterViewModel?
-    @State private var shouldShowPaymentRegister = false
-    @State private var isPreparingPaymentNavigation = false
-    @State private var paymentPreparationMessage: String?
-
     init(
         viewModel: SaleDetailViewModel,
         customersRepository: CustomersRepository = UnavailableCustomersRepository(),
@@ -64,17 +59,6 @@ struct SaleDetailView: View {
         }
         .background(Color(.systemGroupedBackground))
         .nexoKeyboardDismissable()
-        .navigationDestination(isPresented: $shouldShowPaymentRegister) {
-            if let preparedPaymentViewModel {
-                PaymentRegisterView(
-                    viewModel: preparedPaymentViewModel,
-                    customersRepository: customersRepository,
-                    onSaleUpdated: { updatedSale in
-                        viewModel.applySaleUpdate(updatedSale)
-                    }
-                )
-            }
-        }
         .navigationTitle("Detalle de venta")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -99,12 +83,6 @@ struct SaleDetailView: View {
         .onChange(of: viewModel.sale) { _, sale in
             if let sale {
                 onSaleUpdated(sale)
-            }
-        }
-        .onChange(of: shouldShowPaymentRegister) { _, isPresented in
-            if !isPresented {
-                preparedPaymentViewModel = nil
-                paymentPreparationMessage = nil
             }
         }
     }
@@ -283,24 +261,35 @@ struct SaleDetailView: View {
         SaleDetailCard(title: "Acciones", subtitle: "Continúa con el siguiente paso operativo de la venta") {
             VStack(alignment: .leading, spacing: 12) {
                 if let sale = viewModel.sale, viewModel.canCollect {
-                    SaleDetailActionButton(
-                        title: "Cobrar venta",
-                        subtitle: "Registra el pago y actualiza el estado de cobro",
-                        systemImage: "dollarsign.circle",
-                        tint: .green,
-                        isLoading: isPreparingPaymentNavigation,
-                        isDisabled: isPreparingPaymentNavigation
-                    ) {
-                        preparePaymentNavigation(for: sale)
+                    NavigationLink {
+                        PaymentRegisterView(
+                            viewModel: PaymentRegisterViewModel(
+                                organizationId: viewModel.organizationId,
+                                branchId: sale.branchId,
+                                sale: sale,
+                                effectivePermissions: viewModel.effectivePermissions,
+                                cashRepository: cashRepository,
+                                paymentsRepository: paymentsRepository,
+                                receivablesRepository: receivablesRepository,
+                                documentsRepository: documentsRepository,
+                                salesRepository: viewModel.salesRepositoryForPaymentReadiness,
+                                activityId: sale.activityId,
+                                revisions: viewModel.revisions
+                            ),
+                            customersRepository: customersRepository,
+                            onSaleUpdated: { updatedSale in
+                                viewModel.applySaleUpdate(updatedSale)
+                            }
+                        )
+                    } label: {
+                        SaleDetailNavigationActionLabel(
+                            title: "Cobrar venta",
+                            subtitle: "Registra el pago y actualiza el estado de cobro",
+                            systemImage: "dollarsign.circle",
+                            tint: .green
+                        )
                     }
-                }
-
-                if let paymentPreparationMessage {
-                    SaleDetailInlineMessage(
-                        message: paymentPreparationMessage,
-                        systemImage: "exclamationmark.triangle.fill",
-                        tint: .red
-                    )
+                    .buttonStyle(.plain)
                 }
 
                 if let sale = viewModel.sale, viewModel.canViewDocuments {
@@ -366,36 +355,6 @@ struct SaleDetailView: View {
 
     private func lineTotal(for item: BusinessSaleItem) -> MoneyAmount {
         item.total ?? item.subtotal ?? MoneyAmount(amount: "0.00")
-    }
-
-    private func preparePaymentNavigation(for sale: BusinessSale) {
-        guard !isPreparingPaymentNavigation else { return }
-
-        let branchId = sale.branchId.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !branchId.isEmpty else {
-            paymentPreparationMessage = "No se puede cobrar esta venta porque no tiene sucursal asociada. Actualiza el detalle de venta y vuelve a intentar."
-            return
-        }
-
-        isPreparingPaymentNavigation = true
-        paymentPreparationMessage = nil
-
-        preparedPaymentViewModel = PaymentRegisterViewModel(
-            organizationId: viewModel.organizationId,
-            branchId: branchId,
-            sale: sale,
-            effectivePermissions: viewModel.effectivePermissions,
-            cashRepository: cashRepository,
-            paymentsRepository: paymentsRepository,
-            receivablesRepository: receivablesRepository,
-            documentsRepository: documentsRepository,
-            salesRepository: viewModel.salesRepositoryForPaymentReadiness,
-            activityId: sale.activityId,
-            revisions: viewModel.revisions
-        )
-
-        isPreparingPaymentNavigation = false
-        shouldShowPaymentRegister = true
     }
 
     private func paymentExplanation(for sale: BusinessSale) -> String {

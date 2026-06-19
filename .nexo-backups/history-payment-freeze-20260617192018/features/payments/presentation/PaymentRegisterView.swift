@@ -84,7 +84,6 @@ struct PaymentRegisterView: View {
             Task { await viewModel.refreshForSelectedMode() }
         }
         .onChange(of: viewModel.sale) { _, sale in
-            guard viewModel.shouldPropagateSaleUpdateToParent else { return }
             onSaleUpdated(sale)
         }
     }

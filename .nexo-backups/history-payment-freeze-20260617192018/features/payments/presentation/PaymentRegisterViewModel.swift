@@ -133,10 +133,6 @@ final class PaymentRegisterViewModel {
         paymentResult != nil || receivableResult != nil
     }
 
-    var shouldPropagateSaleUpdateToParent: Bool {
-        hasCompletedSubmission || electronicDocumentResult != nil
-    }
-
     var saleNeedsCollection: Bool {
         SaleStatusPresentation.canCollect(status: sale.status) &&
         PaymentStatusPresentation.canCollect(status: sale.paymentStatus)
