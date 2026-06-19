@@ -127,6 +127,26 @@ final class BusinessDocumentsViewModelTests: XCTestCase {
         XCTAssertNotNil(viewModel.shareFile)
     }
 
+    func testElectronicDocumentDetailHidesFileActionsWithoutDownloadPermissions() async {
+        let repository = MockBusinessDocumentsRepository()
+        let viewModel = BusinessElectronicDocumentDetailViewModel(
+            organizationId: "org_1",
+            documentId: "edoc_1",
+            effectivePermissions: ["documents.electronic_invoice.view"],
+            documentsRepository: repository
+        )
+
+        await viewModel.load()
+        XCTAssertFalse(viewModel.canDownloadRide)
+        XCTAssertFalse(viewModel.canDownloadXml)
+
+        await viewModel.downloadRide()
+        await viewModel.downloadXml()
+
+        XCTAssertEqual(repository.rideFileDownloadCalls, 0)
+        XCTAssertEqual(repository.xmlFileDownloadCalls, 0)
+    }
+
     func testElectronicDocumentOperationalActionsUseRetrySummaryAndIdempotency() async {
         let repository = MockBusinessDocumentsRepository()
         let viewModel = BusinessElectronicDocumentDetailViewModel(

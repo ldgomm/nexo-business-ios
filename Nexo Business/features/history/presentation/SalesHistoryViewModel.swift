@@ -252,9 +252,44 @@ final class SalesHistoryViewModel {
     }
 
     private func hydrateSalesWithDocuments(_ inputSales: [BusinessSale]) async -> DocumentHydrationResult {
-        let documentsBySaleId = inputSales.reduce(into: [String: BusinessDocument]()) { result, sale in
+        var documentsBySaleId = inputSales.reduce(into: [String: BusinessDocument]()) { result, sale in
             if let document = sale.primaryElectronicDocument {
                 result[sale.id] = document
+            }
+        }
+
+        guard canViewDocuments else {
+            let enrichedSales = inputSales.map { sale in
+                sale.replacingElectronicDocument(documentsBySaleId[sale.id])
+            }
+            return DocumentHydrationResult(
+                sales: enrichedSales,
+                documentsBySaleId: documentsBySaleId,
+                warning: nil
+            )
+        }
+
+        var usedDocumentKeys = Set(documentsBySaleId.values.flatMap(\.businessIdentityKeys))
+        var failedCount = 0
+
+        for sale in inputSales where documentsBySaleId[sale.id] == nil && sale.hasElectronicDocumentRegistered {
+            var loadedDocument = await loadElectronicDocumentForSaleId(sale.id, failedCount: &failedCount)
+
+            if loadedDocument == nil {
+                loadedDocument = await loadElectronicDocumentForAlternateIdentifiers(
+                    sale,
+                    excluding: usedDocumentKeys,
+                    failedCount: &failedCount
+                )
+            }
+
+            if loadedDocument == nil {
+                loadedDocument = await loadLegacyDocument(for: sale, failedCount: &failedCount)
+            }
+
+            if let loadedDocument, !hasDocumentBeenUsed(loadedDocument, in: usedDocumentKeys) {
+                documentsBySaleId[sale.id] = loadedDocument
+                markDocumentUsed(loadedDocument, in: &usedDocumentKeys)
             }
         }
 
@@ -262,10 +297,14 @@ final class SalesHistoryViewModel {
             sale.replacingElectronicDocument(documentsBySaleId[sale.id])
         }
 
+        let warning = failedCount > 0
+            ? "Algunas ventas indican comprobante electrónico, pero no se pudo cargar todo el detalle documental. Entra al detalle de venta para actualizar."
+            : nil
+
         return DocumentHydrationResult(
             sales: enrichedSales,
             documentsBySaleId: documentsBySaleId,
-            warning: nil
+            warning: warning
         )
     }
 

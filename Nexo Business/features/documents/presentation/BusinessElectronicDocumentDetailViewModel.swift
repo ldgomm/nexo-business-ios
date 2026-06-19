@@ -58,6 +58,51 @@ final class BusinessElectronicDocumentDetailViewModel {
         self.timeline = initialDetail?.timeline ?? []
     }
 
+    private var downloadRidePermissions: [String] {
+        [
+            "documents.electronic_invoice.download_ride",
+            "business.documents.download_ride",
+            "documents.download_ride",
+            "business.electronic_documents.download_ride"
+        ]
+    }
+
+    private var downloadXmlPermissions: [String] {
+        [
+            "documents.electronic_invoice.download_xml",
+            "business.documents.download_xml",
+            "documents.download_xml",
+            "business.electronic_documents.download_xml"
+        ]
+    }
+
+    private var retryReceptionPermissions: [String] {
+        [
+            "documents.electronic_invoice.retry_reception",
+            "business.documents.retry_reception",
+            "documents.retry_reception",
+            "business.electronic_documents.retry_reception"
+        ]
+    }
+
+    private var retryAuthorizationPermissions: [String] {
+        [
+            "documents.electronic_invoice.retry_authorization",
+            "business.documents.retry_authorization",
+            "documents.retry_authorization",
+            "business.electronic_documents.retry_authorization"
+        ]
+    }
+
+    private var regenerateRidePermissions: [String] {
+        [
+            "documents.electronic_invoice.regenerate_ride",
+            "business.documents.regenerate_ride",
+            "documents.regenerate_ride",
+            "business.electronic_documents.regenerate_ride"
+        ]
+    }
+
     var shouldLoadOnAppear: Bool {
         detail == nil && !isLoading
     }
@@ -73,6 +118,7 @@ final class BusinessElectronicDocumentDetailViewModel {
 
     var canDownloadRide: Bool {
         guard let detail else { return false }
+        guard hasPermission(downloadRidePermissions) else { return false }
 
         // No habilitar RIDE solo por permiso. Si no existe artefacto ni acción del backend,
         // el botón confunde y termina intentando descargar un PDF inexistente.
@@ -85,6 +131,7 @@ final class BusinessElectronicDocumentDetailViewModel {
 
     var canDownloadAuthorizedXml: Bool {
         guard let detail else { return false }
+        guard hasPermission(downloadXmlPermissions) else { return false }
 
         return detail.artifacts.authorizedXml != nil ||
             detail.artifacts.xml?.kind == .authorizedXml ||
@@ -93,6 +140,7 @@ final class BusinessElectronicDocumentDetailViewModel {
 
     var canDownloadSignedXml: Bool {
         guard let detail else { return false }
+        guard hasPermission(downloadXmlPermissions) else { return false }
 
         return detail.artifacts.signedXml != nil ||
             (!BusinessDocumentStatusPresentation.isAuthorized(detail.sriStatus) && detail.allows(.downloadXml))
@@ -152,18 +200,21 @@ final class BusinessElectronicDocumentDetailViewModel {
 
     var canRetryReception: Bool {
         guard let detail else { return false }
+        guard hasPermission(retryReceptionPermissions) else { return false }
 
         return detail.allows(.retryReception) || detail.retrySummary.canRetryReception
     }
 
     var canRetryAuthorization: Bool {
         guard let detail else { return false }
+        guard hasPermission(retryAuthorizationPermissions) else { return false }
 
         return detail.allows(.retryAuthorization) || detail.retrySummary.canRetryAuthorization
     }
 
     var canRegenerateRide: Bool {
         guard let detail else { return false }
+        guard hasPermission(regenerateRidePermissions) else { return false }
 
         return detail.allows(.regenerateRide) || detail.retrySummary.canRegenerateRide
     }

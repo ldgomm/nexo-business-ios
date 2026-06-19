@@ -85,6 +85,90 @@ final class SaleDetailViewModelTests: XCTestCase {
         )
     }
 
+    func testElectronicDocumentActionsRespectSummaryAndPermissions() {
+        let document = BusinessDocument(
+            id: "doc_1",
+            saleId: "sale_1",
+            type: "electronic_invoice",
+            status: "AUTHORIZED",
+            number: "001-001-000000064",
+            authorizationNumber: "1234567890123456789012345678901234567890123456789",
+            documentId: "doc_1",
+            sriStatus: "AUTORIZADO",
+            hasRide: true,
+            hasXml: true,
+            availableActions: [.viewDetail, .downloadRide, .downloadXml]
+        )
+        let sale = makeSale(electronicDocumentSummary: document)
+        let viewModel = SaleDetailViewModel(
+            organizationId: "org_1",
+            saleId: sale.id,
+            revisions: Self.revisions,
+            initialSale: sale,
+            effectivePermissions: [
+                "documents.electronic_invoice.view",
+                "documents.electronic_invoice.download_ride",
+                "documents.electronic_invoice.download_xml"
+            ],
+            salesRepository: SaleLifecycleRepositorySpy()
+        )
+
+        XCTAssertEqual(viewModel.documentActionTitle(for: sale), "Ver factura")
+        XCTAssertTrue(viewModel.canViewElectronicDocumentDetail(document))
+        XCTAssertTrue(viewModel.canDownloadElectronicDocumentRide(document))
+        XCTAssertTrue(viewModel.canShareElectronicDocumentRide(document))
+        XCTAssertTrue(viewModel.canDownloadElectronicDocumentXml(document))
+        XCTAssertTrue(viewModel.electronicDocumentXmlAuthorizedOnly(document))
+    }
+
+    func testElectronicDocumentFileActionsAreHiddenWithoutDownloadPermissions() {
+        let document = BusinessDocument(
+            id: "doc_1",
+            saleId: "sale_1",
+            type: "electronic_invoice",
+            status: "AUTHORIZED",
+            number: "001-001-000000064",
+            documentId: "doc_1",
+            sriStatus: "AUTORIZADO",
+            hasRide: true,
+            hasXml: true,
+            availableActions: [.downloadRide, .downloadXml]
+        )
+        let viewModel = SaleDetailViewModel(
+            organizationId: "org_1",
+            saleId: "sale_1",
+            revisions: Self.revisions,
+            initialSale: makeSale(electronicDocumentSummary: document),
+            effectivePermissions: ["documents.electronic_invoice.view"],
+            salesRepository: SaleLifecycleRepositorySpy()
+        )
+
+        XCTAssertTrue(viewModel.canViewElectronicDocumentDetail(document))
+        XCTAssertFalse(viewModel.canDownloadElectronicDocumentRide(document))
+        XCTAssertFalse(viewModel.canShareElectronicDocumentRide(document))
+        XCTAssertFalse(viewModel.canDownloadElectronicDocumentXml(document))
+    }
+
+    private func makeSale(electronicDocumentSummary: BusinessDocument? = nil) -> BusinessSale {
+        BusinessSale(
+            id: "sale_1",
+            organizationId: "org_1",
+            branchId: "br_1",
+            activityId: "act_1",
+            status: "confirmed",
+            paymentStatus: "paid",
+            documentStatus: electronicDocumentSummary?.effectiveStatus ?? "not_required",
+            electronicDocumentSummary: electronicDocumentSummary,
+            totals: SaleTotals(
+                subtotalWithoutTaxes: MoneyAmount(amount: "10.00"),
+                discountTotal: MoneyAmount(amount: "0.00"),
+                taxTotal: MoneyAmount(amount: "1.50"),
+                grandTotal: MoneyAmount(amount: "11.50")
+            ),
+            createdAt: Date()
+        )
+    }
+
     private func makeViewModel(
         repository: SaleLifecycleRepositorySpy = SaleLifecycleRepositorySpy(),
         initialSale: BusinessSale? = PreviewData.quickSaleResponse.sale

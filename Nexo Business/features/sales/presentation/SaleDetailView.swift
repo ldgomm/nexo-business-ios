@@ -20,6 +20,10 @@ struct SaleDetailView: View {
     @State private var shouldShowPaymentRegister = false
     @State private var isPreparingPaymentNavigation = false
     @State private var paymentPreparationMessage: String?
+    @State private var documentPreviewFile: BusinessDocumentDownloadedFile?
+    @State private var documentShareFile: BusinessDocumentDownloadedFile?
+    @State private var documentFileActionInFlight: SaleDetailDocumentFileAction?
+    @State private var documentFileMessage: String?
 
     init(
         viewModel: SaleDetailViewModel,
@@ -90,6 +94,12 @@ struct SaleDetailView: View {
                 }
                 .disabled(viewModel.isLoading)
             }
+        }
+        .sheet(item: $documentPreviewFile) { file in
+            BusinessDocumentQuickLookPreview(fileURL: file.localURL)
+        }
+        .sheet(item: $documentShareFile) { file in
+            BusinessDocumentShareSheet(items: [file.localURL])
         }
         .task {
             if viewModel.shouldLoadOnAppear {
@@ -218,21 +228,23 @@ struct SaleDetailView: View {
                             }
                         }
 
-                        if let error = BusinessDocumentTextSanitizer.sanitizedMessage(document.lastErrorMessage) {
+                        if let error = document.effectiveLastErrorMessage {
                             SaleDetailInlineMessage(message: error, systemImage: "exclamationmark.triangle.fill", tint: .red)
                         } else if BusinessDocumentStatusPresentation.isAuthorized(document.effectiveStatus) {
                             SaleDetailInlineMessage(
-                                message: document.hasRide ? "Factura autorizada. RIDE y XML se revisan desde Comprobantes." : "Factura autorizada, pero todavía falta RIDE.",
+                                message: document.hasRide ? "Factura autorizada por el SRI. Ya puedes abrir o compartir el RIDE desde esta venta." : "Factura autorizada por el SRI, pero todavía falta RIDE.",
                                 systemImage: document.hasRide ? "checkmark.circle.fill" : "doc.badge.clock",
                                 tint: document.hasRide ? .green : .orange
                             )
                         } else {
                             SaleDetailInlineMessage(
-                                message: "Revisa el comprobante para ver autorización, RIDE, XML, correo y errores si existieran.",
+                                message: viewModel.electronicDocumentActionHint(for: document),
                                 systemImage: "info.circle",
                                 tint: .secondary
                             )
                         }
+
+                        electronicDocumentActions(document)
                     } else if BusinessDocumentStatusPresentation.isMissingElectronicDocument(status) {
                         Text("Sin factura electrónica emitida. Esta venta puede estar cobrada y seguir como registro interno hasta que alguien con permiso emita el comprobante.")
                             .font(.footnote)
@@ -276,6 +288,77 @@ struct SaleDetailView: View {
 
         if let message = BusinessDocumentTextSanitizer.sanitizedMessage(viewModel.infoMessage) {
             SaleDetailMessageBanner(message: message, systemImage: "info.circle.fill", tint: .accentColor)
+        }
+
+        if let message = BusinessDocumentTextSanitizer.sanitizedMessage(documentFileMessage) {
+            SaleDetailMessageBanner(message: message, systemImage: "doc.text.magnifyingglass", tint: .accentColor)
+        }
+    }
+
+    @ViewBuilder
+    private func electronicDocumentActions(_ document: BusinessDocument) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if viewModel.canViewElectronicDocumentDetail(document) {
+                NavigationLink {
+                    BusinessElectronicDocumentDetailView(
+                        viewModel: BusinessElectronicDocumentDetailViewModel(
+                            organizationId: viewModel.organizationId,
+                            documentId: document.documentId,
+                            effectivePermissions: viewModel.effectivePermissions,
+                            documentsRepository: documentsRepository,
+                            onDocumentMutated: { await viewModel.refresh() }
+                        )
+                    )
+                } label: {
+                    SaleDetailNavigationActionLabel(
+                        title: "Ver factura",
+                        subtitle: "Detalle, timeline, RIDE, XML, email y errores SRI",
+                        systemImage: "doc.text.magnifyingglass",
+                        tint: .accentColor
+                    )
+                }
+                .buttonStyle(.plain)
+            }
+
+            let canUseFileRepository = fileDownloadingRepository != nil
+            if viewModel.canDownloadElectronicDocumentRide(document), canUseFileRepository {
+                SaleDetailActionButton(
+                    title: "Abrir RIDE",
+                    subtitle: "Visualiza la representación imprimible de esta factura",
+                    systemImage: "doc.richtext",
+                    tint: .accentColor,
+                    isLoading: documentFileActionInFlight == .previewRide,
+                    isDisabled: documentFileActionInFlight != nil
+                ) {
+                    prepareElectronicDocumentFile(document, action: .previewRide)
+                }
+
+                if viewModel.canShareElectronicDocumentRide(document) {
+                    SaleDetailActionButton(
+                        title: "Compartir RIDE",
+                        subtitle: "Envía o guarda el PDF autorizado desde iOS",
+                        systemImage: "square.and.arrow.up",
+                        tint: .accentColor,
+                        isLoading: documentFileActionInFlight == .shareRide,
+                        isDisabled: documentFileActionInFlight != nil
+                    ) {
+                        prepareElectronicDocumentFile(document, action: .shareRide)
+                    }
+                }
+            }
+
+            if viewModel.canDownloadElectronicDocumentXml(document), canUseFileRepository {
+                SaleDetailActionButton(
+                    title: "Abrir XML",
+                    subtitle: viewModel.electronicDocumentXmlAuthorizedOnly(document) ? "Consulta el XML autorizado por el SRI" : "Consulta el XML disponible para revisión",
+                    systemImage: "chevron.left.forwardslash.chevron.right",
+                    tint: .accentColor,
+                    isLoading: documentFileActionInFlight == .previewXml,
+                    isDisabled: documentFileActionInFlight != nil
+                ) {
+                    prepareElectronicDocumentFile(document, action: .previewXml)
+                }
+            }
         }
     }
 
@@ -368,6 +451,57 @@ struct SaleDetailView: View {
         item.total ?? item.subtotal ?? MoneyAmount(amount: "0.00")
     }
 
+    private func prepareElectronicDocumentFile(_ document: BusinessDocument, action: SaleDetailDocumentFileAction) {
+        guard documentFileActionInFlight == nil else { return }
+        guard let repository = fileDownloadingRepository else {
+            documentFileMessage = "La descarga de archivos no está disponible en esta versión. Abre el detalle del comprobante para revisar su estado."
+            return
+        }
+
+        documentFileActionInFlight = action
+        documentFileMessage = nil
+
+        Task {
+            do {
+                let file: BusinessDocumentDownloadedFile
+                switch action {
+                case .previewRide, .shareRide:
+                    file = try await repository.downloadElectronicDocumentRideFile(
+                        organizationId: viewModel.organizationId,
+                        documentId: document.documentId
+                    )
+                case .previewXml, .shareXml:
+                    file = try await repository.downloadElectronicDocumentXmlFile(
+                        organizationId: viewModel.organizationId,
+                        documentId: document.documentId,
+                        authorizedOnly: viewModel.electronicDocumentXmlAuthorizedOnly(document)
+                    )
+                }
+
+                await MainActor.run {
+                    documentFileActionInFlight = nil
+                    switch action {
+                    case .previewRide, .previewXml:
+                        documentPreviewFile = file
+                    case .shareRide, .shareXml:
+                        documentShareFile = file
+                    }
+                    documentFileMessage = file.preparedSummaryText
+                }
+            } catch let error as APIError {
+                await MainActor.run {
+                    documentFileActionInFlight = nil
+                    documentFileMessage = error.userMessage
+                }
+            } catch {
+                await MainActor.run {
+                    documentFileActionInFlight = nil
+                    documentFileMessage = error.localizedDescription
+                }
+            }
+        }
+    }
+
     private func preparePaymentNavigation(for sale: BusinessSale) {
         guard !isPreparingPaymentNavigation else { return }
 
@@ -422,9 +556,20 @@ struct SaleDetailView: View {
         return .accentColor
     }
 
+    private var fileDownloadingRepository: BusinessDocumentFileDownloadingRepository? {
+        documentsRepository as? BusinessDocumentFileDownloadingRepository
+    }
+
     private func money(_ value: MoneyAmount) -> String {
         value.displayText
     }
+}
+
+private enum SaleDetailDocumentFileAction: Equatable {
+    case previewRide
+    case shareRide
+    case previewXml
+    case shareXml
 }
 
 private struct SaleDetailHeroCard: View {

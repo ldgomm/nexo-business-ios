@@ -375,21 +375,10 @@ private struct SalesHistoryRow: View {
 
                 Label(PaymentStatusPresentation.displayName(sale.paymentStatus), systemImage: "dollarsign.circle")
 
-                if let document {
-                    let status = document.effectiveStatus
-                    Label(
-                        BusinessDocumentStatusPresentation.displayName(status),
-                        systemImage: BusinessDocumentStatusPresentation.systemImage(status)
-                    )
-                    .foregroundStyle(BusinessDocumentStatusPresentation.isError(status) ? .red : .secondary)
-                } else if let documentStatus = sale.effectiveDocumentStatus, !BusinessDocumentStatusPresentation.isMissingElectronicDocument(documentStatus) {
-                    Label(
-                        BusinessDocumentStatusPresentation.displayName(documentStatus),
-                        systemImage: BusinessDocumentStatusPresentation.systemImage(documentStatus)
-                    )
-                } else {
-                    Label("Sin comprobante electrónico", systemImage: "doc")
-                }
+                SalesHistoryDocumentStatusBadge(
+                    status: document?.effectiveStatus ?? sale.effectiveDocumentStatus,
+                    hasDocument: document != nil || sale.hasElectronicDocumentRegistered
+                )
             }
             .font(.caption)
             .foregroundStyle(.secondary)
@@ -401,6 +390,52 @@ private struct SalesHistoryRow: View {
             }
         }
         .padding(.vertical, 4)
+    }
+}
+
+private struct SalesHistoryDocumentStatusBadge: View {
+    let status: String?
+    let hasDocument: Bool
+
+    var body: some View {
+        Label(title, systemImage: BusinessDocumentStatusPresentation.systemImage(effectiveStatus))
+            .foregroundStyle(tint)
+    }
+
+    private var effectiveStatus: String {
+        status ?? "not_required"
+    }
+
+    private var title: String {
+        guard hasDocument, !BusinessDocumentStatusPresentation.isMissingElectronicDocument(status) else {
+            return "Sin factura"
+        }
+
+        if BusinessDocumentStatusPresentation.isAuthorized(effectiveStatus) {
+            return "Facturada"
+        }
+
+        if BusinessDocumentStatusPresentation.isError(effectiveStatus) {
+            return "Fallida"
+        }
+
+        return "Pendiente SRI"
+    }
+
+    private var tint: Color {
+        guard hasDocument, !BusinessDocumentStatusPresentation.isMissingElectronicDocument(status) else {
+            return .secondary
+        }
+
+        if BusinessDocumentStatusPresentation.isError(effectiveStatus) {
+            return .red
+        }
+
+        if BusinessDocumentStatusPresentation.isAuthorized(effectiveStatus) {
+            return .green
+        }
+
+        return .orange
     }
 }
 

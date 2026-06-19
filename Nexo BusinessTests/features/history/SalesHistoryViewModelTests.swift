@@ -91,23 +91,48 @@ final class SalesHistoryViewModelTests: XCTestCase {
         XCTAssertNil(viewModel.errorMessage)
         XCTAssertNil(viewModel.infoMessage)
     }
+
+    func testLoadHydratesDocumentWhenSaleOnlyHasDocumentStatus() async {
+        let documentsRepository = MockBusinessDocumentsRepository()
+        let repository = SalesHistoryRepositorySpy(
+            response: BusinessSalesHistoryResponse(
+                sales: [makeSale(id: "sale_1", status: "closed", documentStatus: "AUTHORIZED")]
+            )
+        )
+        let viewModel = makeViewModel(
+            repository: repository,
+            effectivePermissions: ["business.sales.view", "documents.electronic_invoice.view"],
+            documentsRepository: documentsRepository
+        )
+
+        await viewModel.load()
+
+        XCTAssertEqual(documentsRepository.listElectronicDocumentsCalls, 1)
+        XCTAssertEqual(viewModel.sales.first?.primaryElectronicDocument?.documentId, "edoc_1")
+        XCTAssertEqual(viewModel.primaryDocument(for: viewModel.sales[0])?.businessDisplayNumber, "001-001-000000123")
+        XCTAssertNil(viewModel.infoMessage)
+    }
     
     private func makeViewModel(
-        repository: SalesHistoryRepository
+        repository: SalesHistoryRepository,
+        effectivePermissions: Set<String> = ["business.sales.view"],
+        documentsRepository: BusinessDocumentsRepository = MockBusinessDocumentsRepository()
     ) -> SalesHistoryViewModel {
         SalesHistoryViewModel(
             organizationId: "org_1",
             branchId: "br_1",
             revisions: BusinessRevisions(catalogRevision: "cat", taxConfigurationRevision: "tax"),
-            effectivePermissions: ["business.sales.view"],
+            effectivePermissions: effectivePermissions,
             historyRepository: repository,
-            documentsRepository: MockBusinessDocumentsRepository()
+            documentsRepository: documentsRepository
         )
     }
     
     private func makeSale(
         id: String,
-        status: String
+        status: String,
+        documentStatus: String = "not_required",
+        electronicDocumentSummary: BusinessDocument? = nil
     ) -> BusinessSale {
         BusinessSale(
             id: id,
@@ -116,7 +141,8 @@ final class SalesHistoryViewModelTests: XCTestCase {
             activityId: "act_1",
             status: status,
             paymentStatus: "unpaid",
-            documentStatus: "not_required",
+            documentStatus: documentStatus,
+            electronicDocumentSummary: electronicDocumentSummary,
             totals: SaleTotals(
                 subtotalWithoutTaxes: MoneyAmount(amount: "10.00"),
                 discountTotal: MoneyAmount(amount: "0.00"),

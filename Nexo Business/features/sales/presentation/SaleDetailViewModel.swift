@@ -168,9 +168,27 @@ final class SaleDetailViewModel {
         ]
     }
 
+    private var electronicDocumentDownloadRidePermissions: [String] {
+        [
+            "documents.electronic_invoice.download_ride",
+            "business.documents.download_ride",
+            "documents.download_ride",
+            "business.electronic_documents.download_ride"
+        ]
+    }
+
+    private var electronicDocumentDownloadXmlPermissions: [String] {
+        [
+            "documents.electronic_invoice.download_xml",
+            "business.documents.download_xml",
+            "documents.download_xml",
+            "business.electronic_documents.download_xml"
+        ]
+    }
+
     func documentActionTitle(for sale: BusinessSale) -> String {
         guard !sale.hasElectronicDocumentRegistered else {
-            return "Ver comprobantes"
+            return sale.primaryElectronicDocument == nil ? "Ver comprobantes" : "Ver factura"
         }
 
         return canIssueElectronicInvoice(for: sale)
@@ -186,6 +204,54 @@ final class SaleDetailViewModel {
         return canIssueElectronicInvoice(for: sale)
             ? "doc.badge.plus"
             : "doc.text"
+    }
+
+    func canViewElectronicDocumentDetail(_ document: BusinessDocument?) -> Bool {
+        guard document != nil else { return false }
+        return hasPermission(documentViewPermissions)
+    }
+
+    func canDownloadElectronicDocumentRide(_ document: BusinessDocument?) -> Bool {
+        guard let document else { return false }
+        guard hasPermission(electronicDocumentDownloadRidePermissions) else { return false }
+        return document.hasRide || document.availableActions.contains(.downloadRide)
+    }
+
+    func canDownloadElectronicDocumentXml(_ document: BusinessDocument?) -> Bool {
+        guard let document else { return false }
+        guard hasPermission(electronicDocumentDownloadXmlPermissions) else { return false }
+        return document.hasXml || document.availableActions.contains(.downloadXml)
+    }
+
+    func canShareElectronicDocumentRide(_ document: BusinessDocument?) -> Bool {
+        canDownloadElectronicDocumentRide(document)
+    }
+
+    func electronicDocumentXmlAuthorizedOnly(_ document: BusinessDocument) -> Bool {
+        BusinessDocumentStatusPresentation.isAuthorized(document.effectiveStatus)
+    }
+
+    func electronicDocumentActionHint(for document: BusinessDocument?) -> String {
+        guard let document else {
+            return "Sin archivo asociado a esta venta."
+        }
+
+        let canDownloadRide = canDownloadElectronicDocumentRide(document)
+        let canDownloadXml = canDownloadElectronicDocumentXml(document)
+
+        if canDownloadRide && canDownloadXml {
+            return "Puedes revisar el detalle, abrir/compartir el RIDE y abrir el XML desde esta venta."
+        }
+
+        if canDownloadRide {
+            return "Puedes abrir o compartir el RIDE desde esta venta."
+        }
+
+        if canDownloadXml {
+            return "Puedes abrir el XML desde esta venta."
+        }
+
+        return "Puedes revisar el detalle documental. Los archivos se muestran solo si tu rol y el backend los permiten."
     }
 
     func canIssueElectronicInvoice(for sale: BusinessSale) -> Bool {
