@@ -387,6 +387,8 @@ final class SaleCartViewModel {
     var searchQuery = ""
     var cashSessionId: String?
     private(set) var searchResults: [BusinessCatalogItem] = []
+    private(set) var suggestionResults: [PlatformCatalogTemplateSuggestion] = []
+    private(set) var adoptingTemplateId: String?
     private(set) var cartItems: [SaleCartItem] = []
     private(set) var preview: SalesPreviewResponse?
     private(set) var localCalculation: LocalSaleCalculation = .empty
@@ -396,6 +398,7 @@ final class SaleCartViewModel {
 
     private(set) var orderState: SaleCartOrderState = .editing
     private(set) var isSearching = false
+    private(set) var isSearchingSuggestions = false
     private(set) var isPreviewing = false
     private(set) var isCreatingSale = false
     private(set) var selectedCustomer: BusinessCustomer?
@@ -449,7 +452,11 @@ final class SaleCartViewModel {
     }
     
     var canSearchCatalog: Bool {
-        !isSearching && !isPreviewing && !isCreatingSale && (createdSale == nil || canEditRegisteredSaleItems)
+        !isSearching && !isSearchingSuggestions && adoptingTemplateId == nil && !isPreviewing && !isCreatingSale && (createdSale == nil || canEditRegisteredSaleItems)
+    }
+
+    var canAdoptCatalogSuggestion: Bool {
+        canEditCart && adoptingTemplateId == nil && effectivePermissions.contains("catalog.local.copy_from_master")
     }
     
     var canEditCart: Bool {
@@ -988,7 +995,13 @@ final class SaleCartViewModel {
             )
             
             searchResults = response.items
-            infoMessage = response.items.isEmpty ? "No encontramos productos o servicios activos." : nil
+            if response.items.isEmpty {
+                infoMessage = "No encontramos productos activos en tu negocio. Buscando sugerencias de Nexo…"
+                await searchSuggestedCatalog(query: query)
+            } else {
+                suggestionResults = []
+                infoMessage = nil
+            }
         } catch let error as APIError {
             handle(apiError: error)
         } catch {
@@ -1001,10 +1014,98 @@ final class SaleCartViewModel {
         
         searchQuery = ""
         searchResults = []
+        suggestionResults = []
         errorMessage = nil
         infoMessage = nil
     }
     
+    private func searchSuggestedCatalog(query: String) async {
+        guard !isSearchingSuggestions else { return }
+
+        isSearchingSuggestions = true
+        defer { isSearchingSuggestions = false }
+
+        do {
+            let response = try await catalogRepository.searchSuggestions(
+                organizationId: organizationId,
+                query: query,
+                limit: 12
+            )
+            suggestionResults = response.templates
+            if response.templates.isEmpty {
+                infoMessage = "No encontramos productos activos ni sugerencias para esa búsqueda."
+            } else {
+                infoMessage = "Encontramos sugerencias de Nexo. Cópialas a tu negocio antes de vender."
+            }
+        } catch let error as APIError {
+            suggestionResults = []
+            errorMessage = error.userMessage
+        } catch {
+            suggestionResults = []
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    func adoptSuggestion(_ suggestion: PlatformCatalogTemplateSuggestion) async {
+        guard ensureOrderIsEditable() else { return }
+        guard canAdoptCatalogSuggestion else {
+            errorMessage = "No tienes permiso para copiar productos sugeridos al catálogo del negocio."
+            return
+        }
+        guard let localPrice = suggestion.suggestedPrice else {
+            errorMessage = "Esta sugerencia no tiene precio sugerido. Complétala desde Admin antes de copiarla."
+            return
+        }
+        guard let taxProfileCode = suggestion.suggestedTaxProfileCode else {
+            errorMessage = "Esta sugerencia no tiene perfil tributario sugerido. Complétala desde Admin antes de copiarla."
+            return
+        }
+
+        adoptingTemplateId = suggestion.id
+        errorMessage = nil
+        infoMessage = nil
+
+        defer { adoptingTemplateId = nil }
+
+        do {
+            let item = try await catalogRepository.adoptSuggestion(
+                organizationId: organizationId,
+                branchId: branchId,
+                activityId: activityId,
+                template: suggestion,
+                localPrice: localPrice,
+                taxProfileCode: taxProfileCode,
+                reason: "Copiado desde sugerencias de Nexo en Business iOS"
+            )
+
+            suggestionResults.removeAll { $0.id == suggestion.id }
+            searchResults.insert(item, at: 0)
+            addToCart(item)
+            await refreshBusinessContextAfterCatalogMutation()
+            infoMessage = "Producto copiado a tu negocio y agregado al carrito."
+        } catch let error as APIError {
+            handle(apiError: error)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    private func refreshBusinessContextAfterCatalogMutation() async {
+        guard let contextRepository else { return }
+        do {
+            let context = try await contextRepository.getContext(organizationId: organizationId)
+            revisions = context.revisions
+            await revisionRegistry.observeCatalogRevision(
+                organizationId: organizationId,
+                branchId: branchId,
+                activityId: activityId,
+                catalogRevision: context.revisions.catalogRevision
+            )
+        } catch {
+            // La adopción ya ocurrió; si el refresh falla, el próximo flujo con revisión stale lo resolverá.
+        }
+    }
+
     func addToCart(_ item: BusinessCatalogItem) {
         guard ensureOrderIsEditable() else { return }
         

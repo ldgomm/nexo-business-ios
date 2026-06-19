@@ -116,4 +116,88 @@ final class CatalogModelsDecodingTests: XCTestCase {
         XCTAssertEqual(response.items[0].price?.amount, "10.00")
     }
 
+
+    func testDecodesMasterCatalogSuggestions() throws {
+        let json = #"""
+        {
+          "templates": [
+            {
+              "id": "tpl_seed_cuy_entero",
+              "globalCatalogId": "restaurant_cuy_entero",
+              "canonicalName": "Cuy entero",
+              "normalizedName": "cuy entero",
+              "type": "PRODUCT",
+              "status": "ACTIVE",
+              "productFamilyId": "restaurant_cuy",
+              "variantAttributes": {},
+              "identifiers": [
+                {
+                  "type": "LOCAL_CODE",
+                  "value": "ALT-CUY-ENTERO",
+                  "normalizedValue": "alt-cuy-entero",
+                  "scope": "PLATFORM",
+                  "status": "ACTIVE",
+                  "source": "PLATFORM",
+                  "isPrimary": true
+                }
+              ],
+              "attributes": {
+                "suggestedPrice": "24.00",
+                "defaultTaxProfileCode": "iva_current_full",
+                "suggestedCategoryCode": "restaurant_main_dishes"
+              }
+            }
+          ]
+        }
+        """#.data(using: .utf8)!
+
+        let response = try JSONDecoder.nexoDefault.decode(
+            CatalogSuggestionSearchResponse.self,
+            from: json
+        )
+
+        XCTAssertEqual(response.templates.count, 1)
+        XCTAssertEqual(response.templates[0].displayName, "Cuy entero")
+        XCTAssertEqual(response.templates[0].primaryCode, "ALT-CUY-ENTERO")
+        XCTAssertEqual(response.templates[0].suggestedPrice?.amount, "24.00")
+        XCTAssertEqual(response.templates[0].suggestedTaxProfileCode, "iva_current_full")
+        XCTAssertTrue(response.templates[0].canAdoptFromBusiness)
+    }
+
+    func testDecodesAdoptedOrganizationItemUsingLocalPrice() throws {
+        let json = #"""
+        {
+          "id": "ocat_1",
+          "organizationId": "org_altos_del_murco_staging",
+          "branchId": "branch_1",
+          "activityId": "act_restaurant",
+          "sourceType": "ADOPTED",
+          "templateId": "tpl_seed_cuy_entero",
+          "globalCatalogId": "restaurant_cuy_entero",
+          "sourceTemplateVersion": "1",
+          "localName": "Cuy entero",
+          "searchableText": "cuy entero",
+          "type": "PRODUCT",
+          "status": "ACTIVE",
+          "localPrice": {
+            "amount": "24.00",
+            "currency": "USD"
+          },
+          "taxProfileId": "taxp_iva_current_full",
+          "publicDiscoveryStatus": "PRIVATE",
+          "productFamilyId": "restaurant_cuy",
+          "variantAttributes": {},
+          "identifiers": [],
+          "attributes": {}
+        }
+        """#.data(using: .utf8)!
+
+        let item = try JSONDecoder.nexoDefault.decode(BusinessCatalogItem.self, from: json)
+
+        XCTAssertEqual(item.id, "ocat_1")
+        XCTAssertEqual(item.name, "Cuy entero")
+        XCTAssertEqual(item.price?.amount, "24.00")
+        XCTAssertEqual(item.taxProfileId, "taxp_iva_current_full")
+    }
+
 }

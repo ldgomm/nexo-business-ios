@@ -58,8 +58,66 @@ final class PreviewCatalogRepository: CatalogRepository, @unchecked Sendable {
         }
 
         return CatalogSearchResponse(
-            items: items.isEmpty ? PreviewData.catalogItems : Array(items.prefix(limit)),
+            items: Array(items.prefix(limit)),
             catalogRevision: catalogRevision
+        )
+    }
+
+    func searchSuggestions(
+        organizationId: String,
+        query: String,
+        limit: Int
+    ) async throws -> CatalogSuggestionSearchResponse {
+        CatalogSuggestionSearchResponse(
+            templates: [
+                PlatformCatalogTemplateSuggestion(
+                    id: "tpl_preview_cuy_entero",
+                    globalCatalogId: "restaurant_cuy_entero",
+                    canonicalName: "Cuy entero",
+                    normalizedName: "cuy entero",
+                    type: "PRODUCT",
+                    status: "ACTIVE",
+                    productFamilyId: nil,
+                    variantAttributes: [:],
+                    identifiers: [
+                        CatalogIdentifier(
+                            type: "LOCAL_CODE",
+                            value: "ALT-CUY-ENTERO",
+                            normalizedValue: "alt-cuy-entero",
+                            scope: "PLATFORM",
+                            status: "ACTIVE",
+                            source: "PLATFORM",
+                            isPrimary: true
+                        )
+                    ],
+                    attributes: [
+                        "suggestedPrice": "24.00",
+                        "defaultTaxProfileCode": "iva_current_full",
+                    ]
+                )
+            ]
+        )
+    }
+
+    func adoptSuggestion(
+        organizationId: String,
+        branchId: String?,
+        activityId: String,
+        template: PlatformCatalogTemplateSuggestion,
+        localPrice: MoneyAmount,
+        taxProfileCode: String,
+        reason: String
+    ) async throws -> BusinessCatalogItem {
+        BusinessCatalogItem(
+            id: "adopted_\(template.globalCatalogId)",
+            name: template.displayName,
+            itemDescription: nil,
+            sku: template.primaryCode,
+            type: template.type.lowercased(),
+            status: "active",
+            price: localPrice,
+            taxProfileCode: taxProfileCode,
+            taxProfileId: taxProfileCode
         )
     }
 }

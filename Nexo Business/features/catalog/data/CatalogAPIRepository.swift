@@ -9,6 +9,14 @@ import Foundation
 
 enum BusinessCatalogRoutes {
     static let items = "/api/v1/business/catalog/items"
+
+    static func masterTemplates(organizationId: String) -> String {
+        "/organizations/\(organizationId)/catalog/master/templates"
+    }
+
+    static func copyFromMaster(organizationId: String) -> String {
+        "/organizations/\(organizationId)/catalog/items/copy-from-master"
+    }
 }
 
 final class CatalogAPIRepository: CatalogRepository, @unchecked Sendable {
@@ -59,6 +67,54 @@ final class CatalogAPIRepository: CatalogRepository, @unchecked Sendable {
         )
 
         return response
+    }
+
+
+
+    func searchSuggestions(
+        organizationId: String,
+        query: String,
+        limit: Int = 20
+    ) async throws -> CatalogSuggestionSearchResponse {
+        try await apiClient.send(
+            APIRequest(
+                method: .get,
+                path: BusinessCatalogRoutes.masterTemplates(organizationId: organizationId),
+                queryItems: [
+                    URLQueryItem(name: "query", value: query),
+                    URLQueryItem(name: "limit", value: String(limit))
+                ],
+                headers: [BusinessHeaders.organizationId: organizationId]
+            )
+        )
+    }
+
+    func adoptSuggestion(
+        organizationId: String,
+        branchId: String?,
+        activityId: String,
+        template: PlatformCatalogTemplateSuggestion,
+        localPrice: MoneyAmount,
+        taxProfileCode: String,
+        reason: String
+    ) async throws -> BusinessCatalogItem {
+        let request = CatalogCopyFromTemplateRequest(
+            templateId: template.id,
+            branchId: branchId,
+            activityId: activityId,
+            localPrice: localPrice,
+            taxProfileCode: taxProfileCode,
+            reason: reason
+        )
+
+        return try await apiClient.send(
+            APIRequest<BusinessCatalogItem>.json(
+                method: .post,
+                path: BusinessCatalogRoutes.copyFromMaster(organizationId: organizationId),
+                body: request,
+                headers: [BusinessHeaders.organizationId: organizationId]
+            )
+        )
     }
 
     private func catalogHeaders(

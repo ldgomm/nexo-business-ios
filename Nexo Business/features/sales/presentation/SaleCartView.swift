@@ -248,6 +248,11 @@ struct SaleCartView: View {
                         searchResultsBlock
                     }
 
+                    if !viewModel.suggestionResults.isEmpty || viewModel.isSearchingSuggestions {
+                        Divider()
+                        suggestionResultsBlock
+                    }
+
                     Divider()
                     cartBlock
 
@@ -310,7 +315,7 @@ struct SaleCartView: View {
                     NexoKeyboard.dismiss()
                     Task { await viewModel.searchCatalog() }
                 } label: {
-                    if viewModel.isSearching {
+                    if viewModel.isSearching || viewModel.isSearchingSuggestions {
                         ProgressView()
                             .controlSize(.small)
                     } else {
@@ -341,6 +346,44 @@ struct SaleCartView: View {
                 .disabled(!viewModel.canEditCart)
 
                 if item.id != viewModel.searchResults.last?.id {
+                    Divider()
+                }
+            }
+        }
+    }
+
+    private var suggestionResultsBlock: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .firstTextBaseline) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Sugerencias de Nexo")
+                        .font(.subheadline.weight(.semibold))
+
+                    Text("Copia el producto a tu negocio antes de venderlo. El precio e impuesto se guardan como configuración local.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Spacer()
+
+                if viewModel.isSearchingSuggestions {
+                    ProgressView()
+                        .controlSize(.small)
+                }
+            }
+
+            ForEach(viewModel.suggestionResults) { template in
+                CatalogSuggestionRow(
+                    template: template,
+                    isAdopting: viewModel.adoptingTemplateId == template.id,
+                    canAdopt: viewModel.canAdoptCatalogSuggestion && template.canAdoptFromBusiness,
+                    adoptAction: {
+                        Task { await viewModel.adoptSuggestion(template) }
+                    }
+                )
+
+                if template.id != viewModel.suggestionResults.last?.id {
                     Divider()
                 }
             }
@@ -1408,6 +1451,78 @@ private struct SaleCartCashCard<DashboardDestination: View>: View {
                 await viewModel.load()
                 onSessionChanged(viewModel.currentSession)
             }
+        }
+    }
+}
+
+private struct CatalogSuggestionRow: View {
+    let template: PlatformCatalogTemplateSuggestion
+    let isAdopting: Bool
+    let canAdopt: Bool
+    let adoptAction: () -> Void
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: iconName)
+                .foregroundStyle(.secondary)
+                .frame(width: 28)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(template.displayName)
+                    .font(.subheadline.weight(.semibold))
+
+                if let code = template.primaryCode, !code.isEmpty {
+                    Text("Código sugerido: \(code)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                HStack(spacing: 8) {
+                    if let price = template.suggestedPrice {
+                        Text(price.displayText)
+                            .font(.caption.weight(.semibold))
+                    } else {
+                        Text("Sin precio sugerido")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.orange)
+                    }
+
+                    if let tax = template.suggestedTaxProfileCode {
+                        Text(tax)
+                            .font(.caption2.weight(.medium))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+
+            Spacer(minLength: 8)
+
+            Button(action: adoptAction) {
+                if isAdopting {
+                    ProgressView()
+                        .controlSize(.small)
+                } else {
+                    Label("Copiar", systemImage: "square.and.arrow.down")
+                        .font(.caption.weight(.semibold))
+                }
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            .disabled(!canAdopt || isAdopting)
+        }
+        .padding(.vertical, 4)
+    }
+
+    private var iconName: String {
+        switch template.type.lowercased() {
+        case "service":
+            return "person.text.rectangle"
+        case "activity":
+            return "calendar.badge.clock"
+        case "package", "combo":
+            return "shippingbox"
+        default:
+            return "sparkles"
         }
     }
 }

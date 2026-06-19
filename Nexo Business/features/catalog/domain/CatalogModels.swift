@@ -58,6 +58,105 @@ struct BusinessCatalogUnit: Decodable, Equatable, Sendable {
     }
 }
 
+struct CatalogIdentifier: Decodable, Equatable, Sendable {
+    let type: String
+    let value: String
+    let normalizedValue: String?
+    let scope: String?
+    let status: String?
+    let source: String?
+    let isPrimary: Bool?
+}
+
+struct PlatformCatalogTemplateSuggestion: Decodable, Equatable, Identifiable, Sendable {
+    let id: String
+    let globalCatalogId: String
+    let canonicalName: String
+    let normalizedName: String?
+    let type: String
+    let status: String
+    let productFamilyId: String?
+    let variantAttributes: [String: String]
+    let identifiers: [CatalogIdentifier]
+    let attributes: [String: String]
+
+    var displayName: String {
+        canonicalName.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    var primaryCode: String? {
+        identifiers.first(where: { $0.isPrimary == true })?.value
+            ?? identifiers.first?.value
+            ?? attributes["sku"]
+            ?? attributes["code"]
+    }
+
+    var suggestedPrice: MoneyAmount? {
+        let candidates = [
+            attributes["suggestedPrice"],
+            attributes["suggestedPriceAmount"],
+            attributes["price"],
+        ]
+
+        guard let raw = candidates.compactMap({ $0?.trimmingCharacters(in: .whitespacesAndNewlines) }).first(where: { !$0.isEmpty }) else {
+            return nil
+        }
+
+        return MoneyAmount(amount: raw, currency: attributes["suggestedCurrency"] ?? "USD")
+    }
+
+    var suggestedTaxProfileCode: String? {
+        [
+            attributes["defaultTaxProfileCode"],
+            attributes["suggestedTaxProfileCode"],
+            attributes["taxProfileCode"],
+        ]
+        .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+        .first(where: { !$0.isEmpty })
+    }
+
+    var suggestedCategoryCode: String? {
+        attributes["suggestedCategoryCode"]?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmptyForCatalog
+    }
+
+    var canAdoptFromBusiness: Bool {
+        suggestedPrice != nil && suggestedTaxProfileCode != nil && status.lowercased() == "active"
+    }
+}
+
+struct CatalogSuggestionSearchResponse: Decodable, Equatable, Sendable {
+    let templates: [PlatformCatalogTemplateSuggestion]
+
+    init(templates: [PlatformCatalogTemplateSuggestion]) {
+        self.templates = templates
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case templates
+        case items
+        case results
+        case data
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        templates = try container.decodeIfPresent([PlatformCatalogTemplateSuggestion].self, forKey: .templates)
+            ?? container.decodeIfPresent([PlatformCatalogTemplateSuggestion].self, forKey: .items)
+            ?? container.decodeIfPresent([PlatformCatalogTemplateSuggestion].self, forKey: .results)
+            ?? container.decodeIfPresent([PlatformCatalogTemplateSuggestion].self, forKey: .data)
+            ?? []
+    }
+}
+
+struct CatalogCopyFromTemplateRequest: Encodable, Equatable, Sendable {
+    let templateId: String
+    let branchId: String?
+    let activityId: String
+    let localPrice: MoneyAmount
+    let taxProfileCode: String
+    let reason: String
+}
+
 struct BusinessCatalogItem: Decodable, Equatable, Identifiable, Sendable {
     let id: String
     let name: String
@@ -122,6 +221,7 @@ struct BusinessCatalogItem: Decodable, Equatable, Identifiable, Sendable {
         case price
         case basePrice
         case unitPrice
+        case localPrice
         case taxProfileCode
         case taxProfileName
         case taxProfileId
@@ -141,7 +241,7 @@ struct BusinessCatalogItem: Decodable, Equatable, Identifiable, Sendable {
         type = try container.decodeIfPresent(String.self, forKey: .type)
         status = try container.decodeIfPresent(String.self, forKey: .status)
         unit = try container.decodeIfPresent(BusinessCatalogUnit.self, forKey: .unit)
-        price = try container.decodeFirstMoneyIfPresent(for: [.price, .basePrice, .unitPrice])
+        price = try container.decodeFirstMoneyIfPresent(for: [.price, .basePrice, .unitPrice, .localPrice])
         taxProfileCode = try container.decodeIfPresent(String.self, forKey: .taxProfileCode)
         taxProfileName = try container.decodeIfPresent(String.self, forKey: .taxProfileName)
         taxProfileId = try container.decodeIfPresent(String.self, forKey: .taxProfileId)
@@ -225,5 +325,13 @@ private extension KeyedDecodingContainer where Key == BusinessCatalogItem.Coding
         }
 
         return nil
+    }
+}
+
+
+private extension String {
+    var nilIfEmptyForCatalog: String? {
+        let trimmed = trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
     }
 }

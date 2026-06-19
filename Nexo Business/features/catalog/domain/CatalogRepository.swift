@@ -16,4 +16,42 @@ protocol CatalogRepository: Sendable {
         query: String,
         limit: Int
     ) async throws -> CatalogSearchResponse
+
+    func searchSuggestions(
+        organizationId: String,
+        query: String,
+        limit: Int
+    ) async throws -> CatalogSuggestionSearchResponse
+
+    func adoptSuggestion(
+        organizationId: String,
+        branchId: String?,
+        activityId: String,
+        template: PlatformCatalogTemplateSuggestion,
+        localPrice: MoneyAmount,
+        taxProfileCode: String,
+        reason: String
+    ) async throws -> BusinessCatalogItem
+}
+
+extension CatalogRepository {
+    func searchSuggestions(
+        organizationId: String,
+        query: String,
+        limit: Int
+    ) async throws -> CatalogSuggestionSearchResponse {
+        throw APIError.transport("La adopción desde sugerencias no está disponible en este repositorio.")
+    }
+
+    func adoptSuggestion(
+        organizationId: String,
+        branchId: String?,
+        activityId: String,
+        template: PlatformCatalogTemplateSuggestion,
+        localPrice: MoneyAmount,
+        taxProfileCode: String,
+        reason: String
+    ) async throws -> BusinessCatalogItem {
+        throw APIError.transport("La adopción desde sugerencias no está disponible en este repositorio.")
+    }
 }
