@@ -542,6 +542,65 @@ struct BusinessTeamSessionRevocationResult: Decodable, Equatable, Sendable {
 
 typealias BusinessTeamSessionRevocationResponse = BusinessTeamSessionRevocationResult
 
+
+struct BusinessHumanCapabilityGroup: Identifiable, Equatable, Decodable, Sendable {
+    let code: String
+    let title: String
+    let description: String
+    let humanBullets: [String]
+    let permissionKeys: Set<String>
+    let requiredModules: Set<String>
+    let sensitive: Bool
+    let rank: Int
+
+    var id: String { code }
+
+    init(
+        code: String,
+        title: String,
+        description: String = "",
+        humanBullets: [String] = [],
+        permissionKeys: Set<String> = [],
+        requiredModules: Set<String> = [],
+        sensitive: Bool = false,
+        rank: Int = 0
+    ) {
+        self.code = code
+        self.title = title
+        self.description = description
+        self.humanBullets = humanBullets
+        self.permissionKeys = permissionKeys
+        self.requiredModules = requiredModules
+        self.sensitive = sensitive
+        self.rank = rank
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case code
+        case title
+        case description
+        case humanBullets
+        case permissionKeys
+        case requiredModules
+        case sensitive
+        case rank
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let decodedCode = try container.decode(String.self, forKey: .code)
+
+        self.code = decodedCode
+        self.title = try container.decodeIfPresent(String.self, forKey: .title) ?? decodedCode
+        self.description = try container.decodeIfPresent(String.self, forKey: .description) ?? ""
+        self.humanBullets = try container.decodeIfPresent([String].self, forKey: .humanBullets) ?? []
+        self.permissionKeys = try container.decodeIfPresent(Set<String>.self, forKey: .permissionKeys) ?? []
+        self.requiredModules = try container.decodeIfPresent(Set<String>.self, forKey: .requiredModules) ?? []
+        self.sensitive = try container.decodeIfPresent(Bool.self, forKey: .sensitive) ?? false
+        self.rank = try container.decodeIfPresent(Int.self, forKey: .rank) ?? 0
+    }
+}
+
 struct BusinessRoleTemplate: Identifiable, Equatable, Decodable, Sendable {
     let templateCode: String
     let vertical: String
@@ -554,8 +613,87 @@ struct BusinessRoleTemplate: Identifiable, Equatable, Decodable, Sendable {
     let editableByBusiness: Bool
     let critical: Bool
     let rank: Int
+    let permissionCount: Int
+    let knownPermissionCount: Int
+    let capabilityGroupCodes: Set<String>
+    let capabilityGroups: [BusinessHumanCapabilityGroup]
 
     var id: String { templateCode }
+
+    init(
+        templateCode: String,
+        vertical: String,
+        roleCode: String,
+        name: String,
+        description: String,
+        permissionKeys: Set<String>,
+        requiredModules: Set<String>,
+        assignableByBusiness: Bool,
+        editableByBusiness: Bool,
+        critical: Bool,
+        rank: Int,
+        permissionCount: Int? = nil,
+        knownPermissionCount: Int? = nil,
+        capabilityGroupCodes: Set<String> = [],
+        capabilityGroups: [BusinessHumanCapabilityGroup] = []
+    ) {
+        self.templateCode = templateCode
+        self.vertical = vertical
+        self.roleCode = roleCode
+        self.name = name
+        self.description = description
+        self.permissionKeys = permissionKeys
+        self.requiredModules = requiredModules
+        self.assignableByBusiness = assignableByBusiness
+        self.editableByBusiness = editableByBusiness
+        self.critical = critical
+        self.rank = rank
+        self.permissionCount = permissionCount ?? permissionKeys.count
+        self.knownPermissionCount = knownPermissionCount ?? permissionKeys.count
+        self.capabilityGroupCodes = capabilityGroupCodes
+        self.capabilityGroups = capabilityGroups
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case templateCode
+        case vertical
+        case roleCode
+        case name
+        case description
+        case permissionKeys
+        case requiredModules
+        case assignableByBusiness
+        case editableByBusiness
+        case critical
+        case rank
+        case permissionCount
+        case knownPermissionCount
+        case capabilityGroupCodes
+        case capabilityGroups
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let decodedPermissionKeys = try container.decodeIfPresent(Set<String>.self, forKey: .permissionKeys) ?? []
+
+        let decodedTemplateCode = try container.decode(String.self, forKey: .templateCode)
+
+        self.templateCode = decodedTemplateCode
+        self.vertical = try container.decodeIfPresent(String.self, forKey: .vertical) ?? "CORE"
+        self.roleCode = try container.decodeIfPresent(String.self, forKey: .roleCode) ?? decodedTemplateCode
+        self.name = try container.decode(String.self, forKey: .name)
+        self.description = try container.decodeIfPresent(String.self, forKey: .description) ?? ""
+        self.permissionKeys = decodedPermissionKeys
+        self.requiredModules = try container.decodeIfPresent(Set<String>.self, forKey: .requiredModules) ?? []
+        self.assignableByBusiness = try container.decodeIfPresent(Bool.self, forKey: .assignableByBusiness) ?? true
+        self.editableByBusiness = try container.decodeIfPresent(Bool.self, forKey: .editableByBusiness) ?? true
+        self.critical = try container.decodeIfPresent(Bool.self, forKey: .critical) ?? false
+        self.rank = try container.decodeIfPresent(Int.self, forKey: .rank) ?? 100
+        self.permissionCount = try container.decodeIfPresent(Int.self, forKey: .permissionCount) ?? decodedPermissionKeys.count
+        self.knownPermissionCount = try container.decodeIfPresent(Int.self, forKey: .knownPermissionCount) ?? decodedPermissionKeys.count
+        self.capabilityGroupCodes = try container.decodeIfPresent(Set<String>.self, forKey: .capabilityGroupCodes) ?? []
+        self.capabilityGroups = try container.decodeIfPresent([BusinessHumanCapabilityGroup].self, forKey: .capabilityGroups) ?? []
+    }
 
     var readableVertical: String {
         switch vertical.uppercased() {
@@ -576,6 +714,10 @@ struct BusinessRoleTemplate: Identifiable, Equatable, Decodable, Sendable {
 
 struct BusinessRoleTemplatesResponse: Decodable, Equatable, Sendable {
     let templates: [BusinessRoleTemplate]
+}
+
+struct BusinessHumanCapabilityGroupsResponse: Decodable, Equatable, Sendable {
+    let groups: [BusinessHumanCapabilityGroup]
 }
 
 struct CreateBusinessRoleFromTemplateInput: Encodable, Equatable, Sendable {

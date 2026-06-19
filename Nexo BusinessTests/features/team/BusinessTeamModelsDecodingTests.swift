@@ -54,7 +54,22 @@ final class BusinessTeamModelsDecodingTests: XCTestCase {
                   "assignableByBusiness": true,
                   "editableByBusiness": true,
                   "critical": false,
-                  "rank": 320
+                  "rank": 320,
+                  "permissionCount": 1,
+                  "knownPermissionCount": 1,
+                  "capabilityGroupCodes": ["SALES_DISCOUNTS"],
+                  "capabilityGroups": [
+                    {
+                      "code": "SALES_DISCOUNTS",
+                      "title": "Descuentos",
+                      "description": "Permite aplicar y quitar descuentos.",
+                      "humanBullets": ["Puede aplicar descuentos"],
+                      "permissionKeys": ["sales.apply_discount"],
+                      "requiredModules": ["core.sales"],
+                      "sensitive": true,
+                      "rank": 160
+                    }
+                  ]
                 }
               ]
             }
@@ -67,6 +82,39 @@ final class BusinessTeamModelsDecodingTests: XCTestCase {
         XCTAssertEqual(response.templates.first?.id, "core.discount_manager")
         XCTAssertEqual(response.templates.first?.readableVertical, "General")
         XCTAssertEqual(response.templates.first?.permissionKeys, ["sales.apply_discount"])
+        XCTAssertEqual(response.templates.first?.permissionCount, 1)
+        XCTAssertEqual(response.templates.first?.knownPermissionCount, 1)
+        XCTAssertEqual(response.templates.first?.capabilityGroupCodes, ["SALES_DISCOUNTS"])
+        XCTAssertEqual(response.templates.first?.capabilityGroups.first?.title, "Descuentos")
+    }
+
+    func testDecodesCapabilityGroupsResponse() throws {
+        let json = Data(
+            """
+            {
+              "groups": [
+                {
+                  "code": "CASH",
+                  "title": "Caja",
+                  "description": "Operación de caja.",
+                  "humanBullets": ["Puede abrir caja"],
+                  "permissionKeys": ["cash.open"],
+                  "requiredModules": ["core.cash"],
+                  "sensitive": true,
+                  "rank": 180
+                }
+              ]
+            }
+            """.utf8
+        )
+
+        let response = try JSONDecoder.nexoDefault.decode(BusinessHumanCapabilityGroupsResponse.self, from: json)
+
+        XCTAssertEqual(response.groups.count, 1)
+        XCTAssertEqual(response.groups.first?.id, "CASH")
+        XCTAssertEqual(response.groups.first?.title, "Caja")
+        XCTAssertEqual(response.groups.first?.permissionKeys, ["cash.open"])
+        XCTAssertTrue(response.groups.first?.sensitive == true)
     }
 
     func testEncodesCreateRoleFromTemplateInput() throws {

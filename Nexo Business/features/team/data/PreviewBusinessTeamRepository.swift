@@ -369,6 +369,53 @@ final class PreviewBusinessTeamRepository: BusinessTeamRepository, @unchecked Se
         return templates.filter { $0.vertical == "CORE" || $0.vertical == vertical }
     }
 
+
+
+    func listCapabilityGroups() async throws -> [BusinessHumanCapabilityGroup] {
+        [
+            BusinessHumanCapabilityGroup(
+                code: "SALES",
+                title: "Ventas",
+                description: "Crear y revisar ventas del negocio.",
+                humanBullets: ["Puede vender", "Puede ver ventas"],
+                permissionKeys: ["sales.view", "sales.create"],
+                requiredModules: ["core.sales"],
+                sensitive: false,
+                rank: 100
+            ),
+            BusinessHumanCapabilityGroup(
+                code: "PAYMENTS",
+                title: "Pagos",
+                description: "Registrar cobros y pagos.",
+                humanBullets: ["Puede cobrar"],
+                permissionKeys: ["payments.collect", "payments.register"],
+                requiredModules: ["core.payments"],
+                sensitive: true,
+                rank: 120
+            ),
+            BusinessHumanCapabilityGroup(
+                code: "SALES_DISCOUNTS",
+                title: "Descuentos",
+                description: "Aplicar y quitar descuentos en ventas.",
+                humanBullets: ["Puede aplicar descuentos", "Puede quitar descuentos"],
+                permissionKeys: ["sales.apply_discount", "sales.apply_item_discount", "sales.apply_cart_discount", "sales.remove_discount"],
+                requiredModules: ["core.sales"],
+                sensitive: true,
+                rank: 160
+            ),
+            BusinessHumanCapabilityGroup(
+                code: "CUSTOMERS",
+                title: "Clientes",
+                description: "Consultar clientes del negocio.",
+                humanBullets: ["Puede ver clientes"],
+                permissionKeys: ["customers.view"],
+                requiredModules: ["core.customers"],
+                sensitive: false,
+                rank: 90
+            )
+        ]
+    }
+
     func listPermissions(includeReserved: Bool) async throws -> [BusinessTeamPermission] {
         [
             BusinessTeamPermission(

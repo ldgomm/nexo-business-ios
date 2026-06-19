@@ -23,6 +23,7 @@ protocol BusinessTeamRepository: Sendable {
     func activateRole(id: String, reason: String) async throws -> BusinessTeamRole
     func deactivateRole(id: String, reason: String) async throws -> BusinessTeamRole
     func listRoleTemplates(vertical: String?) async throws -> [BusinessRoleTemplate]
+    func listCapabilityGroups() async throws -> [BusinessHumanCapabilityGroup]
     func listPermissions(includeReserved: Bool) async throws -> [BusinessTeamPermission]
     func listAssignablePermissions() async throws -> [BusinessTeamPermission]
     func listBranches() async throws -> [BusinessTeamBranch]
@@ -200,6 +201,14 @@ final class BusinessTeamAPIRepository: BusinessTeamRepository, @unchecked Sendab
             )
         )
         return response.templates
+    }
+
+
+    func listCapabilityGroups() async throws -> [BusinessHumanCapabilityGroup] {
+        let response: BusinessHumanCapabilityGroupsResponse = try await apiClient.send(
+            APIRequest(method: .get, path: "/api/v1/business/team/capability-groups")
+        )
+        return response.groups
     }
 
     func listPermissions(includeReserved: Bool) async throws -> [BusinessTeamPermission] {

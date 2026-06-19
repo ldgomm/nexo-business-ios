@@ -19,6 +19,7 @@ final class BusinessTeamViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.users.map(\.id), ["usr_cashier"])
         XCTAssertEqual(viewModel.roles.map(\.id), ["role_cashier", "role_discount"])
         XCTAssertEqual(viewModel.roleTemplates.map(\.templateCode), ["core.cashier", "core.discount_manager"])
+        XCTAssertEqual(viewModel.capabilityGroups.map(\.code), ["SALES", "SALES_DISCOUNTS"])
         XCTAssertEqual(viewModel.permissions.map(\.code), ["sales.create", "sales.apply_discount"])
         XCTAssertEqual(viewModel.selectedRoleIds, ["role_discount"])
         XCTAssertEqual(viewModel.state, .loaded)
@@ -73,6 +74,36 @@ final class BusinessTeamViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.infoMessage, "Permisos de descuento otorgados y sesiones revocadas.")
     }
 
+    func testReadableCapabilitiesUsesBackendCapabilityGroups() async {
+        let repository = BusinessTeamRepositorySpy()
+        let viewModel = BusinessTeamViewModel(repository: repository)
+        await viewModel.load()
+
+        XCTAssertEqual(viewModel.readableCapabilities(for: ["sales.create"]), ["Ventas"])
+        XCTAssertEqual(viewModel.readableCapabilities(for: ["sales.apply_discount"]), ["Descuentos"])
+        XCTAssertEqual(viewModel.readableCapabilities(for: ["unknown.permission"]), ["Permisos operativos básicos"])
+    }
+
+    func testReadableCapabilitiesPrefersTemplateCapabilityGroups() async {
+        let repository = BusinessTeamRepositorySpy()
+        let viewModel = BusinessTeamViewModel(repository: repository)
+        await viewModel.load()
+        let template = BusinessRoleTemplate.fixture(
+            templateCode: "core.discount_manager",
+            name: "Encargado de descuentos",
+            capabilityGroups: [
+                BusinessHumanCapabilityGroup(
+                    code: "SALES_DISCOUNTS",
+                    title: "Descuentos",
+                    permissionKeys: ["sales.apply_discount"],
+                    rank: 160
+                )
+            ]
+        )
+
+        XCTAssertEqual(viewModel.readableCapabilities(for: template), ["Descuentos"])
+    }
+
     func testCreateRoleFromTemplateAddsCreatedRole() async {
         let repository = BusinessTeamRepositorySpy()
         let viewModel = BusinessTeamViewModel(repository: repository)
@@ -93,6 +124,21 @@ private final class BusinessTeamRepositorySpy: BusinessTeamRepository, @unchecke
     var roleTemplates: [BusinessRoleTemplate] = [
         .fixture(templateCode: "core.cashier", name: "Cajero"),
         .fixture(templateCode: "core.discount_manager", name: "Encargado de descuentos")
+    ]
+    var capabilityGroups: [BusinessHumanCapabilityGroup] = [
+        BusinessHumanCapabilityGroup(
+            code: "SALES",
+            title: "Ventas",
+            permissionKeys: ["sales.create"],
+            rank: 100
+        ),
+        BusinessHumanCapabilityGroup(
+            code: "SALES_DISCOUNTS",
+            title: "Descuentos",
+            permissionKeys: ["sales.apply_discount"],
+            sensitive: true,
+            rank: 160
+        )
     ]
     var permissions: [BusinessTeamPermission] = [
         BusinessTeamPermission(code: "sales.create", name: "Crear ventas", description: "", category: "SALES"),
@@ -155,6 +201,7 @@ private final class BusinessTeamRepositorySpy: BusinessTeamRepository, @unchecke
     func activateRole(id: String, reason: String) async throws -> BusinessTeamRole { .discountManager }
     func deactivateRole(id: String, reason: String) async throws -> BusinessTeamRole { .discountManager }
     func listRoleTemplates(vertical: String?) async throws -> [BusinessRoleTemplate] { roleTemplates }
+    func listCapabilityGroups() async throws -> [BusinessHumanCapabilityGroup] { capabilityGroups }
     func listPermissions(includeReserved: Bool) async throws -> [BusinessTeamPermission] { permissions }
     func listAssignablePermissions() async throws -> [BusinessTeamPermission] { permissions }
     func listBranches() async throws -> [BusinessTeamBranch] { branches }
@@ -220,7 +267,11 @@ private extension BusinessTeamRole {
 }
 
 private extension BusinessRoleTemplate {
-    static func fixture(templateCode: String = "core.cashier", name: String = "Cajero") -> BusinessRoleTemplate {
+    static func fixture(
+        templateCode: String = "core.cashier",
+        name: String = "Cajero",
+        capabilityGroups: [BusinessHumanCapabilityGroup] = []
+    ) -> BusinessRoleTemplate {
         BusinessRoleTemplate(
             templateCode: templateCode,
             vertical: "CORE",
@@ -232,7 +283,8 @@ private extension BusinessRoleTemplate {
             assignableByBusiness: true,
             editableByBusiness: true,
             critical: false,
-            rank: 300
+            rank: 300,
+            capabilityGroups: capabilityGroups
         )
     }
 }

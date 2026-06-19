@@ -266,7 +266,11 @@ struct BusinessTeamView: View {
                     .foregroundStyle(.secondary)
             } else {
                 ForEach(viewModel.availableTemplates) { template in
-                    BusinessRoleTemplateRow(template: template) {
+                    BusinessRoleTemplateRow(
+                        template: template,
+                        capabilities: viewModel.readableCapabilities(for: template),
+                        subtitle: viewModel.templateDescription(for: template)
+                    ) {
                         Task { await viewModel.createRoleFromTemplate(template, reason: "Crear rol \(template.name) desde plantilla") }
                     }
                     .disabled(viewModel.isMutating || viewModel.roles.contains { $0.code == template.roleCode })
@@ -732,6 +736,8 @@ private struct BusinessTeamRoleRow: View {
 
 private struct BusinessRoleTemplateRow: View {
     let template: BusinessRoleTemplate
+    let capabilities: [String]
+    let subtitle: String
     let create: () -> Void
 
     var body: some View {
@@ -751,6 +757,21 @@ private struct BusinessRoleTemplateRow: View {
             Text(template.description)
                 .font(.caption)
                 .foregroundStyle(.secondary)
+            Text(subtitle)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 6) {
+                    ForEach(capabilities, id: \.self) { capability in
+                        Text(capability)
+                            .font(.caption2)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(.quaternary.opacity(0.45))
+                            .clipShape(Capsule())
+                    }
+                }
+            }
         }
         .padding(.vertical, 4)
     }

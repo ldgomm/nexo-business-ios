@@ -26,6 +26,7 @@ final class BusinessTeamViewModel {
     var users: [BusinessTeamUser] = []
     var roles: [BusinessTeamRole] = []
     var roleTemplates: [BusinessRoleTemplate] = []
+    var capabilityGroups: [BusinessHumanCapabilityGroup] = []
     var permissions: [BusinessTeamPermission] = []
     var branches: [BusinessTeamBranch] = []
     var query: String = ""
@@ -93,12 +94,14 @@ final class BusinessTeamViewModel {
 
             async let loadedRoles = repository.listRoles(includeSystemTemplates: false)
             async let loadedTemplates = repository.listRoleTemplates(vertical: selectedTemplateVertical)
+            async let loadedCapabilityGroups = repository.listCapabilityGroups()
             async let loadedPermissions = repository.listPermissions(includeReserved: false)
             async let loadedBranches = repository.listBranches()
 
             self.users = try await loadedUsers
             self.roles = try await loadedRoles
             self.roleTemplates = try await loadedTemplates
+            self.capabilityGroups = try await loadedCapabilityGroups
             self.permissions = try await loadedPermissions
             self.branches = try await loadedBranches
 
@@ -173,15 +176,50 @@ final class BusinessTeamViewModel {
     }
 
     func readableCapabilities(for permissionKeys: Set<String>) -> [String] {
-        var capabilities: [String] = []
-        if permissionKeys.contains(where: { $0.contains("sales.create") || $0 == "sales.create" }) { capabilities.append("Puede vender") }
-        if permissionKeys.contains(where: { $0.contains("payments.collect") || $0 == "payments.collect" }) { capabilities.append("Puede cobrar") }
-        if permissionKeys.contains(where: { $0.contains("cash") }) { capabilities.append("Puede operar caja") }
-        if Self.discountPermissionKeys.contains(where: permissionKeys.contains) { capabilities.append("Puede aplicar descuentos") }
-        if permissionKeys.contains(where: { $0.contains("reports") }) { capabilities.append("Puede ver reportes") }
-        if permissionKeys.contains(where: { $0.contains("credentials.users") || $0.contains("roles") || $0.contains("team") }) { capabilities.append("Puede administrar equipo") }
-        if permissionKeys.contains(where: { $0.contains("catalog") || $0.contains("inventory") }) { capabilities.append("Puede ver productos/inventario") }
-        return capabilities.isEmpty ? ["Permisos operativos básicos"] : Array(Set(capabilities)).sorted()
+        let resolved = resolvedCapabilityGroups(for: permissionKeys)
+            .map(\.title)
+
+        return resolved.isEmpty ? ["Permisos operativos básicos"] : resolved
+    }
+
+    func readableCapabilities(for template: BusinessRoleTemplate) -> [String] {
+        let directGroups = template.capabilityGroups
+            .sorted(by: capabilityGroupSort)
+            .map(\.title)
+
+        if !directGroups.isEmpty { return directGroups }
+
+        let resolvedFromCodes = template.capabilityGroupCodes
+            .compactMap { code in capabilityGroups.first { $0.code.caseInsensitiveCompare(code) == .orderedSame } }
+            .sorted(by: capabilityGroupSort)
+            .map(\.title)
+
+        if !resolvedFromCodes.isEmpty { return resolvedFromCodes }
+
+        return readableCapabilities(for: template.permissionKeys)
+    }
+
+    func templateDescription(for template: BusinessRoleTemplate) -> String {
+        let permissionText = template.permissionCount == 1 ? "1 permiso técnico" : "\(template.permissionCount) permisos técnicos"
+        let knownText = template.knownPermissionCount < template.permissionCount
+        ? " · \(template.knownPermissionCount) conocidos"
+        : ""
+
+        if template.critical { return "\(permissionText)\(knownText) · sensible" }
+        return "\(permissionText)\(knownText)"
+    }
+
+    private func resolvedCapabilityGroups(for permissionKeys: Set<String>) -> [BusinessHumanCapabilityGroup] {
+        capabilityGroups
+            .filter { group in
+                !group.permissionKeys.isDisjoint(with: permissionKeys)
+            }
+            .sorted(by: capabilityGroupSort)
+    }
+
+    private func capabilityGroupSort(_ lhs: BusinessHumanCapabilityGroup, _ rhs: BusinessHumanCapabilityGroup) -> Bool {
+        if lhs.rank != rhs.rank { return lhs.rank > rhs.rank }
+        return lhs.title.localizedCaseInsensitiveCompare(rhs.title) == .orderedAscending
     }
 
     func createUser() async {
