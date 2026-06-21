@@ -95,7 +95,10 @@ final class PaymentRegisterViewModelTests: XCTestCase {
 
         XCTAssertFalse(viewModel.canCreateReceivable)
         await viewModel.createReceivable()
-        XCTAssertEqual(viewModel.errorMessage, "Para dejar una venta por cobrar necesitas un cliente identificado.")
+
+        XCTAssertNotNil(viewModel.errorMessage)
+        XCTAssertTrue(viewModel.errorMessage?.contains("cliente identificado") == true)
+        XCTAssertTrue(viewModel.errorMessage?.contains("Consumidor final no puede quedar fiado") == true)
     }
 
     func testCreatesReceivableWithCustomerAndIdempotency() async {
@@ -118,6 +121,71 @@ final class PaymentRegisterViewModelTests: XCTestCase {
         XCTAssertEqual(receivables.lastCreateRequest?.amount, "11.50")
         XCTAssertTrue(receivables.lastCreateIdempotencyKey?.rawValue.hasPrefix("receivable-create-") ?? false)
         XCTAssertEqual(viewModel.infoMessage, "Cuenta por cobrar creada correctamente.")
+    }
+
+
+    func testCreditWithSelectedCustomerPersistsCustomerBeforeCreatingReceivable() async {
+        let receivables = SpyReceivablesRepository()
+        let sales = SpyPaymentSalesRepository(initialSale: saleWithoutCustomer())
+        sales.updateCustomerResponse = QuickSaleResponse(
+            sale: saleWithCustomer(
+                id: "cus_009",
+                name: "Cliente Crédito Seguro",
+                identification: "1710034065"
+            )
+        )
+        let viewModel = makeViewModel(
+            sale: saleWithoutCustomer(),
+            permissions: ["receivables.create"],
+            cashSession: openCashSession(),
+            receivablesRepository: receivables,
+            salesRepository: sales
+        )
+
+        await viewModel.load()
+        viewModel.selectedMode = .credit
+        viewModel.selectCustomer(
+            BusinessCustomer(
+                id: "cus_009",
+                displayName: "Cliente Crédito Seguro",
+                identificationType: .cedula,
+                identificationNumber: "1710034065"
+            )
+        )
+        viewModel.amount = "11.50"
+
+        await viewModel.createReceivable()
+
+        XCTAssertNil(viewModel.errorMessage)
+        XCTAssertEqual(sales.lastUpdateCustomerRequest?.customerId, "cus_009")
+        XCTAssertEqual(sales.lastUpdateCustomerRequest?.customerSnapshot?.displayName, "Cliente Crédito Seguro")
+        XCTAssertEqual(receivables.lastCreateRequest?.saleId, PreviewData.confirmedSaleResponse.sale.id)
+        XCTAssertEqual(receivables.lastCreateRequest?.customerId, "cus_009")
+        XCTAssertEqual(viewModel.infoMessage, "Cuenta por cobrar creada correctamente.")
+    }
+
+    func testManualCustomerIdWithoutPersistedSaleCustomerDoesNotCreateReceivable() async {
+        let receivables = SpyReceivablesRepository()
+        let viewModel = makeViewModel(
+            sale: saleWithoutCustomer(),
+            permissions: ["receivables.create"],
+            cashSession: openCashSession(),
+            receivablesRepository: receivables
+        )
+
+        await viewModel.load()
+        viewModel.selectedMode = .credit
+        viewModel.customerId = "cus_manual"
+        viewModel.amount = "11.50"
+
+        XCTAssertFalse(viewModel.canCreateReceivable)
+        await viewModel.createReceivable()
+
+        XCTAssertNil(receivables.lastCreateRequest)
+        XCTAssertEqual(
+            viewModel.errorMessage,
+            "Para dejar una venta por cobrar necesitas seleccionar un cliente identificado. Consumidor final no puede quedar fiado."
+        )
     }
 
     func testMapsBackendConflictToHumanMessage() async {
@@ -173,7 +241,8 @@ final class PaymentRegisterViewModelTests: XCTestCase {
         cashSession: CashSession? = nil,
         cashRepository: SpyCashRepository? = nil,
         paymentsRepository: SpyPaymentsRepository = SpyPaymentsRepository(),
-        receivablesRepository: SpyReceivablesRepository = SpyReceivablesRepository()
+        receivablesRepository: SpyReceivablesRepository = SpyReceivablesRepository(),
+        salesRepository: SalesRepository? = nil
     ) -> PaymentRegisterViewModel {
         PaymentRegisterViewModel(
             organizationId: PreviewData.businessContext.organization.id,
@@ -182,7 +251,10 @@ final class PaymentRegisterViewModelTests: XCTestCase {
             effectivePermissions: permissions,
             cashRepository: cashRepository ?? SpyCashRepository(currentSession: cashSession),
             paymentsRepository: paymentsRepository,
-            receivablesRepository: receivablesRepository
+            receivablesRepository: receivablesRepository,
+            salesRepository: salesRepository,
+            activityId: PreviewData.businessContext.activities[0].id,
+            revisions: salesRepository.map { _ in PreviewData.businessContext.revisions }
         )
     }
 
@@ -207,6 +279,34 @@ final class PaymentRegisterViewModelTests: XCTestCase {
             branchId: PreviewData.businessContext.branches[0].id,
             activityId: PreviewData.businessContext.activities[0].id,
             customerId: "cus_001",
+            status: "confirmed",
+            paymentStatus: "unpaid",
+            documentStatus: "not_required",
+            totals: PreviewData.totals,
+            items: PreviewData.previewResponse.items,
+            createdAt: Date(),
+            confirmedAt: Date()
+        )
+    }
+
+
+    private func saleWithCustomer(
+        id: String,
+        name: String,
+        identification: String
+    ) -> BusinessSale {
+        BusinessSale(
+            id: PreviewData.confirmedSaleResponse.sale.id,
+            organizationId: PreviewData.businessContext.organization.id,
+            branchId: PreviewData.businessContext.branches[0].id,
+            activityId: PreviewData.businessContext.activities[0].id,
+            customerId: id,
+            customerName: name,
+            customer: BusinessSaleCustomer(
+                id: id,
+                displayName: name,
+                identification: identification
+            ),
             status: "confirmed",
             paymentStatus: "unpaid",
             documentStatus: "not_required",
@@ -315,6 +415,94 @@ private final class SpyPaymentsRepository: PaymentsRepository, @unchecked Sendab
             idempotencyReplayed: false
         )
     }
+}
+
+
+private final class SpyPaymentSalesRepository: SalesRepository, @unchecked Sendable {
+    var sale: BusinessSale
+    var lastUpdateCustomerRequest: UpdateSaleCustomerRequest?
+    var lastUpdateCustomerIdempotencyKey: IdempotencyKey?
+    var updateCustomerResponse: QuickSaleResponse?
+
+    init(initialSale: BusinessSale) {
+        self.sale = initialSale
+    }
+
+    func preview(
+        organizationId: String,
+        revisions: BusinessRevisions,
+        request: SalesPreviewRequest
+    ) async throws -> SalesPreviewResponse { fatalError("Not needed in this test") }
+
+    func quickSale(
+        organizationId: String,
+        revisions: BusinessRevisions,
+        idempotencyKey: IdempotencyKey,
+        request: QuickSaleRequest
+    ) async throws -> QuickSaleResponse { fatalError("Not needed in this test") }
+
+    func bulkAddItems(
+        organizationId: String,
+        saleId: String,
+        revisions: BusinessRevisions,
+        idempotencyKey: IdempotencyKey,
+        request: BulkAddSaleItemsRequest
+    ) async throws -> QuickSaleResponse { fatalError("Not needed in this test") }
+
+    func bulkUpdateItems(
+        organizationId: String,
+        saleId: String,
+        revisions: BusinessRevisions,
+        idempotencyKey: IdempotencyKey,
+        request: BulkUpdateSaleItemsRequest
+    ) async throws -> QuickSaleResponse { fatalError("Not needed in this test") }
+
+    func bulkRemoveItems(
+        organizationId: String,
+        saleId: String,
+        revisions: BusinessRevisions,
+        idempotencyKey: IdempotencyKey,
+        request: BulkRemoveSaleItemsRequest
+    ) async throws -> QuickSaleResponse { fatalError("Not needed in this test") }
+
+    func updateCustomer(
+        organizationId: String,
+        saleId: String,
+        revisions: BusinessRevisions,
+        idempotencyKey: IdempotencyKey,
+        request: UpdateSaleCustomerRequest
+    ) async throws -> QuickSaleResponse {
+        lastUpdateCustomerRequest = request
+        lastUpdateCustomerIdempotencyKey = idempotencyKey
+        if let updateCustomerResponse {
+            sale = updateCustomerResponse.sale
+            return updateCustomerResponse
+        }
+        return QuickSaleResponse(sale: sale)
+    }
+
+    func getSale(
+        organizationId: String,
+        saleId: String
+    ) async throws -> BusinessSaleDetailResponse {
+        BusinessSaleDetailResponse(sale: sale)
+    }
+
+    func confirm(
+        organizationId: String,
+        saleId: String,
+        revisions: BusinessRevisions,
+        idempotencyKey: IdempotencyKey,
+        request: ConfirmSaleRequest
+    ) async throws -> ConfirmSaleResponse { fatalError("Not needed in this test") }
+
+    func cancel(
+        organizationId: String,
+        saleId: String,
+        revisions: BusinessRevisions,
+        idempotencyKey: IdempotencyKey,
+        request: CancelSaleRequest
+    ) async throws -> CancelSaleResponse { fatalError("Not needed in this test") }
 }
 
 private final class SpyReceivablesRepository: ReceivablesRepository, @unchecked Sendable {

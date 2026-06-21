@@ -167,6 +167,13 @@ enum APIErrorHumanizer {
             return "La identificación del cliente no fue aceptada. Revisa cédula, RUC o pasaporte, o usa Consumidor final cuando corresponda."
         }
 
+        if (normalized.contains("accounts receivable") && normalized.contains("identified customer")) ||
+            (normalized.contains("cuenta") && normalized.contains("cobrar") && normalized.contains("cliente")) ||
+            (normalized.contains("credito") && normalized.contains("cliente")) ||
+            (normalized.contains("credit") && normalized.contains("customer")) {
+            return "Para dejar una venta por cobrar necesitas seleccionar un cliente identificado. Consumidor final no puede quedar fiado."
+        }
+
         if normalized.contains("firma") ||
             normalized.contains("signature") ||
             normalized.contains("certificate") ||

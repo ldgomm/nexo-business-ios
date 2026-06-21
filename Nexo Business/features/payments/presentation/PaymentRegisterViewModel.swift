@@ -197,7 +197,7 @@ final class PaymentRegisterViewModel {
         guard SaleStatusPresentation.canCollect(status: sale.status) else { return false }
         guard PaymentStatusPresentation.canCollect(status: sale.paymentStatus) else { return false }
         guard isValidAmount(amount) else { return false }
-        return !normalized(customerId).isEmpty
+        return identifiedCustomerIdForReceivable != nil
     }
 
     var canSubmitPaymentAndIssueElectronicDocument: Bool {
@@ -350,6 +350,26 @@ final class PaymentRegisterViewModel {
 
     var amountMoney: String {
         "\(sale.totals.grandTotal.currency) \(amount)"
+    }
+
+    var creditCustomerDisplayText: String {
+        if let name = selectedCustomer?.displayName.nilIfBlank {
+            return name
+        }
+        if let name = sale.customerName?.nilIfBlank {
+            return name
+        }
+        if let name = sale.customer?.displayName.nilIfBlank {
+            return name
+        }
+        return customerId.nilIfBlank ?? "Cliente identificado"
+    }
+
+    private var identifiedCustomerIdForReceivable: String? {
+        if let selectedCustomer, selectedCustomer.identificationType != .finalConsumer {
+            return selectedCustomer.id.nilIfBlank
+        }
+        return sale.customerId?.nilIfBlank
     }
 
     var submitButtonTitle: String {
@@ -677,6 +697,10 @@ final class PaymentRegisterViewModel {
         }
 
         do {
+            if !(await persistSelectedCustomerForSaleIfNeeded(requireForInvoice: false, requireForReceivable: true)) {
+                return
+            }
+
             let response = try await receivablesRepository.create(
                 organizationId: organizationId,
                 idempotencyKey: .generate(prefix: "receivable-create"),
@@ -707,7 +731,10 @@ final class PaymentRegisterViewModel {
         infoMessage = nil
     }
 
-    private func persistSelectedCustomerForSaleIfNeeded(requireForInvoice: Bool) async -> Bool {
+    private func persistSelectedCustomerForSaleIfNeeded(
+        requireForInvoice: Bool,
+        requireForReceivable: Bool = false
+    ) async -> Bool {
         let effectiveSelectedCustomer = selectedCustomer ?? (customerId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? BusinessCustomerPresentation.finalConsumer : nil)
         guard let effectiveSelectedCustomer else { return true }
 
@@ -719,6 +746,12 @@ final class PaymentRegisterViewModel {
         guard selectedCustomerId != persistedCustomerId || selectedIsFinalConsumer != persistedIsFinalConsumer else { return true }
 
         guard let salesRepository, let revisions else {
+            if requireForReceivable {
+                errorMessage = selectedIsFinalConsumer
+                    ? "Para dejar una venta por cobrar necesitas seleccionar un cliente identificado. Consumidor final no puede quedar fiado."
+                    : "Seleccionaste un cliente, pero no se pudo guardar en la venta antes de crear la cuenta por cobrar. Vuelve a la venta, guarda cambios e intenta de nuevo."
+                return false
+            }
             if requireForInvoice {
                 errorMessage = "Seleccionaste un cliente, pero no se pudo guardar en la venta antes de emitir factura electrónica. Vuelve a la venta, guarda cambios e intenta de nuevo."
                 return false
@@ -850,8 +883,8 @@ final class PaymentRegisterViewModel {
             return "Ingresa un monto válido mayor a cero."
         }
 
-        if normalized(customerId).isEmpty {
-            return "Para dejar una venta por cobrar necesitas un cliente identificado."
+        if identifiedCustomerIdForReceivable == nil {
+            return "Para dejar una venta por cobrar necesitas seleccionar un cliente identificado. Consumidor final no puede quedar fiado."
         }
 
         return "No se puede crear la cuenta por cobrar con el estado actual."

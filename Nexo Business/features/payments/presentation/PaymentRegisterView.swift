@@ -197,9 +197,12 @@ struct PaymentRegisterView: View {
                         Label("Quitar cliente", systemImage: "xmark.circle")
                     }
                 } else if !viewModel.customerId.isEmpty {
-                    LabeledContent("Cliente ID", value: viewModel.customerId)
+                    LabeledContent("Cliente", value: viewModel.creditCustomerDisplayText)
+                    Text("Esta venta ya tiene un cliente identificado guardado.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
                 } else {
-                    Label("Selecciona un cliente identificado para dejar una cuenta por cobrar.", systemImage: "person.crop.circle.badge.questionmark")
+                    Label("Selecciona un cliente identificado para dejar una cuenta por cobrar. Consumidor final no puede quedar fiado.", systemImage: "person.crop.circle.badge.questionmark")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
@@ -218,10 +221,6 @@ struct PaymentRegisterView: View {
                 } label: {
                     Label("Seleccionar cliente", systemImage: "person.text.rectangle")
                 }
-
-                TextField("Cliente ID manual", text: $viewModel.customerId)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
 
                 Toggle("Agregar fecha de vencimiento", isOn: $viewModel.useDueDate)
 

@@ -23,6 +23,21 @@ final class APIErrorHumanizerTests: XCTestCase {
         )
     }
 
+
+    func testMapsReceivableRequiresIdentifiedCustomerToHumanMessage() {
+        let error = APIError.server(
+            statusCode: 422,
+            code: "domain_rule_violation",
+            message: "Accounts receivable require an identified customer. Select a customer before marking a sale as credit.",
+            requestId: "req_receivable_customer"
+        )
+
+        XCTAssertEqual(
+            error.userMessage,
+            "Para dejar una venta por cobrar necesitas seleccionar un cliente identificado. Consumidor final no puede quedar fiado."
+        )
+    }
+
     func testMapsConflictToRefreshContextMessage() {
         let error = APIError.server(
             statusCode: 409,
