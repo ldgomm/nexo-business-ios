@@ -8,6 +8,7 @@
 import Foundation
 
 enum BusinessReceivablesRoutes {
+    static let list = "/api/v1/business/receivables"
     static let create = "/api/v1/business/receivables"
     static let collect = "/api/v1/business/receivables/collect"
 }
@@ -17,6 +18,36 @@ final class ReceivablesAPIRepository: ReceivablesRepository, @unchecked Sendable
 
     init(apiClient: APIClient) {
         self.apiClient = apiClient
+    }
+
+    func list(
+        organizationId: String,
+        customerId: String?,
+        status: String?,
+        limit: Int
+    ) async throws -> ReceivablesListResponse {
+        var queryItems = [
+            URLQueryItem(name: "limit", value: String(limit))
+        ]
+
+        if let customerId = customerId?.trimmingCharacters(in: .whitespacesAndNewlines), !customerId.isEmpty {
+            queryItems.append(URLQueryItem(name: "customerId", value: customerId))
+        }
+
+        if let status = status?.trimmingCharacters(in: .whitespacesAndNewlines), !status.isEmpty {
+            queryItems.append(URLQueryItem(name: "status", value: status))
+        }
+
+        return try await apiClient.send(
+            APIRequest(
+                method: .get,
+                path: BusinessReceivablesRoutes.list,
+                queryItems: queryItems,
+                headers: [
+                    BusinessHeaders.organizationId: organizationId
+                ]
+            )
+        )
     }
 
     func create(

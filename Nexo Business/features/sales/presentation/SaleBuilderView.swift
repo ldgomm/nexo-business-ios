@@ -123,7 +123,7 @@ struct SaleBuilderView: View {
 
     private var orderStateTitle: String {
         if viewModel.createdSaleNeedsCollection {
-            return "Venta pendiente de cobro"
+            return "Venta sin cobrar"
         }
 
         return viewModel.createdSale == nil ? "Venta en curso" : "Venta registrada"
@@ -131,7 +131,7 @@ struct SaleBuilderView: View {
 
     private var orderStateDescription: String {
         if viewModel.createdSaleNeedsCollection {
-            return "La venta fue registrada, pero todavía falta cobrarla."
+            return "La venta fue registrada, pero queda sin cobrar."
         }
 
         return viewModel.isOrderLocked ? "Esta venta ya fue registrada." : "Registra una sola venta por orden."
@@ -139,7 +139,7 @@ struct SaleBuilderView: View {
 
     private var navigationTitle: String {
         if viewModel.createdSaleNeedsCollection {
-            return "Pendiente de cobro"
+            return "Venta sin cobrar"
         }
 
         return viewModel.createdSale == nil ? "Nueva venta" : "Venta registrada"

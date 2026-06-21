@@ -644,6 +644,38 @@ final class PreviewBusinessDocumentsRepository: BusinessDocumentsRepository, @un
 final class PreviewReceivablesRepository: ReceivablesRepository, @unchecked Sendable {
     init() {}
 
+    func list(
+        organizationId: String,
+        customerId: String?,
+        status: String?,
+        limit: Int
+    ) async throws -> ReceivablesListResponse {
+        let base = PreviewData.receivableResponse.receivable
+        let receivables = [
+            base,
+            ReceivableRecord(
+                id: "recv_preview_paid",
+                saleId: PreviewData.confirmedSaleResponse.sale.id,
+                customerId: "cus_preview",
+                customerName: "Cliente preview",
+                status: "paid",
+                amount: MoneyAmount(amount: "12.00"),
+                balance: MoneyAmount(amount: "0.00"),
+                createdAt: Date().addingTimeInterval(-7200)
+            )
+        ]
+
+        let filtered = customerId?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+            ? receivables.filter { $0.customerId == customerId }
+            : receivables
+
+        return ReceivablesListResponse(
+            receivables: Array(filtered.prefix(limit)),
+            total: filtered.count,
+            hasMore: filtered.count > limit
+        )
+    }
+
     func create(
         organizationId: String,
         idempotencyKey: IdempotencyKey,

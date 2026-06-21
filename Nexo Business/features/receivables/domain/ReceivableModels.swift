@@ -330,6 +330,74 @@ struct ReceivablesListResponse: Decodable, Equatable, Sendable {
         self.hasMore = hasMore
         self.nextCursor = nextCursor
     }
+
+    private enum CodingKeys: String, CodingKey {
+        case receivables
+        case items
+        case results
+        case data
+        case total
+        case hasMore
+        case nextCursor
+    }
+
+    init(from decoder: Decoder) throws {
+        if let array = try? [ReceivableRecord](from: decoder) {
+            self.receivables = array
+            self.total = array.count
+            self.hasMore = false
+            self.nextCursor = nil
+            return
+        }
+
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.receivables = try container.decodeIfPresent([ReceivableRecord].self, forKey: .receivables)
+        ?? container.decodeIfPresent([ReceivableRecord].self, forKey: .items)
+        ?? container.decodeIfPresent([ReceivableRecord].self, forKey: .results)
+        ?? container.decodeIfPresent([ReceivableRecord].self, forKey: .data)
+        ?? []
+        self.total = try container.decodeIfPresent(Int.self, forKey: .total)
+        self.hasMore = try container.decodeIfPresent(Bool.self, forKey: .hasMore)
+        self.nextCursor = try container.decodeIfPresent(String.self, forKey: .nextCursor)
+    }
+}
+
+extension ReceivableRecord {
+    var effectiveBalance: MoneyAmount {
+        balance ?? remainingAmount ?? amount
+    }
+
+    var displayCustomerName: String {
+        if let customerName = customerName?.trimmingCharacters(in: .whitespacesAndNewlines), !customerName.isEmpty {
+            return customerName
+        }
+
+        if let customerId = customerId?.trimmingCharacters(in: .whitespacesAndNewlines), !customerId.isEmpty {
+            return "Cliente identificado"
+        }
+
+        return "Sin cliente identificado"
+    }
+
+    var isMissingCustomer: Bool {
+        customerId?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty != false
+    }
+
+    var isSettled: Bool {
+        let normalizedStatus = status.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if ["paid", "collected", "closed", "settled"].contains(normalizedStatus) {
+            return true
+        }
+
+        guard let value = Decimal(
+            string: effectiveBalance.amount.replacingOccurrences(of: ",", with: "."),
+            locale: Locale(identifier: "en_US_POSIX")
+        ) else {
+            return false
+        }
+
+        return value <= Decimal.zero
+    }
 }
 
 private extension String {

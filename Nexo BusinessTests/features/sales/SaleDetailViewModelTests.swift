@@ -149,16 +149,63 @@ final class SaleDetailViewModelTests: XCTestCase {
         XCTAssertFalse(viewModel.canDownloadElectronicDocumentXml(document))
     }
 
-    private func makeSale(electronicDocumentSummary: BusinessDocument? = nil) -> BusinessSale {
+
+    func testCanCollectIsBlockedWhenSaleAlreadyHasRealReceivable() {
+        let sale = makeSale(
+            paymentStatus: "partially_paid",
+            customerId: "cus_001",
+            receivableId: "recv_001"
+        )
+        let viewModel = SaleDetailViewModel(
+            organizationId: "org_1",
+            saleId: sale.id,
+            revisions: Self.revisions,
+            initialSale: sale,
+            effectivePermissions: ["business.payments.collect", "business.receivables.collect"],
+            salesRepository: SaleLifecycleRepositorySpy()
+        )
+
+        XCTAssertEqual(viewModel.sale?.collectionState, .realReceivable)
+        XCTAssertFalse(viewModel.canCollect)
+    }
+
+
+    func testCanCollectIsBlockedWhenSaleHasReceivableWithoutCustomer() {
+        let sale = makeSale(
+            paymentStatus: "partially_paid",
+            customerId: nil,
+            receivableId: "recv_dirty"
+        )
+        let viewModel = SaleDetailViewModel(
+            organizationId: "org_1",
+            saleId: sale.id,
+            revisions: Self.revisions,
+            initialSale: sale,
+            effectivePermissions: ["business.payments.collect", "business.receivables.collect"],
+            salesRepository: SaleLifecycleRepositorySpy()
+        )
+
+        XCTAssertEqual(viewModel.sale?.collectionState, .receivableNeedsReview)
+        XCTAssertFalse(viewModel.canCollect)
+    }
+
+    private func makeSale(
+        electronicDocumentSummary: BusinessDocument? = nil,
+        paymentStatus: String = "paid",
+        customerId: String? = nil,
+        receivableId: String? = nil
+    ) -> BusinessSale {
         BusinessSale(
             id: "sale_1",
             organizationId: "org_1",
             branchId: "br_1",
             activityId: "act_1",
+            customerId: customerId,
             status: "confirmed",
-            paymentStatus: "paid",
+            paymentStatus: paymentStatus,
             documentStatus: electronicDocumentSummary?.effectiveStatus ?? "not_required",
             electronicDocumentSummary: electronicDocumentSummary,
+            receivableId: receivableId,
             totals: SaleTotals(
                 subtotalWithoutTaxes: MoneyAmount(amount: "10.00"),
                 discountTotal: MoneyAmount(amount: "0.00"),

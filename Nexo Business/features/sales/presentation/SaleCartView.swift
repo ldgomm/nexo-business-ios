@@ -1207,14 +1207,14 @@ struct SaleCartView: View {
             return "Registrando venta. No cierres esta pantalla."
         case .created:
             return viewModel.createdSaleNeedsCollection
-                ? "La venta quedó registrada, pero todavía falta cobrarla."
+                ? "La venta quedó registrada, pero queda sin cobrar."
                 : "Esta venta ya quedó registrada y el carrito está bloqueado."
         }
     }
 
     private var orderStateTitle: String {
         if viewModel.createdSaleNeedsCollection {
-            return "Venta pendiente de cobro"
+            return "Venta sin cobrar"
         }
 
         if viewModel.createdSale != nil {
@@ -1226,7 +1226,7 @@ struct SaleCartView: View {
 
     private var navigationTitle: String {
         if viewModel.createdSaleNeedsCollection {
-            return "Pendiente de cobro"
+            return "Venta sin cobrar"
         }
 
         return viewModel.createdSale == nil ? "Nueva venta" : "Venta registrada"

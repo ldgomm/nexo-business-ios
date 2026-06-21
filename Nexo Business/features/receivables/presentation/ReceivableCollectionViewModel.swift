@@ -44,18 +44,38 @@ final class ReceivableCollectionViewModel {
         self.effectivePermissions = effectivePermissions
         self.cashRepository = cashRepository
         self.receivablesRepository = receivablesRepository
-        self.amount = receivable.balance?.amount ?? receivable.amount.amount
+        self.amount = receivable.effectiveBalance.amount
+    }
+
+    var currentReceivable: ReceivableRecord {
+        updatedReceivable ?? receivable
+    }
+
+    var currentBalance: MoneyAmount {
+        currentReceivable.effectiveBalance
+    }
+
+    var isSettled: Bool {
+        currentReceivable.isSettled
+    }
+
+    var primaryActionTitle: String {
+        guard !isSettled else { return "Cuenta cobrada" }
+        return isAmountEqualToBalance(amount) ? "Cobrar saldo total" : "Registrar abono"
     }
 
     var canCollect: Bool {
         guard !isSubmitting else { return false }
+        guard !isSettled else { return false }
         guard hasPermission([
             "business.receivables.collect",
             "receivables.collect",
             "business.payments.collect",
             "payments.collect"
         ]) else { return false }
+        guard !currentReceivable.isMissingCustomer else { return false }
         guard isValidAmount(amount) else { return false }
+        guard isAmountWithinBalance(amount) else { return false }
 
         if selectedMethod == .cash {
             return currentCashSession?.isOpen == true
@@ -109,7 +129,8 @@ final class ReceivableCollectionViewModel {
                 organizationId: organizationId,
                 idempotencyKey: .generate(prefix: "receivable-collect"),
                 request: CollectReceivableRequest(
-                    receivableId: receivable.id,
+                    receivableId: currentReceivable.id,
+                    saleId: currentReceivable.saleId,
                     cashSessionId: selectedMethod == .cash ? currentCashSession?.id : nil,
                     method: selectedMethod.rawValue,
                     amount: normalized(amount),
@@ -120,12 +141,18 @@ final class ReceivableCollectionViewModel {
 
             updatedReceivable = response.receivable
             paymentResult = response.payment
+            amount = response.receivable.effectiveBalance.amount
             infoMessage = response.idempotencyReplayed == true
                 ? "Abono recuperado de un intento anterior."
                 : "Abono registrado correctamente."
         } catch let error as APIError {
             print("❌ Preview APIError:", error)
-            errorMessage = error.userMessage
+            if isBalanceExceededMessage(error.userMessage) {
+                await refreshCurrentReceivableAfterBalanceError()
+                errorMessage = "El monto no puede ser mayor al saldo pendiente. Actualizamos la cuenta por cobrar."
+            } else {
+                errorMessage = error.userMessage
+            }
         } catch {
             print("❌ Preview Error:", error)
             errorMessage = error.localizedDescription
@@ -137,8 +164,20 @@ final class ReceivableCollectionViewModel {
             return "No tienes permiso para registrar abonos."
         }
 
+        if currentReceivable.isMissingCustomer {
+            return "Esta cuenta por cobrar no tiene cliente identificado. Revísala antes de registrar abonos."
+        }
+
+        if isSettled {
+            return "Esta cuenta ya está cobrada. No se pueden registrar más abonos."
+        }
+
         if !isValidAmount(amount) {
             return "Ingresa un monto válido mayor a cero."
+        }
+
+        if !isAmountWithinBalance(amount) {
+            return "El monto no puede ser mayor al saldo pendiente."
         }
 
         if selectedMethod == .cash && currentCashSession?.isOpen != true {
@@ -153,11 +192,49 @@ final class ReceivableCollectionViewModel {
     }
 
     private func isValidAmount(_ text: String) -> Bool {
-        guard let value = Decimal(
+        guard let value = decimal(from: text) else { return false }
+        return value > Decimal.zero
+    }
+
+    private func isAmountWithinBalance(_ text: String) -> Bool {
+        guard let value = decimal(from: text), let balance = decimal(from: currentBalance.amount) else { return false }
+        return value > Decimal.zero && value <= balance
+    }
+
+    private func isAmountEqualToBalance(_ text: String) -> Bool {
+        guard let value = decimal(from: text), let balance = decimal(from: currentBalance.amount) else { return false }
+        return value == balance
+    }
+
+    private func decimal(from text: String) -> Decimal? {
+        Decimal(
             string: normalized(text).replacingOccurrences(of: ",", with: "."),
             locale: Locale(identifier: "en_US_POSIX")
-        ) else { return false }
-        return value > Decimal.zero
+        )
+    }
+
+    private func isBalanceExceededMessage(_ message: String) -> Bool {
+        message.localizedCaseInsensitiveContains("cannot exceed receivable balance") ||
+        message.localizedCaseInsensitiveContains("mayor al saldo") ||
+        message.localizedCaseInsensitiveContains("excede")
+    }
+
+    private func refreshCurrentReceivableAfterBalanceError() async {
+        do {
+            let response = try await receivablesRepository.list(
+                organizationId: organizationId,
+                customerId: currentReceivable.customerId,
+                status: "open,partially_paid,partially_collected,overdue,paid,collected,closed,settled",
+                limit: 100
+            )
+
+            if let refreshed = response.receivables.first(where: { $0.id == currentReceivable.id }) {
+                updatedReceivable = refreshed
+                amount = refreshed.effectiveBalance.amount
+            }
+        } catch {
+            // Best effort refresh only; keep the original backend error humanized.
+        }
     }
 
     private func normalized(_ text: String) -> String {

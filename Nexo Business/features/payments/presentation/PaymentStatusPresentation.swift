@@ -11,7 +11,7 @@ enum PaymentStatusPresentation {
     static func displayName(_ status: String?) -> String {
         switch normalized(status) {
         case "unpaid", "pending", "pending_payment":
-            return "Pendiente de cobro"
+            return "Sin cobrar"
         case "partially_paid", "partial", "partial_payment":
             return "Cobro parcial"
         case "paid", "collected", "registered", "confirmed":
@@ -34,7 +34,7 @@ enum PaymentStatusPresentation {
     static func shortName(_ status: String?) -> String {
         switch normalized(status) {
         case "unpaid", "pending", "pending_payment":
-            return "Pendiente"
+            return "Sin cobrar"
         case "partially_paid", "partial", "partial_payment":
             return "Parcial"
         case "paid", "collected", "registered", "confirmed":

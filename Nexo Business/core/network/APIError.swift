@@ -209,6 +209,11 @@ enum APIErrorHumanizer {
             return "El ambiente de emisión no coincide con la configuración actual. Revisa si el negocio está en pruebas o producción."
         }
 
+        if normalized.contains("collection amount cannot exceed receivable balance") ||
+            (normalized.contains("receivable") && normalized.contains("balance") && normalized.contains("exceed")) {
+            return "El monto no puede ser mayor al saldo pendiente."
+        }
+
         return nil
     }
 

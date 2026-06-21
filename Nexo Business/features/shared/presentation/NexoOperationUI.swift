@@ -149,7 +149,7 @@ struct NexoSaleSuccessCard: View {
 
             VStack(alignment: .leading, spacing: 6) {
                 Label(sale.displayCustomerName, systemImage: "person.crop.circle")
-                Label(PaymentStatusPresentation.displayName(sale.paymentStatus), systemImage: PaymentStatusPresentation.systemImage(sale.paymentStatus))
+                Label(sale.collectionState.displayName, systemImage: sale.collectionState.systemImage)
                 Label(BusinessDocumentStatusPresentation.displayName(sale.effectiveDocumentStatus ?? "not_required"), systemImage: BusinessDocumentStatusPresentation.systemImage(sale.effectiveDocumentStatus ?? "not_required"))
                 if !sale.displayItemsSummary.isEmpty {
                     Label(sale.displayItemsSummary, systemImage: "cart")
@@ -163,7 +163,7 @@ struct NexoSaleSuccessCard: View {
 
     private var title: String {
         if sale.needsCollection {
-            return "Venta pendiente de cobro"
+            return "Venta sin cobrar"
         }
 
         if PaymentStatusPresentation.isCollected(sale.paymentStatus) {
@@ -175,7 +175,7 @@ struct NexoSaleSuccessCard: View {
 
     private var subtitle: String {
         if sale.needsCollection {
-            return "La venta fue registrada, pero todavía falta cobrar."
+            return "La venta fue registrada, pero queda sin cobrar. No es cuenta por cobrar hasta crear fiado con cliente identificado."
         }
 
         if PaymentStatusPresentation.isCollected(sale.paymentStatus) {
@@ -238,6 +238,7 @@ extension BusinessSale {
     }
 
     var needsCollection: Bool {
+        !hasReceivableReference &&
         SaleStatusPresentation.canCollect(status: status) &&
         PaymentStatusPresentation.canCollect(status: paymentStatus)
     }
@@ -269,6 +270,10 @@ extension BusinessSale {
             paymentStatus: paymentStatus,
             documentStatus: documentStatus,
             electronicDocumentSummary: electronicDocumentSummary,
+            receivableId: receivableId,
+            receivableCustomerId: receivableCustomerId,
+            receivableStatus: receivableStatus,
+            receivableBalance: receivableBalance,
             totals: totals,
             items: items,
             createdAt: createdAt,
@@ -296,6 +301,10 @@ extension BusinessSale {
             paymentStatus: paymentStatus,
             documentStatus: bestDocument?.effectiveStatus ?? documentStatus,
             electronicDocumentSummary: bestDocument,
+            receivableId: receivableId,
+            receivableCustomerId: receivableCustomerId,
+            receivableStatus: receivableStatus,
+            receivableBalance: receivableBalance,
             totals: totals,
             items: items,
             createdAt: createdAt,

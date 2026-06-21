@@ -263,6 +263,56 @@ struct BusinessHomeView: View {
                     .buttonStyle(.plain)
                 }
 
+                if capabilityGate.canAccessReceivables {
+                    NavigationLink {
+                        ReceivablesListView(
+                            viewModel: ReceivablesListViewModel(
+                                organizationId: organizationId,
+                                branchId: branchId,
+                                effectivePermissions: permissions,
+                                receivablesRepository: container.receivablesRepository
+                            ),
+                            cashRepository: container.cashRepository,
+                            receivablesRepository: container.receivablesRepository
+                        )
+                    } label: {
+                        BusinessHomeToolTile(
+                            title: "Por cobrar",
+                            subtitle: "Deudas reales",
+                            systemImage: "person.crop.circle.badge.clock",
+                            tint: .orange
+                        )
+                    }
+                    .buttonStyle(.plain)
+                }
+
+                if capabilityGate.canAccessHistory {
+                    NavigationLink {
+                        UnpaidSalesListView(
+                            viewModel: UnpaidSalesListViewModel(
+                                organizationId: organizationId,
+                                branchId: branchId,
+                                revisions: revisions,
+                                effectivePermissions: permissions,
+                                pendingRepository: container.pendingOperationsRepository
+                            ),
+                            salesRepository: container.salesRepository,
+                            cashRepository: container.cashRepository,
+                            paymentsRepository: container.paymentsRepository,
+                            receivablesRepository: container.receivablesRepository,
+                            documentsRepository: container.documentsRepository
+                        )
+                    } label: {
+                        BusinessHomeToolTile(
+                            title: "Ventas sin cobrar",
+                            subtitle: "Guardadas",
+                            systemImage: "bookmark",
+                            tint: .blue
+                        )
+                    }
+                    .buttonStyle(.plain)
+                }
+
                 if canAccessElectronicDocumentVault {
                     NavigationLink {
                         BusinessElectronicDocumentsListView(
@@ -375,7 +425,9 @@ struct BusinessHomeView: View {
                         capabilityDiagnosticRow("Hoy", enabled: capabilityGate.canAccessToday)
                         capabilityDiagnosticRow("Caja", enabled: capabilityGate.canAccessCash)
                         capabilityDiagnosticRow("Historial", enabled: capabilityGate.canAccessHistory)
+                        capabilityDiagnosticRow("Ventas sin cobrar", enabled: capabilityGate.canAccessHistory)
                         capabilityDiagnosticRow("Clientes", enabled: capabilityGate.canAccessCustomers)
+                        capabilityDiagnosticRow("Cuentas por cobrar", enabled: capabilityGate.canAccessReceivables)
                         capabilityDiagnosticRow("Inventario", enabled: capabilityGate.canAccessInventory)
                     }
                     .padding(.top, 8)
@@ -574,6 +626,265 @@ struct BusinessHomeView: View {
     private var selectedActivityName: String {
         context.activities.first(where: { $0.id == operationalSelection.activityId })?.name
         ?? operationalSelection.activityId
+    }
+}
+
+@MainActor
+@Observable
+private final class UnpaidSalesListViewModel {
+    private(set) var sales: [BusinessSale] = []
+    private(set) var isLoading = false
+    var errorMessage: String?
+    var infoMessage: String?
+
+    let organizationId: String
+    let branchId: String
+    let revisions: BusinessRevisions
+    let effectivePermissions: Set<String>
+
+    private let pendingRepository: PendingOperationsRepository
+    private var lastLoadedAt: Date?
+
+    init(
+        organizationId: String,
+        branchId: String,
+        revisions: BusinessRevisions,
+        effectivePermissions: Set<String>,
+        pendingRepository: PendingOperationsRepository
+    ) {
+        self.organizationId = organizationId
+        self.branchId = branchId
+        self.revisions = revisions
+        self.effectivePermissions = effectivePermissions
+        self.pendingRepository = pendingRepository
+    }
+
+    var canView: Bool {
+        hasPermission([
+            "business.sales.view",
+            "sales.view",
+            "business.sales.create",
+            "sales.create"
+        ])
+    }
+
+    func loadIfNeeded() async {
+        if let lastLoadedAt, Date().timeIntervalSince(lastLoadedAt) < 8, !sales.isEmpty {
+            return
+        }
+        await refresh()
+    }
+
+    func refresh() async {
+        guard canView else {
+            sales = []
+            errorMessage = "No tienes permiso para consultar ventas sin cobrar."
+            return
+        }
+
+        guard !branchId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            sales = []
+            errorMessage = "Falta sucursal activa. Actualiza el contexto."
+            return
+        }
+
+        isLoading = true
+        errorMessage = nil
+        infoMessage = nil
+
+        defer {
+            isLoading = false
+            lastLoadedAt = Date()
+        }
+
+        do {
+            let response = try await pendingRepository.pendingSales(
+                organizationId: organizationId,
+                branchId: branchId,
+                limit: 100
+            )
+
+            sales = response.sales
+                .filter { $0.isSavedSaleWithoutReceivable }
+                .sorted(by: sortSales)
+            infoMessage = sales.isEmpty ? "No hay ventas guardadas o sin cobrar." : nil
+        } catch let error as APIError {
+            errorMessage = error.userMessage
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    func makeSaleDetailViewModel(
+        for sale: BusinessSale,
+        salesRepository: SalesRepository
+    ) -> SaleDetailViewModel {
+        SaleDetailViewModel(
+            organizationId: organizationId,
+            saleId: sale.id,
+            revisions: revisions,
+            initialSale: sale,
+            effectivePermissions: effectivePermissions,
+            salesRepository: salesRepository
+        )
+    }
+
+    private func sortSales(_ lhs: BusinessSale, _ rhs: BusinessSale) -> Bool {
+        (lhs.createdAt ?? .distantPast) > (rhs.createdAt ?? .distantPast)
+    }
+
+    private func hasPermission(_ candidates: [String]) -> Bool {
+        effectivePermissions.contains("*") || candidates.contains { effectivePermissions.contains($0) }
+    }
+}
+
+private struct UnpaidSalesListView: View {
+    @Bindable private var viewModel: UnpaidSalesListViewModel
+    private let salesRepository: SalesRepository
+    private let cashRepository: CashRepository
+    private let paymentsRepository: PaymentsRepository
+    private let receivablesRepository: ReceivablesRepository
+    private let documentsRepository: BusinessDocumentsRepository
+
+    init(
+        viewModel: UnpaidSalesListViewModel,
+        salesRepository: SalesRepository,
+        cashRepository: CashRepository,
+        paymentsRepository: PaymentsRepository,
+        receivablesRepository: ReceivablesRepository,
+        documentsRepository: BusinessDocumentsRepository
+    ) {
+        self.viewModel = viewModel
+        self.salesRepository = salesRepository
+        self.cashRepository = cashRepository
+        self.paymentsRepository = paymentsRepository
+        self.receivablesRepository = receivablesRepository
+        self.documentsRepository = documentsRepository
+    }
+
+    var body: some View {
+        Form {
+            Section("Qué aparece aquí") {
+                Label("Ventas guardadas o sin cobrar que todavía no son deuda formal.", systemImage: "bookmark")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+
+                Label("Las cuentas por cobrar reales están separadas en Más → Por cobrar.", systemImage: "person.crop.circle.badge.clock")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section("Ventas sin cobrar") {
+                if viewModel.isLoading && viewModel.sales.isEmpty {
+                    ProgressView("Cargando ventas sin cobrar…")
+                } else if viewModel.sales.isEmpty {
+                    ContentUnavailableView(
+                        "Sin ventas sin cobrar",
+                        systemImage: "bookmark",
+                        description: Text("Las ventas pausadas, guardadas o parcialmente cobradas sin cuenta por cobrar aparecerán aquí.")
+                    )
+                } else {
+                    ForEach(viewModel.sales) { sale in
+                        NavigationLink {
+                            SaleDetailView(
+                                viewModel: viewModel.makeSaleDetailViewModel(
+                                    for: sale,
+                                    salesRepository: salesRepository
+                                ),
+                                cashRepository: cashRepository,
+                                paymentsRepository: paymentsRepository,
+                                receivablesRepository: receivablesRepository,
+                                documentsRepository: documentsRepository
+                            )
+                        } label: {
+                            UnpaidSaleRow(sale: sale)
+                        }
+                    }
+                }
+            }
+
+            if let message = viewModel.errorMessage {
+                Section {
+                    Label(message, systemImage: "exclamationmark.triangle")
+                        .font(.footnote)
+                        .foregroundStyle(.red)
+                }
+            }
+
+            if let message = viewModel.infoMessage {
+                Section {
+                    Label(message, systemImage: "info.circle")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+        .navigationTitle("Ventas sin cobrar")
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    Task { await viewModel.refresh() }
+                } label: {
+                    if viewModel.isLoading {
+                        ProgressView()
+                    } else {
+                        Image(systemName: "arrow.clockwise")
+                    }
+                }
+                .disabled(viewModel.isLoading)
+            }
+        }
+        .task { await viewModel.loadIfNeeded() }
+        .refreshable { await viewModel.refresh() }
+    }
+}
+
+private struct UnpaidSaleRow: View {
+    let sale: BusinessSale
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .firstTextBaseline) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(sale.displayNumber)
+                        .font(.subheadline.weight(.semibold))
+                        .lineLimit(1)
+
+                    Text(sale.displayCustomerName)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer(minLength: 12)
+
+                Text(sale.totals.grandTotal.displayText)
+                    .font(.subheadline.weight(.bold))
+                    .monospacedDigit()
+            }
+
+            HStack(spacing: 8) {
+                BusinessHomePill(
+                    title: sale.collectionState.shortName,
+                    systemImage: sale.collectionState.systemImage,
+                    tint: sale.collectionState == .partialWithoutReceivable ? .orange : .blue
+                )
+
+                if BusinessElectronicInvoiceCustomerPolicy.isFinalConsumer(sale: sale) {
+                    BusinessHomePill(
+                        title: "No es deuda",
+                        systemImage: "checkmark.shield",
+                        tint: .secondary
+                    )
+                }
+            }
+
+            if let createdAt = sale.createdAt {
+                Text(createdAt.formatted(date: .abbreviated, time: .shortened))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(.vertical, 4)
     }
 }
 

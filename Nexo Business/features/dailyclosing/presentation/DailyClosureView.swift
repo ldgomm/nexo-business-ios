@@ -249,7 +249,7 @@ struct DailyClosureView: View {
             Text("Pendientes")
         } footer: {
             if viewModel.hasPendingWork {
-                Text("Resuelve estos pendientes antes de considerar cerrado el día operativo.")
+                Text("Resuelve ventas sin cobrar, cuentas por cobrar reales y comprobantes antes de considerar cerrado el día operativo.")
             }
         }
     }
@@ -276,7 +276,7 @@ struct DailyClosureView: View {
                     }
                 }
             } header: {
-                Text("Ventas pendientes")
+                Text("Ventas sin cobrar")
             }
         }
     }
@@ -633,7 +633,7 @@ private struct DailyPendingSummaryView: View {
                     Text(hasPendingWork ? "Hay pendientes antes de cerrar" : "Sin pendientes operativos")
                         .font(.headline)
 
-                    Text(hasPendingWork ? "Revisa ventas, cuentas por cobrar y comprobantes." : "El día no tiene pendientes visibles.")
+                    Text(hasPendingWork ? "Revisa ventas sin cobrar, cuentas por cobrar reales y comprobantes." : "El día no tiene pendientes visibles.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
@@ -643,7 +643,7 @@ private struct DailyPendingSummaryView: View {
 
             VStack(spacing: 10) {
                 DailyInfoRow(
-                    title: "Ventas pendientes",
+                    title: "Ventas sin cobrar",
                     value: String(pendingSalesCount),
                     systemImage: "cart.badge.clock"
                 )
@@ -688,8 +688,8 @@ private struct PendingSaleRow: View {
                 )
 
                 DailySmallBadge(
-                    text: PaymentStatusPresentation.displayName(sale.paymentStatus),
-                    systemImage: "creditcard"
+                    text: sale.collectionState.shortName,
+                    systemImage: sale.collectionState.systemImage
                 )
             }
         }

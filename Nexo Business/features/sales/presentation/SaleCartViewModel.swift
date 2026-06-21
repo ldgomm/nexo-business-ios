@@ -658,7 +658,7 @@ final class SaleCartViewModel {
     }
 
     var createdSalePaymentStatusText: String {
-        PaymentStatusPresentation.displayName(createdSale?.paymentStatus)
+        createdSale?.collectionState.displayName ?? PaymentStatusPresentation.displayName(createdSale?.paymentStatus)
     }
 
     var createdSaleDocumentStatusText: String {
@@ -670,11 +670,11 @@ final class SaleCartViewModel {
     }
 
     var startNewOrderConfirmationTitle: String {
-        "Esta venta quedará pendiente de cobro"
+        "Esta venta quedará sin cobrar"
     }
 
     var startNewOrderConfirmationMessage: String {
-        "La venta fue registrada, pero todavía no se ha cobrado. Si continúas, aparecerá como pendiente en el día y tendrás que cobrarla después."
+        "La venta fue registrada, pero todavía no se ha cobrado. Si continúas, aparecerá como venta sin cobrar y tendrás que cobrarla después."
     }
 
     func updateCreatedSale(_ sale: BusinessSale) {
@@ -1382,12 +1382,12 @@ final class SaleCartViewModel {
     private func createdSaleSummaryMessage(for sale: BusinessSale, replayed: Bool) -> String {
         if replayed {
             return sale.needsCollection
-                ? "Venta pendiente recuperada de un intento anterior. No se duplicó la operación."
+                ? "Venta sin cobrar recuperada de un intento anterior. No se duplicó la operación."
                 : "Venta recuperada sin duplicar la operación."
         }
 
         if sale.needsCollection {
-            return "Venta pendiente de cobro. La venta fue registrada, pero todavía no se ha cobrado."
+            return "Venta sin cobrar. La venta fue registrada, pero todavía no se ha cobrado ni es cuenta por cobrar."
         }
 
         if PaymentStatusPresentation.isCollected(sale.paymentStatus) {

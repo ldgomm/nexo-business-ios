@@ -8,6 +8,13 @@
 import Foundation
 
 protocol ReceivablesRepository: Sendable {
+    func list(
+        organizationId: String,
+        customerId: String?,
+        status: String?,
+        limit: Int
+    ) async throws -> ReceivablesListResponse
+
     func create(
         organizationId: String,
         idempotencyKey: IdempotencyKey,

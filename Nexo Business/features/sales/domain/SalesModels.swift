@@ -673,6 +673,131 @@ extension BusinessSale {
     }
 }
 
+enum SaleCollectionState: Equatable, Sendable {
+    case paid
+    case realReceivable
+    case receivableNeedsReview
+    case partialWithoutReceivable
+    case unpaidSavedSale
+    case cancelled
+    case unknown
+
+    var displayName: String {
+        switch self {
+        case .paid:
+            return "Pagada"
+        case .realReceivable:
+            return "Por cobrar"
+        case .receivableNeedsReview:
+            return "Revisar por cobrar"
+        case .partialWithoutReceivable:
+            return "Pago parcial · Sin cuenta por cobrar"
+        case .unpaidSavedSale:
+            return "Sin cobrar"
+        case .cancelled:
+            return "Cancelada"
+        case .unknown:
+            return "Sin estado claro"
+        }
+    }
+
+    var shortName: String {
+        switch self {
+        case .paid:
+            return "Pagada"
+        case .realReceivable:
+            return "Por cobrar"
+        case .receivableNeedsReview:
+            return "Revisar"
+        case .partialWithoutReceivable:
+            return "Parcial sin deuda"
+        case .unpaidSavedSale:
+            return "Sin cobrar"
+        case .cancelled:
+            return "Cancelada"
+        case .unknown:
+            return "Revisar"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .paid:
+            return "checkmark.circle"
+        case .realReceivable:
+            return "person.crop.circle.badge.clock"
+        case .receivableNeedsReview:
+            return "exclamationmark.triangle"
+        case .partialWithoutReceivable:
+            return "clock.badge.checkmark"
+        case .unpaidSavedSale:
+            return "bookmark"
+        case .cancelled:
+            return "xmark.circle"
+        case .unknown:
+            return "questionmark.circle"
+        }
+    }
+}
+
+extension BusinessSale {
+    var collectionState: SaleCollectionState {
+        let saleStatus = normalizedCollectionValue(status)
+        if ["voided", "cancelled", "canceled", "annulled"].contains(saleStatus) {
+            return .cancelled
+        }
+
+        let payment = normalizedCollectionValue(paymentStatus ?? "")
+        if ["paid", "collected", "registered", "confirmed", "overpaid"].contains(payment) {
+            return .paid
+        }
+
+        if hasReceivableReference {
+            return hasRealReceivable ? .realReceivable : .receivableNeedsReview
+        }
+
+        if ["partially_paid", "partial", "partial_payment", "partially_collected"].contains(payment) {
+            return .partialWithoutReceivable
+        }
+
+        if payment.isEmpty || ["unpaid", "pending", "pending_payment"].contains(payment) {
+            return .unpaidSavedSale
+        }
+
+        return .unknown
+    }
+
+    var hasReceivableReference: Bool {
+        receivableId?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+    }
+
+    var hasRealReceivable: Bool {
+        hasReceivableReference && hasIdentifiedCustomerForReceivable
+    }
+
+    var hasIdentifiedCustomerForReceivable: Bool {
+        let directCustomerId = customerId?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let receivableCustomerId = receivableCustomerId?.trimmingCharacters(in: .whitespacesAndNewlines)
+        return directCustomerId?.isEmpty == false || receivableCustomerId?.isEmpty == false
+    }
+
+    var isSavedSaleWithoutReceivable: Bool {
+        switch collectionState {
+        case .unpaidSavedSale, .partialWithoutReceivable:
+            return true
+        default:
+            return false
+        }
+    }
+
+    private func normalizedCollectionValue(_ value: String) -> String {
+        value
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+            .replacingOccurrences(of: "-", with: "_")
+    }
+}
+
 private extension String {
     var nilIfBlankForReadiness: String? {
         let trimmed = trimmingCharacters(in: .whitespacesAndNewlines)
@@ -765,6 +890,34 @@ enum BusinessElectronicInvoiceCustomerPolicy {
 
 typealias SalePreviewItem = BusinessSaleItem
 
+struct BusinessSaleReceivableSummary: Decodable, Equatable, Sendable {
+    let id: String?
+    let customerId: String?
+    let status: String?
+    let balance: MoneyAmount?
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case receivableId
+        case customerId
+        case status
+        case balance
+        case balanceDue
+        case remainingAmount
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = (try? container.decodeIfPresent(String.self, forKey: .receivableId))
+        ?? (try? container.decodeIfPresent(String.self, forKey: .id))
+        customerId = try? container.decodeIfPresent(String.self, forKey: .customerId)
+        status = try? container.decodeIfPresent(String.self, forKey: .status)
+        balance = (try? container.decodeIfPresent(MoneyAmount.self, forKey: .balance))
+        ?? (try? container.decodeIfPresent(MoneyAmount.self, forKey: .balanceDue))
+        ?? (try? container.decodeIfPresent(MoneyAmount.self, forKey: .remainingAmount))
+    }
+}
+
 struct BusinessSale: Decodable, Equatable, Identifiable, Sendable {
     let id: String
     let number: String?
@@ -778,6 +931,10 @@ struct BusinessSale: Decodable, Equatable, Identifiable, Sendable {
     let paymentStatus: String?
     let documentStatus: String?
     let electronicDocumentSummary: BusinessDocument?
+    let receivableId: String?
+    let receivableCustomerId: String?
+    let receivableStatus: String?
+    let receivableBalance: MoneyAmount?
     let totals: BusinessSaleTotals
     let items: [BusinessSaleItem]
     let createdAt: Date?
@@ -798,6 +955,10 @@ struct BusinessSale: Decodable, Equatable, Identifiable, Sendable {
         paymentStatus: String? = nil,
         documentStatus: String? = nil,
         electronicDocumentSummary: BusinessDocument? = nil,
+        receivableId: String? = nil,
+        receivableCustomerId: String? = nil,
+        receivableStatus: String? = nil,
+        receivableBalance: MoneyAmount? = nil,
         totals: BusinessSaleTotals,
         items: [BusinessSaleItem] = [],
         createdAt: Date? = nil,
@@ -817,6 +978,10 @@ struct BusinessSale: Decodable, Equatable, Identifiable, Sendable {
         self.paymentStatus = paymentStatus
         self.documentStatus = documentStatus
         self.electronicDocumentSummary = electronicDocumentSummary
+        self.receivableId = receivableId
+        self.receivableCustomerId = receivableCustomerId
+        self.receivableStatus = receivableStatus
+        self.receivableBalance = receivableBalance
         self.totals = totals
         self.items = items
         self.createdAt = createdAt
@@ -845,6 +1010,16 @@ struct BusinessSale: Decodable, Equatable, Identifiable, Sendable {
         case primaryElectronicDocument
         case electronicDocument
         case documentSummary
+        case receivableId
+        case receivableCustomerId
+        case accountReceivableId
+        case accountsReceivableId
+        case receivableStatus
+        case receivableBalance
+        case balanceDue
+        case receivable
+        case receivableSummary
+        case accountReceivable
         case totals
         case summary
         case total
@@ -882,6 +1057,21 @@ struct BusinessSale: Decodable, Equatable, Identifiable, Sendable {
         ?? (try? container.decodeIfPresent(BusinessDocument.self, forKey: .documentSummary))
         documentStatus = (try? container.decodeIfPresent(String.self, forKey: .documentStatus))
         ?? electronicDocumentSummary?.effectiveStatus
+
+        let receivableSummary = (try? container.decodeIfPresent(BusinessSaleReceivableSummary.self, forKey: .receivable))
+        ?? (try? container.decodeIfPresent(BusinessSaleReceivableSummary.self, forKey: .receivableSummary))
+        ?? (try? container.decodeIfPresent(BusinessSaleReceivableSummary.self, forKey: .accountReceivable))
+        receivableId = (try? container.decodeIfPresent(String.self, forKey: .receivableId))
+        ?? (try? container.decodeIfPresent(String.self, forKey: .accountReceivableId))
+        ?? (try? container.decodeIfPresent(String.self, forKey: .accountsReceivableId))
+        ?? receivableSummary?.id
+        receivableCustomerId = (try? container.decodeIfPresent(String.self, forKey: .receivableCustomerId))
+        ?? receivableSummary?.customerId
+        receivableStatus = (try? container.decodeIfPresent(String.self, forKey: .receivableStatus))
+        ?? receivableSummary?.status
+        receivableBalance = (try? container.decodeIfPresent(MoneyAmount.self, forKey: .receivableBalance))
+        ?? (try? container.decodeIfPresent(MoneyAmount.self, forKey: .balanceDue))
+        ?? receivableSummary?.balance
         
         if let totals = try? container.decodeIfPresent(BusinessSaleTotals.self, forKey: .totals) {
             self.totals = totals

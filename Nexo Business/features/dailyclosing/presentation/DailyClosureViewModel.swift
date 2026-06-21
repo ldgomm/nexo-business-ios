@@ -203,7 +203,7 @@ final class DailyClosureViewModel {
                 branchId: branchId,
                 limit: 50
             )
-            pendingSales = response.sales
+            pendingSales = response.sales.filter { !$0.hasRealReceivable }
         } catch let error as APIError {
             pendingSales = []
             failures.append("Ventas: \(humanMessage(for: error, area: .sales))")

@@ -373,7 +373,7 @@ private struct SalesHistoryRow: View {
             HStack(spacing: 10) {
                 SaleStatusLabel(status: sale.status)
 
-                Label(PaymentStatusPresentation.displayName(sale.paymentStatus), systemImage: "dollarsign.circle")
+                SalesHistoryCollectionStatusBadge(state: sale.collectionState)
 
                 SalesHistoryDocumentStatusBadge(
                     status: document?.effectiveStatus ?? sale.effectiveDocumentStatus,
@@ -390,6 +390,28 @@ private struct SalesHistoryRow: View {
             }
         }
         .padding(.vertical, 4)
+    }
+}
+
+private struct SalesHistoryCollectionStatusBadge: View {
+    let state: SaleCollectionState
+
+    var body: some View {
+        Label(state.displayName, systemImage: state.systemImage)
+            .foregroundStyle(tint)
+    }
+
+    private var tint: Color {
+        switch state {
+        case .paid:
+            return .green
+        case .realReceivable, .partialWithoutReceivable, .unpaidSavedSale:
+            return .orange
+        case .receivableNeedsReview, .unknown:
+            return .red
+        case .cancelled:
+            return .secondary
+        }
     }
 }
 

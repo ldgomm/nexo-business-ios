@@ -79,6 +79,13 @@ struct BusinessCapabilityGate: Equatable, Sendable {
         capabilities.customers.canView || capabilities.customers.canCreate || capabilities.customers.canUpdate
     }
 
+    var canAccessReceivables: Bool {
+        capabilities.receivables.canView ||
+        capabilities.receivables.canCreate ||
+        capabilities.receivables.canRegisterPayment ||
+        capabilities.receivables.canCollect
+    }
+
     var canAccessInventory: Bool {
         capabilities.inventory.canView || capabilities.inventory.canViewMovements || capabilities.inventory.canAdjust
     }

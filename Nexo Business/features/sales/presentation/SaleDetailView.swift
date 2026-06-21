@@ -124,7 +124,7 @@ struct SaleDetailView: View {
             saleNumber: sale.displayNumber,
             customerName: sale.displayCustomerName,
             saleStatus: SaleStatusPresentation.title(for: sale.status),
-            paymentStatus: PaymentStatusPresentation.displayName(sale.paymentStatus),
+            paymentStatus: sale.collectionState.displayName,
             total: money(sale.totals.grandTotal),
             createdAt: sale.createdAt,
             confirmedAt: sale.confirmedAt
@@ -173,8 +173,8 @@ struct SaleDetailView: View {
         SaleDetailCard {
             HStack(alignment: .top, spacing: 12) {
                 SaleDetailIconBadge(
-                    systemImage: PaymentStatusPresentation.systemImage(sale.paymentStatus),
-                    tint: sale.needsCollection ? .orange : .green
+                    systemImage: sale.collectionState.systemImage,
+                    tint: collectionTint(for: sale.collectionState)
                 )
 
                 VStack(alignment: .leading, spacing: 8) {
@@ -182,9 +182,9 @@ struct SaleDetailView: View {
                         .font(.headline)
 
                     SaleDetailPill(
-                        title: PaymentStatusPresentation.displayName(sale.paymentStatus),
-                        systemImage: PaymentStatusPresentation.systemImage(sale.paymentStatus),
-                        tint: sale.needsCollection ? .orange : .green
+                        title: sale.collectionState.displayName,
+                        systemImage: sale.collectionState.systemImage,
+                        tint: collectionTint(for: sale.collectionState)
                     )
 
                     Text(paymentExplanation(for: sale))
@@ -367,8 +367,8 @@ struct SaleDetailView: View {
             VStack(alignment: .leading, spacing: 12) {
                 if let sale = viewModel.sale, viewModel.canCollect {
                     SaleDetailActionButton(
-                        title: "Cobrar venta",
-                        subtitle: "Registra el pago y actualiza el estado de cobro",
+                        title: collectionActionTitle(for: sale),
+                        subtitle: collectionActionSubtitle(for: sale),
                         systemImage: "dollarsign.circle",
                         tint: .green,
                         isLoading: isPreparingPaymentNavigation,
@@ -376,6 +376,14 @@ struct SaleDetailView: View {
                     ) {
                         preparePaymentNavigation(for: sale)
                     }
+                } else if let sale = viewModel.sale, sale.hasReceivableReference {
+                    SaleDetailInlineMessage(
+                        message: sale.hasRealReceivable
+                        ? "Esta venta ya tiene una cuenta por cobrar real. Registra abonos desde Más → Por cobrar para no duplicar cobros."
+                        : "Esta venta tiene una cuenta por cobrar incompleta. Revisa cliente y saldo antes de registrar abonos.",
+                        systemImage: sale.hasRealReceivable ? "person.crop.circle.badge.clock" : "exclamationmark.triangle.fill",
+                        tint: sale.hasRealReceivable ? .orange : .red
+                    )
                 }
 
                 if let paymentPreparationMessage {
@@ -533,11 +541,58 @@ struct SaleDetailView: View {
     }
 
     private func paymentExplanation(for sale: BusinessSale) -> String {
-        if sale.needsCollection {
-            return "Registrada no significa cobrada. Esta venta todavía debe cobrarse o dejarse claramente como cuenta por cobrar."
+        switch sale.collectionState {
+        case .paid:
+            return "Esta venta ya está pagada. No debes registrar nuevos cobros desde aquí."
+        case .realReceivable:
+            return "Esta venta sí es una cuenta por cobrar: tiene cliente identificado y deuda formal. Los abonos se registran desde Por cobrar."
+        case .receivableNeedsReview:
+            return "La venta parece tener una cuenta por cobrar incompleta. Revisa cliente y saldo antes de registrar cualquier abono."
+        case .partialWithoutReceivable:
+            return "Tiene un pago parcial, pero todavía no es una cuenta por cobrar. Puedes cobrar el saldo o regularizarla con cliente real si corresponde."
+        case .unpaidSavedSale:
+            if BusinessElectronicInvoiceCustomerPolicy.isFinalConsumer(sale: sale) {
+                return "Venta guardada sin cobrar. No es deuda ni fiado: Consumidor final solo puede continuar, cobrar ahora o cancelar."
+            }
+            return "Venta guardada sin cobrar. No es cuenta por cobrar hasta que se cree fiado con cliente identificado."
+        case .cancelled:
+            return "La venta está cancelada. No debe cobrarse ni convertirse en cuenta por cobrar."
+        case .unknown:
+            return "Estado de cobro no reconocido. Revisa la venta antes de continuar."
         }
+    }
 
-        return "El estado de cobro indica que esta venta ya no está pendiente de cobro operativo."
+    private func collectionActionTitle(for sale: BusinessSale) -> String {
+        switch sale.collectionState {
+        case .partialWithoutReceivable:
+            return "Cobrar saldo"
+        default:
+            return "Cobrar ahora"
+        }
+    }
+
+    private func collectionActionSubtitle(for sale: BusinessSale) -> String {
+        switch sale.collectionState {
+        case .partialWithoutReceivable:
+            return "Completa el saldo pendiente sin crear una cuenta por cobrar falsa"
+        case .unpaidSavedSale:
+            return "Registra el pago de esta venta guardada o sin cobrar"
+        default:
+            return "Registra el pago y actualiza el estado de cobro"
+        }
+    }
+
+    private func collectionTint(for state: SaleCollectionState) -> Color {
+        switch state {
+        case .paid:
+            return .green
+        case .realReceivable, .partialWithoutReceivable, .unpaidSavedSale:
+            return .orange
+        case .receivableNeedsReview, .unknown:
+            return .red
+        case .cancelled:
+            return .secondary
+        }
     }
 
     private func documentTint(_ status: String) -> Color {

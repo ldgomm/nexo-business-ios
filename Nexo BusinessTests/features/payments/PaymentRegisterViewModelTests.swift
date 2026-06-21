@@ -509,6 +509,15 @@ private final class SpyReceivablesRepository: ReceivablesRepository, @unchecked 
     var lastCreateIdempotencyKey: IdempotencyKey?
     var lastCreateRequest: CreateReceivableRequest?
 
+    func list(
+        organizationId: String,
+        customerId: String?,
+        status: String?,
+        limit: Int
+    ) async throws -> ReceivablesListResponse {
+        ReceivablesListResponse(receivables: [])
+    }
+
     func create(
         organizationId: String,
         idempotencyKey: IdempotencyKey,

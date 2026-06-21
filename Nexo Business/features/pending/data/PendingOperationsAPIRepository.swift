@@ -53,7 +53,7 @@ final class PendingOperationsAPIRepository: PendingOperationsRepository, @unchec
                 path: BusinessPendingRoutes.receivables,
                 queryItems: [
                     URLQueryItem(name: "branchId", value: branchId),
-                    URLQueryItem(name: "status", value: "pending,partially_collected,overdue"),
+                    URLQueryItem(name: "status", value: "open,partially_paid,partially_collected,overdue"),
                     URLQueryItem(name: "limit", value: String(limit))
                 ],
                 headers: [

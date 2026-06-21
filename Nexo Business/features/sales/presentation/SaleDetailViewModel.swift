@@ -63,6 +63,7 @@ final class SaleDetailViewModel {
     var canCollect: Bool {
         guard let sale else { return false }
         return !isBusy &&
+        !sale.hasReceivableReference &&
         SaleStatusPresentation.canCollect(status: sale.status) &&
         PaymentStatusPresentation.canCollect(status: sale.paymentStatus) &&
         hasAnyPaymentCapability
