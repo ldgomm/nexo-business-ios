@@ -165,11 +165,61 @@ struct CollectReceivableRequest: Encodable, Equatable, Sendable {
     }
 }
 
+struct ReceivableCustomerSnapshot: Decodable, Equatable, Sendable {
+    let id: String?
+    let displayName: String?
+
+    init(id: String? = nil, displayName: String? = nil) {
+        self.id = id
+        self.displayName = displayName
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case mongoId = "_id"
+        case displayName
+        case name
+        case fullName
+        case legalName
+        case razonSocial
+        case customerName
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+
+        let decodedId = try container.decodeIfPresent(String.self, forKey: .id)
+        let decodedMongoId = try container.decodeIfPresent(String.self, forKey: .mongoId)
+        id = decodedId ?? decodedMongoId
+
+        let decodedDisplayName = try container.decodeIfPresent(String.self, forKey: .displayName)
+        let decodedName = try container.decodeIfPresent(String.self, forKey: .name)
+        let decodedFullName = try container.decodeIfPresent(String.self, forKey: .fullName)
+        let decodedLegalName = try container.decodeIfPresent(String.self, forKey: .legalName)
+        let decodedRazonSocial = try container.decodeIfPresent(String.self, forKey: .razonSocial)
+        let decodedCustomerName = try container.decodeIfPresent(String.self, forKey: .customerName)
+
+        let candidates: [String?] = [
+            decodedDisplayName,
+            decodedName,
+            decodedFullName,
+            decodedLegalName,
+            decodedRazonSocial,
+            decodedCustomerName
+        ]
+
+        displayName = candidates
+            .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .first { !$0.isEmpty }
+    }
+}
+
 struct ReceivableRecord: Decodable, Equatable, Identifiable, Sendable {
     let id: String
     let saleId: String
     let customerId: String?
     let customerName: String?
+    let customerSnapshot: ReceivableCustomerSnapshot?
     let branchId: String?
     let status: String
     let amount: MoneyAmount
@@ -185,6 +235,7 @@ struct ReceivableRecord: Decodable, Equatable, Identifiable, Sendable {
         saleId: String,
         customerId: String? = nil,
         customerName: String? = nil,
+        customerSnapshot: ReceivableCustomerSnapshot? = nil,
         branchId: String? = nil,
         status: String,
         amount: MoneyAmount,
@@ -199,6 +250,7 @@ struct ReceivableRecord: Decodable, Equatable, Identifiable, Sendable {
         self.saleId = saleId
         self.customerId = customerId
         self.customerName = customerName
+        self.customerSnapshot = customerSnapshot
         self.branchId = branchId
         self.status = status
         self.amount = amount
@@ -215,6 +267,8 @@ struct ReceivableRecord: Decodable, Equatable, Identifiable, Sendable {
         case saleId
         case customerId
         case customerName
+        case customerSnapshot
+        case customer
         case branchId
         case status
         case amount
@@ -231,7 +285,10 @@ struct ReceivableRecord: Decodable, Equatable, Identifiable, Sendable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decode(String.self, forKey: .id)
         saleId = try container.decodeIfPresent(String.self, forKey: .saleId) ?? ""
+        customerSnapshot = try container.decodeIfPresent(ReceivableCustomerSnapshot.self, forKey: .customerSnapshot)
+            ?? container.decodeIfPresent(ReceivableCustomerSnapshot.self, forKey: .customer)
         customerId = try container.decodeIfPresent(String.self, forKey: .customerId)
+            ?? customerSnapshot?.id
         customerName = try container.decodeIfPresent(String.self, forKey: .customerName)
         branchId = try container.decodeIfPresent(String.self, forKey: .branchId)
         status = try container.decodeIfPresent(String.self, forKey: .status) ?? "open"
@@ -368,15 +425,75 @@ extension ReceivableRecord {
     }
 
     var displayCustomerName: String {
-        if let customerName = customerName?.trimmingCharacters(in: .whitespacesAndNewlines), !customerName.isEmpty {
+        if let customerName = normalizedDisplayName(customerName) {
             return customerName
         }
 
-        if let customerId = customerId?.trimmingCharacters(in: .whitespacesAndNewlines), !customerId.isEmpty {
-            return "Cliente identificado"
+        if let snapshotName = normalizedDisplayName(customerSnapshot?.displayName) {
+            return snapshotName
         }
 
-        return "Sin cliente identificado"
+        if let customerId = customerId?.trimmingCharacters(in: .whitespacesAndNewlines), !customerId.isEmpty {
+            return "Cliente por revisar"
+        }
+
+        return "Cliente por revisar"
+    }
+
+    var hasResolvableCustomerName: Bool {
+        normalizedDisplayName(customerName) != nil || normalizedDisplayName(customerSnapshot?.displayName) != nil
+    }
+
+    var displaySaleReference: String {
+        let normalized = saleId.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty else { return "Venta por revisar" }
+        if normalized.uppercased().hasPrefix("SALE-") {
+            return normalized.uppercased()
+        }
+        if normalized.lowercased().hasPrefix("sale_") {
+            return "SALE-" + normalized.dropFirst(5).uppercased()
+        }
+        return "SALE-" + normalized.uppercased()
+    }
+
+    func withCustomerName(_ displayName: String?) -> ReceivableRecord {
+        guard let displayName = normalizedDisplayName(displayName) else { return self }
+
+        return ReceivableRecord(
+            id: id,
+            saleId: saleId,
+            customerId: customerId,
+            customerName: displayName,
+            customerSnapshot: customerSnapshot,
+            branchId: branchId,
+            status: status,
+            amount: amount,
+            balance: balance,
+            originalAmount: originalAmount,
+            paidAmount: paidAmount,
+            remainingAmount: remainingAmount,
+            dueDate: dueDate,
+            createdAt: createdAt
+        )
+    }
+
+    private func normalizedDisplayName(_ value: String?) -> String? {
+        guard let value = value?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty else {
+            return nil
+        }
+
+        let genericNames = [
+            "cliente identificado",
+            "cliente",
+            "consumidor final",
+            "final consumer"
+        ]
+
+        if genericNames.contains(value.lowercased()) {
+            return nil
+        }
+
+        return value
     }
 
     var isMissingCustomer: Bool {

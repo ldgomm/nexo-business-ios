@@ -64,6 +64,50 @@ final class ReceivableCollectionViewModelTests: XCTestCase {
     }
 
 
+
+    func testListEnrichesMissingCustomerNameFromCustomerDirectory() async {
+        let receivables = CollectionSpyReceivablesRepository()
+        receivables.listResponse = ReceivablesListResponse(
+            receivables: [
+                ReceivableRecord(
+                    id: "recv_001",
+                    saleId: "sale_7b0b42da31",
+                    customerId: "cus_001",
+                    status: "open",
+                    amount: MoneyAmount(amount: "27.60"),
+                    balance: MoneyAmount(amount: "27.60"),
+                    createdAt: Date()
+                )
+            ],
+            total: 1,
+            hasMore: false
+        )
+        let customers = CollectionSpyCustomersRepository(
+            customers: [
+                BusinessCustomer(
+                    id: "cus_001",
+                    displayName: "José Ruiz",
+                    identificationType: .cedula,
+                    identificationNumber: "1712345678"
+                )
+            ]
+        )
+
+        let viewModel = ReceivablesListViewModel(
+            organizationId: PreviewData.businessContext.organization.id,
+            branchId: PreviewData.businessContext.branches[0].id,
+            effectivePermissions: ["receivables.view", "customers.view"],
+            receivablesRepository: receivables,
+            customersRepository: customers
+        )
+
+        await viewModel.refresh()
+
+        XCTAssertEqual(customers.lastSearchQuery, "cus_001")
+        XCTAssertEqual(viewModel.visibleReceivables.first?.displayCustomerName, "José Ruiz")
+        XCTAssertEqual(viewModel.visibleReceivables.first?.displaySaleReference, "SALE-7B0B42DA31")
+    }
+
     func testDoesNotCollectAlreadySettledReceivable() async {
         let receivables = CollectionSpyReceivablesRepository()
         let settled = ReceivableRecord(
@@ -263,6 +307,31 @@ private final class CollectionSpyCashRepository: CashRepository, @unchecked Send
         idempotencyKey: IdempotencyKey,
         request: CloseCashSessionRequest
     ) async throws -> CashSessionResponse { fatalError("Not needed") }
+}
+
+
+private final class CollectionSpyCustomersRepository: CustomersRepository, @unchecked Sendable {
+    var lastSearchQuery: String?
+    private let customers: [BusinessCustomer]
+
+    init(customers: [BusinessCustomer]) {
+        self.customers = customers
+    }
+
+    func search(
+        organizationId: String,
+        query: String,
+        limit: Int
+    ) async throws -> CustomersSearchResponse {
+        lastSearchQuery = query
+        return CustomersSearchResponse(customers: Array(customers.prefix(limit)))
+    }
+
+    func create(
+        organizationId: String,
+        idempotencyKey: IdempotencyKey,
+        request: CreateCustomerRequest
+    ) async throws -> CustomerResponse { fatalError("Not needed") }
 }
 
 private final class CollectionSpyReceivablesRepository: ReceivablesRepository, @unchecked Sendable {

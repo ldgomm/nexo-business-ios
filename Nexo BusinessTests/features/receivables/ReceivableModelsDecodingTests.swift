@@ -43,4 +43,48 @@ final class ReceivableModelsDecodingTests: XCTestCase {
         XCTAssertEqual(response.receivable.amount.amount, "11.50")
         XCTAssertEqual(response.receivable.balance?.amount, "11.50")
     }
+    func testDecodesCustomerSnapshotAndAvoidsGenericCustomerName() throws {
+        let json = #"""
+        {
+          "id": "recv_002",
+          "saleId": "sale_7b0b42da31",
+          "customerId": "cus_001",
+          "customerName": "Cliente identificado",
+          "customerSnapshot": {
+            "id": "cus_001",
+            "name": "José Ruiz"
+          },
+          "status": "open",
+          "amount": {
+            "amount": "27.60",
+            "currency": "USD"
+          },
+          "balance": {
+            "amount": "27.60",
+            "currency": "USD"
+          }
+        }
+        """#.data(using: .utf8)!
+
+        let receivable = try JSONDecoder.nexoDefault.decode(ReceivableRecord.self, from: json)
+
+        XCTAssertEqual(receivable.customerSnapshot?.displayName, "José Ruiz")
+        XCTAssertEqual(receivable.displayCustomerName, "José Ruiz")
+        XCTAssertEqual(receivable.displaySaleReference, "SALE-7B0B42DA31")
+    }
+
+    func testMissingCustomerNameUsesReviewCopyInsteadOfGenericIdentifiedCopy() {
+        let receivable = ReceivableRecord(
+            id: "recv_003",
+            saleId: "sale_001",
+            customerId: "cus_001",
+            status: "open",
+            amount: MoneyAmount(amount: "10.00"),
+            balance: MoneyAmount(amount: "10.00")
+        )
+
+        XCTAssertEqual(receivable.displayCustomerName, "Cliente por revisar")
+        XCTAssertFalse(receivable.hasResolvableCustomerName)
+    }
+
 }

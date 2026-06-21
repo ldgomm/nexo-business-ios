@@ -362,7 +362,7 @@ final class PaymentRegisterViewModel {
         if let name = sale.customer?.displayName.nilIfBlank {
             return name
         }
-        return customerId.nilIfBlank ?? "Cliente identificado"
+        return customerId.nilIfBlank ?? "Cliente por revisar"
     }
 
     private var identifiedCustomerIdForReceivable: String? {

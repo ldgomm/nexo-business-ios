@@ -23,13 +23,14 @@ struct ReceivableCollectionView: View {
     var body: some View {
         Form {
             Section("Cuenta por cobrar") {
-                LabeledContent("ID", value: viewModel.currentReceivable.id)
+                LabeledContent("Cliente", value: viewModel.currentReceivable.displayCustomerName)
+                LabeledContent("Venta", value: viewModel.currentReceivable.displaySaleReference)
                 LabeledContent("Estado", value: ReceivableStatusPresentation.displayName(viewModel.currentReceivable.status))
                 LabeledContent("Monto", value: money(viewModel.currentReceivable.amount))
                 LabeledContent("Saldo", value: money(viewModel.currentBalance))
 
-                if viewModel.currentReceivable.isMissingCustomer {
-                    Label("Revisar: esta cuenta no tiene cliente identificado. No registres abonos hasta corregirla.", systemImage: "exclamationmark.triangle.fill")
+                if viewModel.currentReceivable.isMissingCustomer || !viewModel.currentReceivable.hasResolvableCustomerName {
+                    Label("Revisar: falta el nombre del cliente. No registres abonos si no puedes confirmar la deuda.", systemImage: "exclamationmark.triangle.fill")
                         .font(.footnote)
                         .foregroundStyle(.red)
                 } else if viewModel.isSettled {
@@ -209,6 +210,7 @@ final class ReceivablesListViewModel {
     let effectivePermissions: Set<String>
 
     private let receivablesRepository: ReceivablesRepository
+    private let customersRepository: CustomersRepository?
     private var lastLoadedAt: Date?
 
     init(
@@ -217,7 +219,8 @@ final class ReceivablesListViewModel {
         customerId: String? = nil,
         title: String = "Cuentas por cobrar",
         effectivePermissions: Set<String>,
-        receivablesRepository: ReceivablesRepository
+        receivablesRepository: ReceivablesRepository,
+        customersRepository: CustomersRepository? = nil
     ) {
         self.organizationId = organizationId
         self.branchId = branchId
@@ -226,6 +229,7 @@ final class ReceivablesListViewModel {
         self.title = title
         self.effectivePermissions = effectivePermissions
         self.receivablesRepository = receivablesRepository
+        self.customersRepository = customersRepository
     }
 
     var canView: Bool {
@@ -252,6 +256,15 @@ final class ReceivablesListViewModel {
         canCollect && !receivable.isSettled && !receivable.isMissingCustomer
     }
 
+    private var canResolveCustomerNames: Bool {
+        hasPermission([
+            "business.customers.view",
+            "customers.view",
+            "business.customers.create",
+            "customers.create"
+        ])
+    }
+
     var visibleReceivables: [ReceivableRecord] {
         let normalizedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         guard !normalizedQuery.isEmpty else { return receivables }
@@ -260,8 +273,11 @@ final class ReceivablesListViewModel {
             [
                 receivable.id,
                 receivable.saleId,
+                receivable.displaySaleReference,
                 receivable.customerId ?? "",
                 receivable.customerName ?? "",
+                receivable.customerSnapshot?.displayName ?? "",
+                receivable.displayCustomerName,
                 receivable.status,
                 receivable.amount.amount,
                 receivable.effectiveBalance.amount
@@ -326,7 +342,8 @@ final class ReceivablesListViewModel {
                 limit: 100
             )
 
-            receivables = response.receivables.sorted(by: sortReceivables)
+            let enrichedReceivables = await enrichCustomerNamesIfNeeded(response.receivables)
+            receivables = enrichedReceivables.sorted(by: sortReceivables)
             total = response.total
             hasMore = response.hasMore
             infoMessage = receivables.isEmpty ? "No hay cuentas por cobrar con este filtro." : nil
@@ -335,6 +352,50 @@ final class ReceivablesListViewModel {
         } catch {
             errorMessage = error.localizedDescription
         }
+    }
+
+    private func enrichCustomerNamesIfNeeded(_ records: [ReceivableRecord]) async -> [ReceivableRecord] {
+        guard canResolveCustomerNames, let customersRepository else { return records }
+
+        var customerNameCache: [String: String] = [:]
+        var enrichedRecords: [ReceivableRecord] = []
+        enrichedRecords.reserveCapacity(records.count)
+
+        for record in records {
+            if record.hasResolvableCustomerName || record.isMissingCustomer {
+                enrichedRecords.append(record)
+                continue
+            }
+
+            guard let customerId = record.customerId?.trimmingCharacters(in: .whitespacesAndNewlines), !customerId.isEmpty else {
+                enrichedRecords.append(record)
+                continue
+            }
+
+            if let cachedName = customerNameCache[customerId] {
+                enrichedRecords.append(record.withCustomerName(cachedName))
+                continue
+            }
+
+            do {
+                let response = try await customersRepository.search(
+                    organizationId: organizationId,
+                    query: customerId,
+                    limit: 5
+                )
+
+                if let matchedCustomer = response.customers.first(where: { $0.id == customerId }) ?? response.customers.first {
+                    customerNameCache[customerId] = matchedCustomer.displayName
+                    enrichedRecords.append(record.withCustomerName(matchedCustomer.displayName))
+                } else {
+                    enrichedRecords.append(record)
+                }
+            } catch {
+                enrichedRecords.append(record)
+            }
+        }
+
+        return enrichedRecords
     }
 
     private func sortReceivables(_ lhs: ReceivableRecord, _ rhs: ReceivableRecord) -> Bool {
@@ -522,12 +583,12 @@ private struct ReceivableListRow: View {
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(.primary)
 
-                    Text("Venta \(String(receivable.saleId.suffix(10)))")
+                    Text(receivable.displaySaleReference)
                         .font(.caption)
                         .foregroundStyle(.secondary)
 
-                    if receivable.isMissingCustomer {
-                        Text("Revisar: cuenta histórica sin cliente identificado")
+                    if receivable.isMissingCustomer || !receivable.hasResolvableCustomerName {
+                        Text("Revisar cliente antes de abonar")
                             .font(.caption.weight(.medium))
                             .foregroundStyle(.red)
                     }
@@ -554,17 +615,33 @@ private struct ReceivableListRow: View {
             }
 
             if let dueDate = receivable.dueDate {
-                Label("Vence \(dueDate.formatted(date: .abbreviated, time: .omitted))", systemImage: "calendar")
+                Label("Vence \(ReceivableDisplayFormatters.dateOnly.string(from: dueDate))", systemImage: "calendar")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             } else if let createdAt = receivable.createdAt {
-                Label("Creada \(createdAt.formatted(date: .abbreviated, time: .shortened))", systemImage: "clock")
+                Label("Creada \(ReceivableDisplayFormatters.dateAndTime.string(from: createdAt))", systemImage: "clock")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
         }
         .padding(.vertical, 4)
     }
+}
+
+private enum ReceivableDisplayFormatters {
+    static let dateOnly: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "es_EC")
+        formatter.dateFormat = "d MMM yyyy"
+        return formatter
+    }()
+
+    static let dateAndTime: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "es_EC")
+        formatter.dateFormat = "d MMM yyyy, HH:mm"
+        return formatter
+    }()
 }
 
 #Preview("Cuentas por cobrar") {

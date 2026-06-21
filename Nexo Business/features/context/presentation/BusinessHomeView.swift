@@ -270,7 +270,8 @@ struct BusinessHomeView: View {
                                 organizationId: organizationId,
                                 branchId: branchId,
                                 effectivePermissions: permissions,
-                                receivablesRepository: container.receivablesRepository
+                                receivablesRepository: container.receivablesRepository,
+                                customersRepository: container.customersRepository
                             ),
                             cashRepository: container.cashRepository,
                             receivablesRepository: container.receivablesRepository
