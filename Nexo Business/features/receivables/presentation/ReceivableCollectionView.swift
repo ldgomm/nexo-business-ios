@@ -10,13 +10,16 @@ import Observation
 
 struct ReceivableCollectionView: View {
     @Bindable private var viewModel: ReceivableCollectionViewModel
+    private let customer360Dependencies: Customer360Dependencies?
     private let onCollected: (ReceivableRecord) -> Void
 
     init(
         viewModel: ReceivableCollectionViewModel,
+        customer360Dependencies: Customer360Dependencies? = nil,
         onCollected: @escaping (ReceivableRecord) -> Void = { _ in }
     ) {
         self.viewModel = viewModel
+        self.customer360Dependencies = customer360Dependencies
         self.onCollected = onCollected
     }
 
@@ -39,6 +42,8 @@ struct ReceivableCollectionView: View {
                         .foregroundStyle(.green)
                 }
             }
+
+            customer360Section
 
             if !viewModel.isSettled && !viewModel.currentReceivable.isMissingCustomer {
                 Section("Abono") {
@@ -135,6 +140,29 @@ struct ReceivableCollectionView: View {
         .onChange(of: viewModel.updatedReceivable) { _, updated in
             if let updated {
                 onCollected(updated)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var customer360Section: some View {
+        if let customer = viewModel.currentReceivable.customer360Seed,
+           let customer360Dependencies {
+            Section("Cliente") {
+                NavigationLink {
+                    Customer360RouteView(customer: customer, dependencies: customer360Dependencies)
+                } label: {
+                    Customer360NavigationLabel(
+                        title: "Ver cliente",
+                        subtitle: "Ventas, deudas y comprobantes relacionados"
+                    )
+                }
+            }
+        } else if viewModel.currentReceivable.isMissingCustomer || !viewModel.currentReceivable.hasResolvableCustomerName {
+            Section("Cliente") {
+                Label("Cliente por revisar. Esta cuenta no abre ficha 360 hasta tener cliente real confirmado.", systemImage: "person.crop.circle.badge.exclamationmark")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
             }
         }
     }
@@ -422,15 +450,30 @@ struct ReceivablesListView: View {
     @Bindable private var viewModel: ReceivablesListViewModel
     private let cashRepository: CashRepository
     private let receivablesRepository: ReceivablesRepository
+    private let revisions: BusinessRevisions?
+    private let salesHistoryRepository: SalesHistoryRepository?
+    private let salesRepository: SalesRepository?
+    private let paymentsRepository: PaymentsRepository?
+    private let documentsRepository: BusinessDocumentsRepository?
 
     init(
         viewModel: ReceivablesListViewModel,
         cashRepository: CashRepository,
-        receivablesRepository: ReceivablesRepository
+        receivablesRepository: ReceivablesRepository,
+        revisions: BusinessRevisions? = nil,
+        salesHistoryRepository: SalesHistoryRepository? = nil,
+        salesRepository: SalesRepository? = nil,
+        paymentsRepository: PaymentsRepository? = nil,
+        documentsRepository: BusinessDocumentsRepository? = nil
     ) {
         self.viewModel = viewModel
         self.cashRepository = cashRepository
         self.receivablesRepository = receivablesRepository
+        self.revisions = revisions
+        self.salesHistoryRepository = salesHistoryRepository
+        self.salesRepository = salesRepository
+        self.paymentsRepository = paymentsRepository
+        self.documentsRepository = documentsRepository
     }
 
     var body: some View {
@@ -532,6 +575,7 @@ struct ReceivablesListView: View {
                                     cashRepository: cashRepository,
                                     receivablesRepository: receivablesRepository
                                 ),
+                                customer360Dependencies: customer360Dependencies(for: receivable),
                                 onCollected: { updated in
                                     viewModel.applyCollectionUpdate(updated)
                                 }
@@ -545,6 +589,30 @@ struct ReceivablesListView: View {
                 }
             }
         }
+    }
+
+    private func customer360Dependencies(for receivable: ReceivableRecord) -> Customer360Dependencies? {
+        guard receivable.customer360Seed != nil else { return nil }
+        guard let revisions,
+              let salesHistoryRepository,
+              let salesRepository,
+              let paymentsRepository,
+              let documentsRepository else {
+            return nil
+        }
+
+        return Customer360Dependencies(
+            organizationId: viewModel.organizationId,
+            branchId: viewModel.branchId,
+            revisions: revisions,
+            effectivePermissions: viewModel.effectivePermissions,
+            salesHistoryRepository: salesHistoryRepository,
+            salesRepository: salesRepository,
+            cashRepository: cashRepository,
+            paymentsRepository: paymentsRepository,
+            receivablesRepository: receivablesRepository,
+            documentsRepository: documentsRepository
+        )
     }
 
     @ViewBuilder
@@ -654,7 +722,12 @@ private enum ReceivableDisplayFormatters {
                 receivablesRepository: PreviewReceivablesRepository()
             ),
             cashRepository: PreviewCashRepository(),
-            receivablesRepository: PreviewReceivablesRepository()
+            receivablesRepository: PreviewReceivablesRepository(),
+            revisions: PreviewData.businessContext.revisions,
+            salesHistoryRepository: PreviewSalesHistoryRepository(),
+            salesRepository: PreviewSalesRepository(),
+            paymentsRepository: PreviewPaymentsRepository(),
+            documentsRepository: PreviewBusinessDocumentsRepository()
         )
     }
 }

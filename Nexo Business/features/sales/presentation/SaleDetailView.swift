@@ -10,6 +10,7 @@ import SwiftUI
 struct SaleDetailView: View {
     @Bindable private var viewModel: SaleDetailViewModel
     private let customersRepository: CustomersRepository
+    private let salesHistoryRepository: SalesHistoryRepository?
     private let cashRepository: CashRepository
     private let paymentsRepository: PaymentsRepository
     private let receivablesRepository: ReceivablesRepository
@@ -28,6 +29,7 @@ struct SaleDetailView: View {
     init(
         viewModel: SaleDetailViewModel,
         customersRepository: CustomersRepository = UnavailableCustomersRepository(),
+        salesHistoryRepository: SalesHistoryRepository? = nil,
         cashRepository: CashRepository,
         paymentsRepository: PaymentsRepository,
         receivablesRepository: ReceivablesRepository,
@@ -36,6 +38,7 @@ struct SaleDetailView: View {
     ) {
         self.viewModel = viewModel
         self.customersRepository = customersRepository
+        self.salesHistoryRepository = salesHistoryRepository
         self.cashRepository = cashRepository
         self.paymentsRepository = paymentsRepository
         self.receivablesRepository = receivablesRepository
@@ -53,6 +56,7 @@ struct SaleDetailView: View {
                 if let sale = viewModel.sale {
                     messagesSection
                     heroSection(sale)
+                    customerSection(sale)
                     itemsSection(sale)
                     totalsSection(sale)
                     paymentSection(sale)
@@ -129,6 +133,40 @@ struct SaleDetailView: View {
             createdAt: sale.createdAt,
             confirmedAt: sale.confirmedAt
         )
+    }
+
+    @ViewBuilder
+    private func customerSection(_ sale: BusinessSale) -> some View {
+        if let customer = sale.customer360Seed,
+           let dependencies = customer360Dependencies(for: sale) {
+            SaleDetailCard(title: "Cliente", subtitle: "Historial 360 de esta relación") {
+                VStack(alignment: .leading, spacing: 10) {
+                    SaleDetailMetaRow(title: "Nombre", value: customer.displayName)
+
+                    if !customer.identificationNumber.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        SaleDetailMetaRow(title: customer.identificationType.displayName, value: customer.identificationNumber)
+                    }
+
+                    NavigationLink {
+                        Customer360RouteView(customer: customer, dependencies: dependencies)
+                    } label: {
+                        Customer360NavigationLabel(
+                            title: "Ver cliente",
+                            subtitle: "Ventas, cuentas por cobrar y comprobantes de este cliente"
+                        )
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        } else if sale.displayCustomerName.trimmingCharacters(in: .whitespacesAndNewlines).caseInsensitiveCompare("Consumidor final") == .orderedSame {
+            SaleDetailCard(title: "Cliente", subtitle: "Venta sin cliente identificado") {
+                SaleDetailInlineMessage(
+                    message: "Consumidor final no abre ficha 360 ni cuenta por cobrar. Si el cliente va a quedar fiado, primero debe estar identificado.",
+                    systemImage: "person.crop.circle.badge.exclamationmark",
+                    tint: .secondary
+                )
+            }
+        }
     }
 
     @ViewBuilder
@@ -307,7 +345,9 @@ struct SaleDetailView: View {
                             effectivePermissions: viewModel.effectivePermissions,
                             documentsRepository: documentsRepository,
                             onDocumentMutated: { await viewModel.refresh() }
-                        )
+                        ),
+                        customer360Dependencies: viewModel.sale.flatMap { customer360Dependencies(for: $0) },
+                        customersRepository: customersRepository
                     )
                 } label: {
                     SaleDetailNavigationActionLabel(
@@ -453,6 +493,24 @@ struct SaleDetailView: View {
                 }
             }
         }
+    }
+
+    private func customer360Dependencies(for sale: BusinessSale) -> Customer360Dependencies? {
+        guard let salesHistoryRepository else { return nil }
+        guard !sale.branchId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
+
+        return Customer360Dependencies(
+            organizationId: viewModel.organizationId,
+            branchId: sale.branchId,
+            revisions: viewModel.revisions,
+            effectivePermissions: viewModel.effectivePermissions,
+            salesHistoryRepository: salesHistoryRepository,
+            salesRepository: viewModel.salesRepositoryForPaymentReadiness,
+            cashRepository: cashRepository,
+            paymentsRepository: paymentsRepository,
+            receivablesRepository: receivablesRepository,
+            documentsRepository: documentsRepository
+        )
     }
 
     private func lineTotal(for item: BusinessSaleItem) -> MoneyAmount {

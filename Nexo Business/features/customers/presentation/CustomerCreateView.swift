@@ -51,6 +51,42 @@ struct CustomerCreateView: View {
                     .lineLimit(1...3)
             }
 
+            if let duplicate = viewModel.duplicateCandidate {
+                Section("Posible duplicado") {
+                    Label(duplicate.title, systemImage: "person.crop.circle.badge.exclamationmark")
+                        .font(.subheadline.weight(.semibold))
+
+                    Text(duplicate.message)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+
+                    CustomerRowView(customer: duplicate.customer)
+
+                    Button {
+                        if let customer = viewModel.useDuplicateCandidate() {
+                            onCreated(customer)
+                            dismiss()
+                        }
+                    } label: {
+                        Label("Usar cliente existente", systemImage: "person.text.rectangle")
+                    }
+                    .disabled(!viewModel.canUseDuplicateCandidate)
+
+                    Button {
+                        Task {
+                            NexoKeyboard.dismiss()
+                            if let customer = await viewModel.saveIgnoringDuplicateWarning() {
+                                onCreated(customer)
+                                dismiss()
+                            }
+                        }
+                    } label: {
+                        Label("Crear nuevo de todos modos", systemImage: "plus.circle")
+                    }
+                    .disabled(!viewModel.canSave)
+                }
+            }
+
             if let message = viewModel.errorMessage {
                 Section {
                     Label(message, systemImage: "exclamationmark.triangle")

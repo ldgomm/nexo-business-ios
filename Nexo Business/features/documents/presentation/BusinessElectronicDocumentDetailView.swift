@@ -9,9 +9,20 @@ import SwiftUI
 
 struct BusinessElectronicDocumentDetailView: View {
     @Bindable private var viewModel: BusinessElectronicDocumentDetailViewModel
+    private let customer360Dependencies: Customer360Dependencies?
+    private let customersRepository: CustomersRepository?
+    @State private var resolvedCustomer: BusinessCustomer?
+    @State private var isResolvingCustomer = false
+    @State private var customerResolveMessage: String?
     
-    init(viewModel: BusinessElectronicDocumentDetailViewModel) {
+    init(
+        viewModel: BusinessElectronicDocumentDetailViewModel,
+        customer360Dependencies: Customer360Dependencies? = nil,
+        customersRepository: CustomersRepository? = nil
+    ) {
         self.viewModel = viewModel
+        self.customer360Dependencies = customer360Dependencies
+        self.customersRepository = customersRepository
     }
     
     var body: some View {
@@ -25,6 +36,7 @@ struct BusinessElectronicDocumentDetailView: View {
                     messagesSection
                     heroSection(detail)
                     summarySection(detail)
+                    customerSection(detail)
                     sriSection(detail)
                     artifactsSection(detail)
                     emailSection(detail)
@@ -77,6 +89,16 @@ struct BusinessElectronicDocumentDetailView: View {
         .task {
             if viewModel.shouldLoadOnAppear {
                 await viewModel.load()
+            }
+            if let detail = viewModel.detail {
+                await resolveCustomerIfPossible(detail)
+            }
+        }
+        .onChange(of: viewModel.detail?.documentId) { _, _ in
+            Task {
+                if let detail = viewModel.detail {
+                    await resolveCustomerIfPossible(detail)
+                }
             }
         }
     }
@@ -145,6 +167,45 @@ struct BusinessElectronicDocumentDetailView: View {
         }
     }
     
+    @ViewBuilder
+    private func customerSection(_ detail: BusinessElectronicDocumentDetail) -> some View {
+        BusinessDocumentCard(title: "Cliente", systemImage: "person.text.rectangle") {
+            VStack(alignment: .leading, spacing: 10) {
+                if let name = detail.customerName?.trimmingCharacters(in: .whitespacesAndNewlines), !name.isEmpty {
+                    BusinessDocumentInfoRow(title: "Nombre", value: name, systemImage: "person")
+                }
+
+                if let identification = detail.customerIdentification?.trimmingCharacters(in: .whitespacesAndNewlines), !identification.isEmpty {
+                    BusinessDocumentInfoRow(title: "Identificación", value: identification, systemImage: "number")
+                }
+
+                if let customer = Customer360SeedFactory.customer(from: detail, resolvedCustomer: resolvedCustomer),
+                   let customer360Dependencies {
+                    NavigationLink {
+                        Customer360RouteView(customer: customer, dependencies: customer360Dependencies)
+                    } label: {
+                        Customer360NavigationLabel(
+                            title: "Ver cliente",
+                            subtitle: "Ventas, cuentas por cobrar y comprobantes relacionados"
+                        )
+                    }
+                    .buttonStyle(.plain)
+                } else if isResolvingCustomer {
+                    HStack(spacing: 10) {
+                        ProgressView()
+                        Text("Buscando cliente en el directorio…")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
+                } else if let customerResolveMessage {
+                    BusinessDocumentInlineNotice(message: customerResolveMessage, systemImage: "info.circle", tint: .secondary)
+                } else if detail.customerName == nil && detail.customerIdentification == nil {
+                    BusinessDocumentInlineNotice(message: "Este comprobante no trae datos de cliente suficientes para abrir ficha 360.", systemImage: "person.crop.circle.badge.questionmark", tint: .secondary)
+                }
+            }
+        }
+    }
+
     private func sriSection(_ detail: BusinessElectronicDocumentDetail) -> some View {
         BusinessDocumentCard(title: "SRI", systemImage: "building.columns") {
             VStack(spacing: 12) {
@@ -491,6 +552,60 @@ struct BusinessElectronicDocumentDetailView: View {
         }
     }
     
+    private func resolveCustomerIfPossible(_ detail: BusinessElectronicDocumentDetail) async {
+        guard resolvedCustomer == nil else { return }
+        guard let customersRepository, customer360Dependencies != nil else { return }
+        guard let query = customerLookupQuery(for: detail) else {
+            customerResolveMessage = isFinalConsumer(detail) ? "Consumidor final no abre ficha 360." : nil
+            return
+        }
+
+        isResolvingCustomer = true
+        customerResolveMessage = nil
+        defer { isResolvingCustomer = false }
+
+        do {
+            let response = try await customersRepository.search(
+                organizationId: viewModel.organizationId,
+                query: query,
+                limit: 5
+            )
+
+            resolvedCustomer = response.customers.first { customer in
+                customer.identificationType != .finalConsumer && (
+                    normalized(customer.identificationNumber) == normalized(detail.customerIdentification) ||
+                    normalized(customer.displayName) == normalized(detail.customerName)
+                )
+            } ?? response.customers.first(where: { $0.identificationType != .finalConsumer })
+
+            if resolvedCustomer == nil {
+                customerResolveMessage = "El comprobante tiene datos del cliente, pero no encontramos una ficha activa para abrir el 360."
+            }
+        } catch {
+            customerResolveMessage = "No se pudo buscar el cliente ahora. El comprobante sigue disponible."
+        }
+    }
+
+    private func customerLookupQuery(for detail: BusinessElectronicDocumentDetail) -> String? {
+        guard !isFinalConsumer(detail) else { return nil }
+
+        return [
+            detail.customerIdentification,
+            detail.customerName,
+            detail.customerEmail
+        ]
+            .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .first { !$0.isEmpty }
+    }
+
+    private func isFinalConsumer(_ detail: BusinessElectronicDocumentDetail) -> Bool {
+        normalized(detail.customerName) == "consumidor final" || normalized(detail.customerIdentification) == "9999999999999"
+    }
+
+    private func normalized(_ value: String?) -> String {
+        value?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() ?? ""
+    }
+
     private func heroAmount(for detail: BusinessElectronicDocumentDetail) -> String? {
         guard let total = detail.total, !total.isEmpty else { return nil }
         return "\(detail.currency) \(total)"

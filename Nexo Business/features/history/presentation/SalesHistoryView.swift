@@ -10,6 +10,7 @@ import SwiftUI
 struct SalesHistoryView: View {
     @Bindable private var viewModel: SalesHistoryViewModel
     private let salesRepository: SalesRepository
+    private let salesHistoryRepository: SalesHistoryRepository
     private let cashRepository: CashRepository
     private let paymentsRepository: PaymentsRepository
     private let receivablesRepository: ReceivablesRepository
@@ -20,6 +21,7 @@ struct SalesHistoryView: View {
     init(
         viewModel: SalesHistoryViewModel,
         salesRepository: SalesRepository,
+        salesHistoryRepository: SalesHistoryRepository,
         cashRepository: CashRepository,
         paymentsRepository: PaymentsRepository,
         receivablesRepository: ReceivablesRepository,
@@ -27,6 +29,7 @@ struct SalesHistoryView: View {
     ) {
         self.viewModel = viewModel
         self.salesRepository = salesRepository
+        self.salesHistoryRepository = salesHistoryRepository
         self.cashRepository = cashRepository
         self.paymentsRepository = paymentsRepository
         self.receivablesRepository = receivablesRepository
@@ -261,6 +264,7 @@ struct SalesHistoryView: View {
                                 for: sale,
                                 salesRepository: salesRepository
                             ),
+                            salesHistoryRepository: salesHistoryRepository,
                             cashRepository: cashRepository,
                             paymentsRepository: paymentsRepository,
                             receivablesRepository: receivablesRepository,
@@ -473,6 +477,7 @@ private struct SalesHistoryDocumentStatusBadge: View {
                 documentsRepository: PreviewBusinessDocumentsRepository()
             ),
             salesRepository: PreviewSalesRepository(),
+            salesHistoryRepository: PreviewSalesHistoryRepository(),
             cashRepository: PreviewCashRepository(),
             paymentsRepository: PreviewPaymentsRepository(),
             receivablesRepository: PreviewReceivablesRepository(),

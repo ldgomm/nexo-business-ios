@@ -8,16 +8,43 @@
 import Foundation
 import Observation
 
+struct CustomerDuplicateCandidate: Equatable, Identifiable, Sendable {
+    let customer: BusinessCustomer
+    let reason: String
+    let matchedValue: String
+
+    var id: String { customer.id }
+
+    var title: String {
+        "Ya existe un cliente parecido"
+    }
+
+    var message: String {
+        "Encontramos a \(customer.displayName) con \(reason.lowercased()) \(matchedValue). Usa ese cliente para no partir su historial, ventas, comprobantes y cuentas por cobrar."
+    }
+}
+
 @MainActor
 @Observable
 final class CustomerCreateViewModel {
-    var identificationType: BusinessCustomerIdentificationType = .cedula
-    var identificationNumber = ""
-    var displayName = ""
-    var email = ""
-    var phone = ""
+    var identificationType: BusinessCustomerIdentificationType = .cedula {
+        didSet { clearDuplicateWarningForEdition() }
+    }
+    var identificationNumber = "" {
+        didSet { clearDuplicateWarningForEdition() }
+    }
+    var displayName = "" {
+        didSet { clearDuplicateWarningForEdition() }
+    }
+    var email = "" {
+        didSet { clearDuplicateWarningForEdition() }
+    }
+    var phone = "" {
+        didSet { clearDuplicateWarningForEdition() }
+    }
     var address = ""
     private(set) var createdCustomer: BusinessCustomer?
+    private(set) var duplicateCandidate: CustomerDuplicateCandidate?
     private(set) var isSaving = false
     var errorMessage: String?
     var infoMessage: String?
@@ -39,7 +66,27 @@ final class CustomerCreateViewModel {
         !normalized(identificationNumber).isEmpty
     }
 
+    var canUseDuplicateCandidate: Bool {
+        duplicateCandidate != nil && !isSaving
+    }
+
     func save() async -> BusinessCustomer? {
+        await save(allowDuplicate: false)
+    }
+
+    func saveIgnoringDuplicateWarning() async -> BusinessCustomer? {
+        await save(allowDuplicate: true)
+    }
+
+    func useDuplicateCandidate() -> BusinessCustomer? {
+        guard let customer = duplicateCandidate?.customer else { return nil }
+        createdCustomer = customer
+        errorMessage = nil
+        infoMessage = "Usando cliente existente para mantener su historial junto."
+        return customer
+    }
+
+    private func save(allowDuplicate: Bool) async -> BusinessCustomer? {
         guard canSave else {
             errorMessage = validationMessage()
             return nil
@@ -51,6 +98,12 @@ final class CustomerCreateViewModel {
 
         defer {
             isSaving = false
+        }
+
+        if !allowDuplicate, let duplicate = await findDuplicateCandidate() {
+            duplicateCandidate = duplicate
+            infoMessage = "Revisa el cliente existente antes de crear otro."
+            return nil
         }
 
         do {
@@ -67,6 +120,7 @@ final class CustomerCreateViewModel {
                 )
             )
 
+            duplicateCandidate = nil
             createdCustomer = response.customer
             infoMessage = response.idempotencyReplayed == true
                 ? "Cliente recuperado de un intento anterior."
@@ -77,6 +131,68 @@ final class CustomerCreateViewModel {
             return nil
         } catch {
             errorMessage = error.localizedDescription
+            return nil
+        }
+    }
+
+    private func findDuplicateCandidate() async -> CustomerDuplicateCandidate? {
+        guard identificationType != .finalConsumer else { return nil }
+
+        let identification = normalizedIdentification(identificationNumber, type: identificationType)
+        if !identification.isEmpty,
+           let match = await findCandidate(query: identification, matching: { customer in
+               guard customer.identificationType != .finalConsumer else { return false }
+               return customer.identificationType == identificationType &&
+                   normalizedIdentification(customer.identificationNumber, type: customer.identificationType) == identification
+           }) {
+            return CustomerDuplicateCandidate(
+                customer: match,
+                reason: identificationType.displayName,
+                matchedValue: normalized(identificationNumber)
+            )
+        }
+
+        let emailKey = normalizedEmail(email)
+        if !emailKey.isEmpty,
+           let match = await findCandidate(query: emailKey, matching: { customer in
+               guard customer.identificationType != .finalConsumer else { return false }
+               return normalizedEmail(customer.email ?? "") == emailKey
+           }) {
+            return CustomerDuplicateCandidate(
+                customer: match,
+                reason: "Correo",
+                matchedValue: emailKey
+            )
+        }
+
+        let phoneKey = normalizedPhone(phone)
+        if phoneKey.count >= 7,
+           let match = await findCandidate(query: normalized(phone), matching: { customer in
+               guard customer.identificationType != .finalConsumer else { return false }
+               return normalizedPhone(customer.phone ?? "") == phoneKey
+           }) {
+            return CustomerDuplicateCandidate(
+                customer: match,
+                reason: "Teléfono",
+                matchedValue: normalized(phone)
+            )
+        }
+
+        return nil
+    }
+
+    private func findCandidate(
+        query: String,
+        matching predicate: (BusinessCustomer) -> Bool
+    ) async -> BusinessCustomer? {
+        do {
+            let response = try await repository.search(
+                organizationId: organizationId,
+                query: query,
+                limit: 8
+            )
+            return response.customers.first(where: predicate)
+        } catch {
             return nil
         }
     }
@@ -93,6 +209,13 @@ final class CustomerCreateViewModel {
         return "Revisa los datos del cliente."
     }
 
+    private func clearDuplicateWarningForEdition() {
+        duplicateCandidate = nil
+        if infoMessage == "Revisa el cliente existente antes de crear otro." {
+            infoMessage = nil
+        }
+    }
+
     private func normalized(_ value: String) -> String {
         value.trimmingCharacters(in: .whitespacesAndNewlines)
     }
@@ -100,5 +223,25 @@ final class CustomerCreateViewModel {
     private func emptyToNil(_ value: String) -> String? {
         let trimmed = normalized(value)
         return trimmed.isEmpty ? nil : trimmed
+    }
+
+    private func normalizedIdentification(_ value: String, type: BusinessCustomerIdentificationType) -> String {
+        let trimmed = normalized(value)
+        switch type {
+        case .cedula, .ruc, .finalConsumer:
+            return trimmed.filter { $0.isNumber }
+        case .passport, .foreign, .unknown:
+            return trimmed
+                .uppercased()
+                .filter { $0.isLetter || $0.isNumber }
+        }
+    }
+
+    private func normalizedEmail(_ value: String) -> String {
+        normalized(value).lowercased()
+    }
+
+    private func normalizedPhone(_ value: String) -> String {
+        normalized(value).filter { $0.isNumber }
     }
 }

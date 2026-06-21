@@ -178,7 +178,7 @@ struct CustomerDirectoryView: View {
     }
 }
 
-private struct CustomerDetail360View: View {
+struct CustomerDetail360View: View {
     @Bindable private var viewModel: CustomerDetail360ViewModel
     private let salesRepository: SalesRepository
     private let cashRepository: CashRepository
@@ -206,12 +206,13 @@ private struct CustomerDetail360View: View {
         Form {
             customerSection
             summarySection
+            pilotGuidanceSection
             receivablesSection
             salesSection
             documentsSection
             messagesSection
         }
-        .navigationTitle("Cliente")
+        .navigationTitle(viewModel.customer.displayName)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
@@ -249,6 +250,29 @@ private struct CustomerDetail360View: View {
             LabeledContent("Vendido registrado", value: viewModel.salesTotalDisplay)
             LabeledContent("Última compra", value: viewModel.lastSaleDateText)
             LabeledContent("Comprobantes", value: String(viewModel.documents.count))
+        }
+    }
+
+
+    private var pilotGuidanceSection: some View {
+        Section("Guía rápida") {
+            Label(viewModel.customerPilotStatusText, systemImage: viewModel.customerPilotStatusIcon)
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+
+            if viewModel.hasOpenReceivables {
+                Text("Este cliente tiene saldo pendiente real. Puedes registrar abonos desde sus cuentas por cobrar.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            } else if viewModel.hasSales {
+                Text("Este cliente ya tiene ventas registradas y no mantiene deuda abierta en este momento.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            } else {
+                Text("Cuando el cliente compre con identificación, aquí se agruparán ventas, deudas y comprobantes.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
         }
     }
 
@@ -310,6 +334,7 @@ private struct CustomerDetail360View: View {
                                 for: sale,
                                 salesRepository: salesRepository
                             ),
+                            salesHistoryRepository: viewModel.salesHistoryRepository,
                             cashRepository: cashRepository,
                             paymentsRepository: paymentsRepository,
                             receivablesRepository: receivablesRepository,
@@ -342,6 +367,18 @@ private struct CustomerDetail360View: View {
                                 organizationId: viewModel.organizationId,
                                 documentId: document.documentId,
                                 effectivePermissions: viewModel.effectivePermissions,
+                                documentsRepository: documentsRepository
+                            ),
+                            customer360Dependencies: Customer360Dependencies(
+                                organizationId: viewModel.organizationId,
+                                branchId: viewModel.branchId,
+                                revisions: viewModel.revisions,
+                                effectivePermissions: viewModel.effectivePermissions,
+                                salesHistoryRepository: viewModel.salesHistoryRepository,
+                                salesRepository: salesRepository,
+                                cashRepository: cashRepository,
+                                paymentsRepository: paymentsRepository,
+                                receivablesRepository: receivablesRepository,
                                 documentsRepository: documentsRepository
                             )
                         )
@@ -509,6 +546,230 @@ private struct CustomerDocumentRow: View {
         if BusinessDocumentStatusPresentation.isAuthorized(document.effectiveStatus) { return .green }
         if BusinessDocumentStatusPresentation.isError(document.effectiveStatus) { return .red }
         return .orange
+    }
+}
+
+struct Customer360Dependencies {
+    let organizationId: String
+    let branchId: String
+    let revisions: BusinessRevisions
+    let effectivePermissions: Set<String>
+    let salesHistoryRepository: SalesHistoryRepository
+    let salesRepository: SalesRepository
+    let cashRepository: CashRepository
+    let paymentsRepository: PaymentsRepository
+    let receivablesRepository: ReceivablesRepository
+    let documentsRepository: BusinessDocumentsRepository
+
+    init(
+        organizationId: String,
+        branchId: String,
+        revisions: BusinessRevisions,
+        effectivePermissions: Set<String>,
+        salesHistoryRepository: SalesHistoryRepository,
+        salesRepository: SalesRepository,
+        cashRepository: CashRepository,
+        paymentsRepository: PaymentsRepository,
+        receivablesRepository: ReceivablesRepository,
+        documentsRepository: BusinessDocumentsRepository
+    ) {
+        self.organizationId = organizationId
+        self.branchId = branchId
+        self.revisions = revisions
+        self.effectivePermissions = effectivePermissions
+        self.salesHistoryRepository = salesHistoryRepository
+        self.salesRepository = salesRepository
+        self.cashRepository = cashRepository
+        self.paymentsRepository = paymentsRepository
+        self.receivablesRepository = receivablesRepository
+        self.documentsRepository = documentsRepository
+    }
+}
+
+struct Customer360RouteView: View {
+    let customer: BusinessCustomer
+    let dependencies: Customer360Dependencies
+
+    var body: some View {
+        CustomerDetail360View(
+            viewModel: CustomerDetail360ViewModel(
+                organizationId: dependencies.organizationId,
+                branchId: dependencies.branchId,
+                revisions: dependencies.revisions,
+                customer: customer,
+                effectivePermissions: dependencies.effectivePermissions,
+                salesHistoryRepository: dependencies.salesHistoryRepository,
+                receivablesRepository: dependencies.receivablesRepository,
+                documentsRepository: dependencies.documentsRepository
+            ),
+            salesRepository: dependencies.salesRepository,
+            cashRepository: dependencies.cashRepository,
+            paymentsRepository: dependencies.paymentsRepository,
+            receivablesRepository: dependencies.receivablesRepository,
+            documentsRepository: dependencies.documentsRepository
+        )
+    }
+}
+
+struct Customer360NavigationLabel: View {
+    let title: String
+    let subtitle: String
+    let systemImage: String
+
+    init(
+        title: String = "Ver cliente",
+        subtitle: String = "Historial, deudas y comprobantes del cliente",
+        systemImage: String = "person.text.rectangle"
+    ) {
+        self.title = title
+        self.subtitle = subtitle
+        self.systemImage = systemImage
+    }
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 12) {
+            Image(systemName: systemImage)
+                .font(.title3.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .frame(width: 30)
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .font(.subheadline.weight(.semibold))
+                Text(subtitle)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer(minLength: 0)
+
+            Image(systemName: "chevron.right")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.tertiary)
+        }
+        .padding(.vertical, 4)
+    }
+}
+
+enum Customer360SeedFactory {
+    static func customer(from sale: BusinessSale) -> BusinessCustomer? {
+        let id = firstNonBlank([
+            sale.customerId,
+            sale.customer?.id,
+            sale.receivableCustomerId
+        ])
+
+        let displayName = firstNonBlank([
+            sale.customer?.displayName,
+            sale.customerName,
+            sale.displayCustomerName
+        ]) ?? "Cliente"
+
+        let identification = firstNonBlank([
+            sale.customer?.identification
+        ]) ?? ""
+
+        guard let id, isRealCustomer(id: id, displayName: displayName, identification: identification) else {
+            return nil
+        }
+
+        return BusinessCustomer(
+            id: id,
+            displayName: displayName,
+            identificationType: identificationType(from: nil, identificationNumber: identification),
+            identificationNumber: identification
+        )
+    }
+
+    static func customer(from receivable: ReceivableRecord) -> BusinessCustomer? {
+        let id = firstNonBlank([receivable.customerId, receivable.customerSnapshot?.id])
+        let displayName = firstNonBlank([
+            receivable.customerName,
+            receivable.customerSnapshot?.displayName,
+            receivable.displayCustomerName
+        ]) ?? "Cliente por revisar"
+
+        guard let id, isRealCustomer(id: id, displayName: displayName, identification: "") else {
+            return nil
+        }
+
+        return BusinessCustomer(
+            id: id,
+            displayName: displayName,
+            identificationType: .unknown,
+            identificationNumber: ""
+        )
+    }
+
+    static func customer(from document: BusinessElectronicDocumentDetail, resolvedCustomer: BusinessCustomer?) -> BusinessCustomer? {
+        if let resolvedCustomer,
+           resolvedCustomer.identificationType != .finalConsumer,
+           firstNonBlank([resolvedCustomer.id]) != nil {
+            return resolvedCustomer
+        }
+
+        let displayName = firstNonBlank([document.customerName, document.summary.customerName])
+        let identification = firstNonBlank([document.customerIdentification, document.summary.customerIdentification]) ?? ""
+
+        guard isRealCustomer(id: nil, displayName: displayName, identification: identification) else {
+            return nil
+        }
+
+        // A customer id is required to query real receivables. Without a resolved directory record,
+        // document detail should not open a 360 that could hide debt data.
+        return nil
+    }
+
+    static func isRealCustomer(id: String?, displayName: String?, identification: String?) -> Bool {
+        let normalizedId = normalized(id)
+        let normalizedName = normalized(displayName)
+        let normalizedIdentification = normalized(identification)
+
+        if normalizedId == "final_consumer" || normalizedId == "consumidor_final" { return false }
+        if normalizedName == "consumidor final" || normalizedName == "final consumer" { return false }
+        if normalizedIdentification == "9999999999999" { return false }
+
+        return normalizedId != nil || normalizedName != nil || normalizedIdentification != nil
+    }
+
+    static func firstNonBlank(_ values: [String?]) -> String? {
+        values
+            .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .first { !$0.isEmpty }
+    }
+
+    private static func identificationType(from rawValue: String?, identificationNumber: String) -> BusinessCustomerIdentificationType {
+        if let rawValue,
+           let type = BusinessCustomerIdentificationType(rawValue: rawValue.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()) {
+            return type
+        }
+
+        let compact = identificationNumber.trimmingCharacters(in: .whitespacesAndNewlines)
+        if compact == "9999999999999" { return .finalConsumer }
+        if compact.count == 13 { return .ruc }
+        if compact.count == 10 { return .cedula }
+        return .unknown
+    }
+
+    private static func normalized(_ value: String?) -> String? {
+        let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() ?? ""
+        return trimmed.isEmpty ? nil : trimmed
+    }
+}
+
+extension BusinessSale {
+    var customer360Seed: BusinessCustomer? {
+        Customer360SeedFactory.customer(from: self)
+    }
+
+    var hasCustomer360EntryPoint: Bool {
+        customer360Seed != nil
+    }
+}
+
+extension ReceivableRecord {
+    var customer360Seed: BusinessCustomer? {
+        Customer360SeedFactory.customer(from: self)
     }
 }
 

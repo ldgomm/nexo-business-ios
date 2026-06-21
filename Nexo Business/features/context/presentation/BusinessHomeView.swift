@@ -179,6 +179,7 @@ struct BusinessHomeView: View {
                         documentsRepository: container.documentsRepository
                     ),
                     salesRepository: container.salesRepository,
+                    salesHistoryRepository: container.salesHistoryRepository,
                     cashRepository: container.cashRepository,
                     paymentsRepository: container.paymentsRepository,
                     receivablesRepository: container.receivablesRepository,
@@ -282,7 +283,12 @@ struct BusinessHomeView: View {
                                 customersRepository: container.customersRepository
                             ),
                             cashRepository: container.cashRepository,
-                            receivablesRepository: container.receivablesRepository
+                            receivablesRepository: container.receivablesRepository,
+                            revisions: context.revisions,
+                            salesHistoryRepository: container.salesHistoryRepository,
+                            salesRepository: container.salesRepository,
+                            paymentsRepository: container.paymentsRepository,
+                            documentsRepository: container.documentsRepository
                         )
                     } label: {
                         BusinessHomeToolTile(
@@ -306,6 +312,7 @@ struct BusinessHomeView: View {
                                 pendingRepository: container.pendingOperationsRepository
                             ),
                             salesRepository: container.salesRepository,
+                            salesHistoryRepository: container.salesHistoryRepository,
                             cashRepository: container.cashRepository,
                             paymentsRepository: container.paymentsRepository,
                             receivablesRepository: container.receivablesRepository,
@@ -750,6 +757,7 @@ private final class UnpaidSalesListViewModel {
 private struct UnpaidSalesListView: View {
     @Bindable private var viewModel: UnpaidSalesListViewModel
     private let salesRepository: SalesRepository
+    private let salesHistoryRepository: SalesHistoryRepository
     private let cashRepository: CashRepository
     private let paymentsRepository: PaymentsRepository
     private let receivablesRepository: ReceivablesRepository
@@ -758,6 +766,7 @@ private struct UnpaidSalesListView: View {
     init(
         viewModel: UnpaidSalesListViewModel,
         salesRepository: SalesRepository,
+        salesHistoryRepository: SalesHistoryRepository,
         cashRepository: CashRepository,
         paymentsRepository: PaymentsRepository,
         receivablesRepository: ReceivablesRepository,
@@ -765,6 +774,7 @@ private struct UnpaidSalesListView: View {
     ) {
         self.viewModel = viewModel
         self.salesRepository = salesRepository
+        self.salesHistoryRepository = salesHistoryRepository
         self.cashRepository = cashRepository
         self.paymentsRepository = paymentsRepository
         self.receivablesRepository = receivablesRepository
@@ -800,6 +810,7 @@ private struct UnpaidSalesListView: View {
                                     for: sale,
                                     salesRepository: salesRepository
                                 ),
+                                salesHistoryRepository: salesHistoryRepository,
                                 cashRepository: cashRepository,
                                 paymentsRepository: paymentsRepository,
                                 receivablesRepository: receivablesRepository,

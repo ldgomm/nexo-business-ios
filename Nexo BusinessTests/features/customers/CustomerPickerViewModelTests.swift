@@ -83,7 +83,9 @@ final class CustomerPickerViewModelTests: XCTestCase {
 
 final class CustomersRepositorySpy: CustomersRepository, @unchecked Sendable {
     var searchCalls = 0
+    var createCalls = 0
     var lastSearchQuery: String?
+    var searchQueries: [String] = []
     var lastCreateRequest: CreateCustomerRequest?
     var lastCreateIdempotencyKey: IdempotencyKey?
     let searchResponse: CustomersSearchResponse
@@ -111,6 +113,7 @@ final class CustomersRepositorySpy: CustomersRepository, @unchecked Sendable {
     ) async throws -> CustomersSearchResponse {
         searchCalls += 1
         lastSearchQuery = query
+        searchQueries.append(query)
         return searchResponse
     }
 
@@ -119,6 +122,7 @@ final class CustomersRepositorySpy: CustomersRepository, @unchecked Sendable {
         idempotencyKey: IdempotencyKey,
         request: CreateCustomerRequest
     ) async throws -> CustomerResponse {
+        createCalls += 1
         lastCreateIdempotencyKey = idempotencyKey
         lastCreateRequest = request
         return createResponse
@@ -214,6 +218,63 @@ final class CustomerDetail360ViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.pendingBalanceDisplay, "USD 12.60")
         XCTAssertEqual(viewModel.salesTotalDisplay, "USD 27.60")
         XCTAssertEqual(documents.requestedSaleIds, ["sale_001"])
+    }
+
+
+    func testCustomer360SeedFactoryAllowsRealSaleAndBlocksFinalConsumer() {
+        let identifiedSale = BusinessSale(
+            id: "sale_real",
+            number: "SALE-REAL",
+            organizationId: "org_1",
+            branchId: "branch_1",
+            customerId: "cus_real",
+            customerName: "José Ruiz",
+            customer: BusinessSaleCustomer(id: "cus_real", displayName: "José Ruiz", identification: "1712345678"),
+            status: "confirmed",
+            paymentStatus: "paid",
+            totals: BusinessSaleTotals(subtotalWithoutTaxes: MoneyAmount(amount: "20.00"), discountTotal: MoneyAmount(amount: "0.00"), taxTotal: MoneyAmount(amount: "0.00"), grandTotal: MoneyAmount(amount: "20.00"))
+        )
+        let finalConsumerSale = BusinessSale(
+            id: "sale_final",
+            number: "SALE-FINAL",
+            organizationId: "org_1",
+            branchId: "branch_1",
+            customerId: nil,
+            customerName: "Consumidor final",
+            customer: BusinessSaleCustomer(id: nil, displayName: "Consumidor final", identification: "9999999999999"),
+            status: "confirmed",
+            paymentStatus: "pending",
+            totals: BusinessSaleTotals(subtotalWithoutTaxes: MoneyAmount(amount: "5.00"), discountTotal: MoneyAmount(amount: "0.00"), taxTotal: MoneyAmount(amount: "0.00"), grandTotal: MoneyAmount(amount: "5.00"))
+        )
+
+        XCTAssertEqual(identifiedSale.customer360Seed?.id, "cus_real")
+        XCTAssertEqual(identifiedSale.customer360Seed?.identificationType, .cedula)
+        XCTAssertNil(finalConsumerSale.customer360Seed)
+    }
+
+    func testCustomer360SeedFactoryAllowsReceivableWithRealCustomer() {
+        let receivable = ReceivableRecord(
+            id: "recv_001",
+            saleId: "sale_001",
+            customerId: "cus_001",
+            customerName: "José Ruiz",
+            status: "open",
+            amount: MoneyAmount(amount: "27.60"),
+            balance: MoneyAmount(amount: "12.60")
+        )
+        let missingCustomerReceivable = ReceivableRecord(
+            id: "recv_missing",
+            saleId: "sale_002",
+            customerId: nil,
+            customerName: nil,
+            status: "open",
+            amount: MoneyAmount(amount: "10.00"),
+            balance: MoneyAmount(amount: "10.00")
+        )
+
+        XCTAssertEqual(receivable.customer360Seed?.id, "cus_001")
+        XCTAssertEqual(receivable.customer360Seed?.displayName, "José Ruiz")
+        XCTAssertNil(missingCustomerReceivable.customer360Seed)
     }
 
     func testLoadSkipsRepositoriesWithoutPermissions() async {

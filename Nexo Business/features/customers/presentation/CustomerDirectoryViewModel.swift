@@ -113,9 +113,9 @@ final class CustomerDetail360ViewModel {
     let customer: BusinessCustomer
     let effectivePermissions: Set<String>
 
-    private let salesHistoryRepository: SalesHistoryRepository
-    private let receivablesRepository: ReceivablesRepository
-    private let documentsRepository: BusinessDocumentsRepository
+    let salesHistoryRepository: SalesHistoryRepository
+    let receivablesRepository: ReceivablesRepository
+    let documentsRepository: BusinessDocumentsRepository
     private var lastLoadedAt: Date?
 
     init(
@@ -182,6 +182,32 @@ final class CustomerDetail360ViewModel {
 
     var settledReceivables: [ReceivableRecord] {
         receivables.filter(\.isSettled)
+    }
+
+    var hasOpenReceivables: Bool {
+        !openReceivables.isEmpty
+    }
+
+    var hasSales: Bool {
+        !sales.isEmpty
+    }
+
+    var customerPilotStatusText: String {
+        if hasOpenReceivables {
+            return "Cliente con deuda real: saldo pendiente y abonos deben revisarse desde Por cobrar."
+        }
+
+        if hasSales || !documents.isEmpty {
+            return "Cliente identificado: ventas y comprobantes agrupados para seguimiento del negocio."
+        }
+
+        return "Cliente real: todavía sin movimiento histórico en esta sucursal."
+    }
+
+    var customerPilotStatusIcon: String {
+        if hasOpenReceivables { return "person.crop.circle.badge.clock" }
+        if hasSales || !documents.isEmpty { return "person.text.rectangle" }
+        return "person.crop.circle.badge.questionmark"
     }
 
     var pendingBalanceDisplay: String {
