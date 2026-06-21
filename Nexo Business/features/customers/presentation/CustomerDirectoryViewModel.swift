@@ -198,7 +198,7 @@ final class CustomerDetail360ViewModel {
         }
 
         if hasSales || !documents.isEmpty {
-            return "Cliente identificado: ventas y comprobantes agrupados para seguimiento del negocio."
+            return "Cliente registrado: ventas, cuentas por cobrar y comprobantes agrupados para seguimiento del negocio."
         }
 
         return "Cliente real: todavía sin movimiento histórico en esta sucursal."
