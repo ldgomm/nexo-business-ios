@@ -250,7 +250,15 @@ struct BusinessHomeView: View {
                                 organizationId: organizationId,
                                 effectivePermissions: permissions,
                                 customersRepository: container.customersRepository
-                            )
+                            ),
+                            branchId: branchId,
+                            revisions: context.revisions,
+                            salesHistoryRepository: container.salesHistoryRepository,
+                            salesRepository: container.salesRepository,
+                            cashRepository: container.cashRepository,
+                            paymentsRepository: container.paymentsRepository,
+                            receivablesRepository: container.receivablesRepository,
+                            documentsRepository: container.documentsRepository
                         )
                     } label: {
                         BusinessHomeToolTile(
