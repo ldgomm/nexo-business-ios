@@ -34,6 +34,7 @@ extension BusinessAppContainer {
             organizationAccessRepository: PreviewBusinessOrganizationAccessRepository(),
             contextRepository: PreviewBusinessContextRepository(),
             catalogRepository: PreviewCatalogRepository(),
+            productsRepository: PreviewProductsRepository(),
             salesRepository: PreviewSalesRepository(),
             cashRepository: PreviewCashRepository(),
             paymentsRepository: PreviewPaymentsRepository(),

@@ -16,6 +16,7 @@ final class BusinessAppContainer: @unchecked Sendable {
     let organizationAccessRepository: BusinessOrganizationAccessRepository
     let contextRepository: BusinessContextRepository
     let catalogRepository: CatalogRepository
+    let productsRepository: ProductsRepository
     let salesRepository: SalesRepository
     let cashRepository: CashRepository
     let paymentsRepository: PaymentsRepository
@@ -37,6 +38,7 @@ final class BusinessAppContainer: @unchecked Sendable {
         organizationAccessRepository: BusinessOrganizationAccessRepository,
         contextRepository: BusinessContextRepository,
         catalogRepository: CatalogRepository,
+        productsRepository: ProductsRepository,
         salesRepository: SalesRepository,
         cashRepository: CashRepository,
         paymentsRepository: PaymentsRepository,
@@ -57,6 +59,7 @@ final class BusinessAppContainer: @unchecked Sendable {
         self.organizationAccessRepository = organizationAccessRepository
         self.contextRepository = contextRepository
         self.catalogRepository = catalogRepository
+        self.productsRepository = productsRepository
         self.salesRepository = salesRepository
         self.cashRepository = cashRepository
         self.paymentsRepository = paymentsRepository
@@ -103,6 +106,7 @@ final class BusinessAppContainer: @unchecked Sendable {
             organizationAccessRepository: BusinessOrganizationAccessAPIRepository(apiClient: apiClient),
             contextRepository: BusinessContextAPIRepository(apiClient: apiClient),
             catalogRepository: CatalogAPIRepository(apiClient: apiClient),
+            productsRepository: ProductsAPIRepository(apiClient: apiClient),
             salesRepository: SalesAPIRepository(apiClient: apiClient),
             cashRepository: CashAPIRepository(apiClient: apiClient),
             paymentsRepository: PaymentsAPIRepository(apiClient: apiClient),

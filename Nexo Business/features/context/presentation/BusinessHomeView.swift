@@ -272,6 +272,28 @@ struct BusinessHomeView: View {
                     .buttonStyle(.plain)
                 }
 
+                if capabilityGate.canAccessSales {
+                    NavigationLink {
+                        ProductsListView(
+                            viewModel: ProductsListViewModel(
+                                organizationId: organizationId,
+                                branchId: branchId,
+                                activityId: activityId,
+                                catalogRevision: revisions.catalogRevision,
+                                repository: container.productsRepository
+                            )
+                        )
+                    } label: {
+                        BusinessHomeToolTile(
+                            title: "Productos",
+                            subtitle: "Precios y venta",
+                            systemImage: "shippingbox.fill",
+                            tint: .teal
+                        )
+                    }
+                    .buttonStyle(.plain)
+                }
+
                 if capabilityGate.canAccessReceivables {
                     NavigationLink {
                         ReceivablesListView(
@@ -382,7 +404,7 @@ struct BusinessHomeView: View {
 
             if capabilityGate.canAccessInventory {
                 BusinessHomeInlineMessage(
-                    message: "Inventario está oculto como navegación porque staging todavía responde 404 en /api/v1/business/inventory/items.",
+                    message: "Inventario básico se activará después. Por ahora administra productos y precios desde Productos.",
                     systemImage: "shippingbox",
                     tint: .secondary
                 )
