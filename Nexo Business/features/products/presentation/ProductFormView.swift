@@ -30,8 +30,25 @@ struct ProductFormView: View {
                     Text("Producto").tag("PRODUCT")
                     Text("Servicio").tag("SERVICE")
                 }
-                TextField("Tax profile", text: $viewModel.taxProfileCode)
-                    .textInputAutocapitalization(.characters)
+
+                if viewModel.taxProfiles.isEmpty {
+                    ContentUnavailableView(
+                        "Sin perfiles tributarios",
+                        systemImage: "exclamationmark.triangle",
+                        description: Text("No hay perfiles tributarios habilitados para productos en esta organización.")
+                    )
+                } else {
+                    Picker("Perfil tributario", selection: $viewModel.selectedTaxProfileCode) {
+                        ForEach(viewModel.taxProfiles) { profile in
+                            Text(profile.pickerTitle).tag(profile.code)
+                        }
+                    }
+                    if let helpText = viewModel.selectedTaxProfile?.helpText {
+                        Text(helpText)
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
+                }
             }
 
             if let error = viewModel.errorMessage {

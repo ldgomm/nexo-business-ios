@@ -6,6 +6,8 @@
 import Foundation
 
 protocol ProductsRepository: Sendable {
+    func listTaxProfiles(organizationId: String) async throws -> BusinessTaxProfilesResponse
+
     func listProducts(
         organizationId: String,
         branchId: String,
@@ -45,6 +47,23 @@ protocol ProductsRepository: Sendable {
 }
 
 final class PreviewProductsRepository: ProductsRepository, @unchecked Sendable {
+    private let previewTaxProfiles = [
+        BusinessTaxProfile(
+            code: "iva_full",
+            displayName: "IVA vigente",
+            treatment: "IVA_FULL",
+            rateLabel: "Servidor",
+            defaultForProducts: true,
+            helpText: "Perfil tributario de prueba. El servidor calcula la tarifa real."
+        ),
+        BusinessTaxProfile(
+            code: "iva_zero",
+            displayName: "IVA 0%",
+            treatment: "IVA_ZERO",
+            rateLabel: "0%"
+        )
+    ]
+
     private var storage: [BusinessProduct] = [
         BusinessProduct(
             id: "prod_cuy",
@@ -54,8 +73,8 @@ final class PreviewProductsRepository: ProductsRepository, @unchecked Sendable {
             type: "PRODUCT",
             status: "ACTIVE",
             price: MoneyAmount(amount: "24.00", currency: "USD"),
-            taxProfileCode: "IVA_15",
-            taxProfileId: "IVA_15"
+            taxProfileCode: "iva_full",
+            taxProfileId: "iva_full"
         ),
         BusinessProduct(
             id: "prod_borrego",
@@ -65,10 +84,14 @@ final class PreviewProductsRepository: ProductsRepository, @unchecked Sendable {
             type: "PRODUCT",
             status: "ACTIVE",
             price: MoneyAmount(amount: "10.00", currency: "USD"),
-            taxProfileCode: "IVA_15",
-            taxProfileId: "IVA_15"
+            taxProfileCode: "iva_full",
+            taxProfileId: "iva_full"
         )
     ]
+
+    func listTaxProfiles(organizationId: String) async throws -> BusinessTaxProfilesResponse {
+        BusinessTaxProfilesResponse(profiles: previewTaxProfiles, defaultProductTaxProfileCode: "iva_full")
+    }
 
     func listProducts(
         organizationId: String,
@@ -89,6 +112,7 @@ final class PreviewProductsRepository: ProductsRepository, @unchecked Sendable {
     }
 
     func createProduct(organizationId: String, branchId: String, activityId: String, request: BusinessProductUpsertRequest) async throws -> BusinessProductMutationResponse {
+        let resolvedTaxProfileCode = request.taxProfileCode ?? previewTaxProfiles.first(where: { $0.defaultForProducts })?.code ?? previewTaxProfiles.first?.code
         let product = BusinessProduct(
             id: "prod_preview_\(UUID().uuidString.prefix(8))",
             name: request.name,
@@ -97,8 +121,8 @@ final class PreviewProductsRepository: ProductsRepository, @unchecked Sendable {
             type: request.type,
             status: "ACTIVE",
             price: request.price,
-            taxProfileCode: request.taxProfileCode,
-            taxProfileId: request.taxProfileCode
+            taxProfileCode: resolvedTaxProfileCode,
+            taxProfileId: resolvedTaxProfileCode
         )
         storage.append(product)
         return BusinessProductMutationResponse(

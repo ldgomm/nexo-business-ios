@@ -38,6 +38,8 @@ final class ProductsListViewModel {
     let repository: ProductsRepository
 
     var products: [BusinessProduct] = []
+    var taxProfiles: [BusinessTaxProfile] = []
+    var defaultProductTaxProfileCode: String?
     var query = ""
     var filter: Filter = .all
     var isLoading = false
@@ -68,6 +70,7 @@ final class ProductsListViewModel {
         errorMessage = nil
         defer { isLoading = false }
         do {
+            try await loadTaxProfilesIfNeeded()
             let response = try await repository.listProducts(
                 organizationId: organizationId,
                 branchId: branchId,
@@ -81,6 +84,13 @@ final class ProductsListViewModel {
         } catch {
             errorMessage = ProductsErrorPresenter.message(for: error)
         }
+    }
+
+    private func loadTaxProfilesIfNeeded() async throws {
+        guard taxProfiles.isEmpty else { return }
+        let response = try await repository.listTaxProfiles(organizationId: organizationId)
+        taxProfiles = response.profiles.filter { $0.enabled && $0.canUseForProducts && !$0.internalOnly }
+        defaultProductTaxProfileCode = response.defaultProductTaxProfileCode
     }
 
     func deactivate(_ product: BusinessProduct) async {
@@ -133,6 +143,9 @@ enum ProductsErrorPresenter {
         }
         if raw.contains("403") {
             return "Tu usuario no tiene permiso para administrar productos."
+        }
+        if raw.lowercased().contains("tax profile") || raw.lowercased().contains("perfil tributario") {
+            return "No se pudo usar el perfil tributario seleccionado. Recarga Productos y elige un perfil habilitado."
         }
         return "No se pudo completar la operación. Revisa conexión o permisos."
     }

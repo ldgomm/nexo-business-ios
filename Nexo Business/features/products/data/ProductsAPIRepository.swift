@@ -7,6 +7,7 @@ import Foundation
 
 enum BusinessProductsRoutes {
     static let products = "/api/v1/business/products"
+    static let taxProfiles = "/api/v1/business/tax-profiles"
 
     static func product(_ productId: String) -> String {
         "/api/v1/business/products/\(productId)"
@@ -28,6 +29,18 @@ final class ProductsAPIRepository: ProductsRepository, @unchecked Sendable {
     init(apiClient: APIClient, revisionRegistry: BusinessRevisionRegistry = .shared) {
         self.apiClient = apiClient
         self.revisionRegistry = revisionRegistry
+    }
+
+    func listTaxProfiles(organizationId: String) async throws -> BusinessTaxProfilesResponse {
+        let response: BusinessTaxProfilesResponse = try await apiClient.send(
+            APIRequest(
+                method: .get,
+                path: BusinessProductsRoutes.taxProfiles,
+                queryItems: [URLQueryItem(name: "usage", value: "products")],
+                headers: [BusinessHeaders.organizationId: organizationId]
+            )
+        )
+        return response
     }
 
     func listProducts(

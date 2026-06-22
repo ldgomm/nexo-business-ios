@@ -106,7 +106,8 @@ struct ProductsListView: View {
                         organizationId: viewModel.organizationId,
                         branchId: viewModel.branchId,
                         activityId: viewModel.activityId,
-                        repository: viewModel.repository
+                        repository: viewModel.repository,
+                        taxProfiles: viewModel.taxProfiles
                     ),
                     onSaved: { product in
                         viewModel.replace(product)
@@ -123,7 +124,8 @@ struct ProductsListView: View {
                         organizationId: viewModel.organizationId,
                         branchId: viewModel.branchId,
                         activityId: viewModel.activityId,
-                        repository: viewModel.repository
+                        repository: viewModel.repository,
+                        taxProfiles: viewModel.taxProfiles
                     ),
                     onSaved: { updated in
                         viewModel.replace(updated)
