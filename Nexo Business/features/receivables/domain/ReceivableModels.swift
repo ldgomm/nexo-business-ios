@@ -497,7 +497,11 @@ extension ReceivableRecord {
     }
 
     var isMissingCustomer: Bool {
-        customerId?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty != false
+        guard let customerId = customerId?.trimmingCharacters(in: .whitespacesAndNewlines), !customerId.isEmpty else {
+            return true
+        }
+
+        return BusinessElectronicInvoiceCustomerPolicy.isFinalConsumerCustomerId(customerId)
     }
 
     var isSettled: Bool {

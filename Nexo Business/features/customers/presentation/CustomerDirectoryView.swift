@@ -725,7 +725,7 @@ enum Customer360SeedFactory {
         let normalizedName = normalized(displayName)
         let normalizedIdentification = normalized(identification)
 
-        if normalizedId == "final_consumer" || normalizedId == "consumidor_final" { return false }
+        if BusinessElectronicInvoiceCustomerPolicy.isFinalConsumerCustomerId(normalizedId) { return false }
         if normalizedName == "consumidor final" || normalizedName == "final consumer" { return false }
         if normalizedIdentification == "9999999999999" { return false }
 

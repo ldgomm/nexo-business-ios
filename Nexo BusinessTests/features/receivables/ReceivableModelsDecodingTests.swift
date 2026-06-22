@@ -73,6 +73,23 @@ final class ReceivableModelsDecodingTests: XCTestCase {
         XCTAssertEqual(receivable.displaySaleReference, "SALE-7B0B42DA31")
     }
 
+
+    func testFinalConsumerReceivableIsTreatedAsMissingCustomer() {
+        let receivable = ReceivableRecord(
+            id: "recv_final",
+            saleId: "sale_final",
+            customerId: "cus_final_consumer",
+            customerName: "Consumidor final",
+            status: "open",
+            amount: MoneyAmount(amount: "10.00"),
+            balance: MoneyAmount(amount: "10.00")
+        )
+
+        XCTAssertTrue(receivable.isMissingCustomer)
+        XCTAssertNil(receivable.customer360Seed)
+        XCTAssertEqual(receivable.displayCustomerName, "Cliente por revisar")
+    }
+
     func testMissingCustomerNameUsesReviewCopyInsteadOfGenericIdentifiedCopy() {
         let receivable = ReceivableRecord(
             id: "recv_003",

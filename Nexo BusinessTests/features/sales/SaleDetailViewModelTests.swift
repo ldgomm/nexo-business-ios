@@ -149,7 +149,6 @@ final class SaleDetailViewModelTests: XCTestCase {
         XCTAssertFalse(viewModel.canDownloadElectronicDocumentXml(document))
     }
 
-
     func testCanCollectIsBlockedWhenSaleAlreadyHasRealReceivable() {
         let sale = makeSale(
             paymentStatus: "partially_paid",
@@ -168,7 +167,6 @@ final class SaleDetailViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.sale?.collectionState, .realReceivable)
         XCTAssertFalse(viewModel.canCollect)
     }
-
 
     func testCanCollectIsBlockedWhenSaleHasReceivableWithoutCustomer() {
         let sale = makeSale(

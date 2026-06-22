@@ -157,6 +157,21 @@ final class SalesModelsDecodingTests: XCTestCase {
         XCTAssertEqual(sale.collectionState.displayName, "Revisar por cobrar")
     }
 
+
+    func testFinalConsumerIdWithReceivableNeverBecomesRealReceivable() {
+        let sale = makeSale(
+            customerId: "cus_final_consumer",
+            customerName: "Consumidor final",
+            paymentStatus: "unpaid",
+            receivableId: "recv_dirty"
+        )
+
+        XCTAssertTrue(BusinessElectronicInvoiceCustomerPolicy.isFinalConsumer(sale: sale))
+        XCTAssertEqual(sale.collectionState, .receivableNeedsReview)
+        XCTAssertFalse(sale.hasRealReceivable)
+        XCTAssertFalse(sale.hasIdentifiedCustomerForReceivable)
+    }
+
     func testClassifiesPaidSaleAsPaid() {
         let sale = makeSale(
             customerId: nil,
@@ -202,6 +217,7 @@ final class SalesModelsDecodingTests: XCTestCase {
         XCTAssertEqual(sale.receivableCustomerId, "cus_001")
         XCTAssertEqual(sale.receivableBalance?.amount, "26.60")
         XCTAssertEqual(sale.collectionState, .realReceivable)
+        XCTAssertFalse(sale.isSavedSaleWithoutReceivable)
     }
 
     private func makeSale(

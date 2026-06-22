@@ -247,9 +247,23 @@ final class CustomerDetail360ViewModelTests: XCTestCase {
             totals: BusinessSaleTotals(subtotalWithoutTaxes: MoneyAmount(amount: "5.00"), discountTotal: MoneyAmount(amount: "0.00"), taxTotal: MoneyAmount(amount: "0.00"), grandTotal: MoneyAmount(amount: "5.00"))
         )
 
+        let finalConsumerWithSyntheticId = BusinessSale(
+            id: "sale_final_synthetic_id",
+            number: "SALE-FINAL-ID",
+            organizationId: "org_1",
+            branchId: "branch_1",
+            customerId: "cus_final_consumer",
+            customerName: nil,
+            customer: nil,
+            status: "confirmed",
+            paymentStatus: "pending",
+            totals: BusinessSaleTotals(subtotalWithoutTaxes: MoneyAmount(amount: "5.00"), discountTotal: MoneyAmount(amount: "0.00"), taxTotal: MoneyAmount(amount: "0.00"), grandTotal: MoneyAmount(amount: "5.00"))
+        )
+
         XCTAssertEqual(identifiedSale.customer360Seed?.id, "cus_real")
         XCTAssertEqual(identifiedSale.customer360Seed?.identificationType, .cedula)
         XCTAssertNil(finalConsumerSale.customer360Seed)
+        XCTAssertNil(finalConsumerWithSyntheticId.customer360Seed)
     }
 
     func testCustomer360SeedFactoryAllowsReceivableWithRealCustomer() {

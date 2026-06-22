@@ -742,13 +742,15 @@ enum SaleCollectionState: Equatable, Sendable {
 
 extension BusinessSale {
     var collectionState: SaleCollectionState {
-        let saleStatus = normalizedCollectionValue(status)
-        if ["voided", "cancelled", "canceled", "annulled"].contains(saleStatus) {
+        let saleStatus = SaleCollectionResolver.normalized(status)
+
+        if SaleCollectionResolver.isCancelledSaleStatus(saleStatus) {
             return .cancelled
         }
 
-        let payment = normalizedCollectionValue(paymentStatus ?? "")
-        if ["paid", "collected", "registered", "confirmed", "overpaid"].contains(payment) {
+        let payment = SaleCollectionResolver.normalized(paymentStatus ?? "")
+
+        if SaleCollectionResolver.isPaidPaymentStatus(payment) {
             return .paid
         }
 
@@ -756,11 +758,11 @@ extension BusinessSale {
             return hasRealReceivable ? .realReceivable : .receivableNeedsReview
         }
 
-        if ["partially_paid", "partial", "partial_payment", "partially_collected"].contains(payment) {
+        if SaleCollectionResolver.isPartiallyPaidPaymentStatus(payment) {
             return .partialWithoutReceivable
         }
 
-        if payment.isEmpty || ["unpaid", "pending", "pending_payment"].contains(payment) {
+        if SaleCollectionResolver.isUnpaidPaymentStatus(payment) {
             return .unpaidSavedSale
         }
 
@@ -768,7 +770,7 @@ extension BusinessSale {
     }
 
     var hasReceivableReference: Bool {
-        receivableId?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+        SaleCollectionResolver.hasText(receivableId)
     }
 
     var hasRealReceivable: Bool {
@@ -776,25 +778,137 @@ extension BusinessSale {
     }
 
     var hasIdentifiedCustomerForReceivable: Bool {
-        let directCustomerId = customerId?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let receivableCustomerId = receivableCustomerId?.trimmingCharacters(in: .whitespacesAndNewlines)
-        return directCustomerId?.isEmpty == false || receivableCustomerId?.isEmpty == false
+        let candidates = [
+            receivableCustomerId,
+            customerId,
+            customer?.id
+        ]
+
+        return candidates.contains { candidate in
+            guard SaleCollectionResolver.hasText(candidate) else {
+                return false
+            }
+
+            return !BusinessElectronicInvoiceCustomerPolicy.isFinalConsumerCustomerId(candidate)
+        }
+    }
+
+    var hasPositiveReceivableBalance: Bool {
+        SaleCollectionResolver.isPositiveAmount(receivableBalance?.amount)
     }
 
     var isSavedSaleWithoutReceivable: Bool {
         switch collectionState {
         case .unpaidSavedSale, .partialWithoutReceivable:
             return true
-        default:
+        case .paid, .realReceivable, .receivableNeedsReview, .cancelled, .unknown:
             return false
         }
     }
+}
 
-    private func normalizedCollectionValue(_ value: String) -> String {
+private enum SaleCollectionResolver {
+    static func hasText(_ value: String?) -> Bool {
+        guard let value else {
+            return false
+        }
+
+        return value
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .isEmpty == false
+    }
+
+    static func normalized(_ value: String) -> String {
         value
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .lowercased()
             .replacingOccurrences(of: "-", with: "_")
+            .replacingOccurrences(of: " ", with: "_")
+    }
+
+    static func compactNormalized(_ value: String) -> String {
+        normalized(value)
+            .replacingOccurrences(of: "_", with: "")
+    }
+
+    static func isPositiveAmount(_ value: String?) -> Bool {
+        guard let value else {
+            return false
+        }
+
+        let cleaned = value
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: ",", with: ".")
+
+        guard let decimal = Decimal(
+            string: cleaned,
+            locale: Locale(identifier: "en_US_POSIX")
+        ) else {
+            return false
+        }
+
+        return NSDecimalNumber(decimal: decimal)
+            .compare(NSDecimalNumber.zero) == .orderedDescending
+    }
+
+    static func isCancelledSaleStatus(_ value: String) -> Bool {
+        let normalized = normalized(value)
+
+        return [
+            "voided",
+            "cancelled",
+            "canceled",
+            "annulled",
+            "cancelled_internal",
+            "canceled_internal"
+        ].contains(normalized)
+    }
+
+    static func isPaidPaymentStatus(_ value: String) -> Bool {
+        let normalized = normalized(value)
+        let compact = compactNormalized(value)
+
+        return [
+            "paid",
+            "collected",
+            "registered",
+            "confirmed",
+            "overpaid",
+            "fully_paid",
+            "settled",
+            "completed"
+        ].contains(normalized) || [
+            "fullypaid"
+        ].contains(compact)
+    }
+
+    static func isPartiallyPaidPaymentStatus(_ value: String) -> Bool {
+        let normalized = normalized(value)
+        let compact = compactNormalized(value)
+
+        return [
+            "partially_paid",
+            "partial",
+            "partial_payment",
+            "partially_collected"
+        ].contains(normalized) || [
+            "partiallypaid",
+            "partialpayment",
+            "partiallycollected"
+        ].contains(compact)
+    }
+
+    static func isUnpaidPaymentStatus(_ value: String) -> Bool {
+        let normalized = normalized(value)
+
+        return normalized.isEmpty || [
+            "unpaid",
+            "pending",
+            "pending_payment",
+            "not_paid",
+            "none",
+            "uncollected"
+        ].contains(normalized)
     }
 }
 
@@ -860,7 +974,7 @@ enum BusinessElectronicInvoiceCustomerPolicy {
 
     static func isFinalConsumer(sale: BusinessSale) -> Bool {
         if let customerId = sale.customerId?.trimmingCharacters(in: .whitespacesAndNewlines), !customerId.isEmpty {
-            return false
+            return isFinalConsumerCustomerId(customerId)
         }
 
         if let identification = sale.customer?.identification, normalized(identification) == finalConsumerIdentification {
@@ -869,6 +983,17 @@ enum BusinessElectronicInvoiceCustomerPolicy {
 
         let saleName = normalized(sale.customer?.displayName ?? sale.customerName ?? "")
         return sale.customer == nil || saleName == "consumidor final"
+    }
+
+    static func isFinalConsumerCustomerId(_ value: String?) -> Bool {
+        let normalizedId = normalized(value ?? "")
+            .replacingOccurrences(of: "-", with: "_")
+        return [
+            "final_consumer",
+            "consumidor_final",
+            "cus_final_consumer",
+            "customer_final_consumer"
+        ].contains(normalizedId)
     }
 
     private static func decimal(_ value: String) -> Decimal {
