@@ -659,6 +659,9 @@ private struct ProductDetailView: View {
                     ProductDetailRow(title: "Estado local", value: product.localStatus ?? product.status ?? "Sin estado")
                     ProductDetailRow(title: "Estado maestro", value: product.masterStatus ?? "No informado")
                     ProductDetailRow(title: "Estado efectivo", value: product.effectiveStatus ?? "No informado")
+                    if let reason = product.productsAvailabilityReason {
+                        ProductDetailRow(title: "Motivo", value: reason)
+                    }
                 }
                 
                 detailActions
@@ -842,7 +845,7 @@ private struct ProductDetailView: View {
             .disabled(isChangingStatus)
         } else {
             Button {} label: {
-                Label("Bloqueado por catálogo maestro", systemImage: "lock")
+                Label(product.productsBlockedActionTitleForProductsUI, systemImage: "lock")
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(.bordered)
@@ -1115,14 +1118,39 @@ private struct ProductsIconBadge: View {
 
 private extension BusinessProduct {
     var productsIsBlockedForProductsUI: Bool {
+        if let canSell, canSell == false, canActivate == false {
+            return true
+        }
         let effective = effectiveStatus?.lowercased() ?? ""
         let master = masterStatus?.lowercased() ?? ""
         return effective.contains("master")
         || effective.contains("blocked")
         || effective.contains("removed")
+        || effective.contains("legacy")
+        || effective.contains("needs_review")
+        || master == "draft"
+        || master == "paused"
+        || master == "archived"
         || master == "disabled"
         || master == "removed"
         || master == "blocked"
+        || master == "missing_master"
+        || master == "orphan"
+    }
+
+    var productsBlockedActionTitleForProductsUI: String {
+        switch effectiveStatus?.lowercased() {
+        case "draft_by_master":
+            return "En preparación por catálogo"
+        case "paused_by_master", "blocked_by_master", "disabled_by_master":
+            return "Pausado por catálogo maestro"
+        case "removed_by_master":
+            return "Retirado del catálogo maestro"
+        case "legacy_needs_review", "local_needs_review":
+            return "Requiere revisión"
+        default:
+            return "No se puede activar"
+        }
     }
     
     var productsSourceLabelForProductsUI: String {

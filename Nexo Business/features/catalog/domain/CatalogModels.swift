@@ -169,10 +169,13 @@ struct BusinessCatalogItem: Decodable, Equatable, Identifiable, Sendable {
     let masterStatus: String?
     let effectiveStatus: String?
     let availabilityLabel: String?
+    let availabilityReason: String?
     let source: String?
     let masterCatalogItemId: String?
+    let canSell: Bool?
     let canActivate: Bool?
     let canDeactivate: Bool?
+    let requiresReview: Bool?
     let unit: BusinessCatalogUnit?
     let price: MoneyAmount?
     let taxProfileCode: String?
@@ -193,10 +196,13 @@ struct BusinessCatalogItem: Decodable, Equatable, Identifiable, Sendable {
         masterStatus: String? = nil,
         effectiveStatus: String? = nil,
         availabilityLabel: String? = nil,
+        availabilityReason: String? = nil,
         source: String? = nil,
         masterCatalogItemId: String? = nil,
+        canSell: Bool? = nil,
         canActivate: Bool? = nil,
         canDeactivate: Bool? = nil,
+        requiresReview: Bool? = nil,
         unit: BusinessCatalogUnit? = nil,
         price: MoneyAmount? = nil,
         taxProfileCode: String? = nil,
@@ -216,10 +222,13 @@ struct BusinessCatalogItem: Decodable, Equatable, Identifiable, Sendable {
         self.masterStatus = masterStatus
         self.effectiveStatus = effectiveStatus
         self.availabilityLabel = availabilityLabel
+        self.availabilityReason = availabilityReason
         self.source = source
         self.masterCatalogItemId = masterCatalogItemId
+        self.canSell = canSell
         self.canActivate = canActivate
         self.canDeactivate = canDeactivate
+        self.requiresReview = requiresReview
         self.unit = unit
         self.price = price
         self.taxProfileCode = taxProfileCode
@@ -245,12 +254,16 @@ struct BusinessCatalogItem: Decodable, Equatable, Identifiable, Sendable {
         case masterStatus
         case effectiveStatus
         case availabilityLabel
+        case availabilityReason
         case source
         case sourceType
         case masterCatalogItemId
         case templateId
+        case canSell
+        case availableForSale
         case canActivate
         case canDeactivate
+        case requiresReview
         case unit
         case price
         case basePrice
@@ -278,10 +291,14 @@ struct BusinessCatalogItem: Decodable, Equatable, Identifiable, Sendable {
         masterStatus = try container.decodeIfPresent(String.self, forKey: .masterStatus)
         effectiveStatus = try container.decodeIfPresent(String.self, forKey: .effectiveStatus)
         availabilityLabel = try container.decodeIfPresent(String.self, forKey: .availabilityLabel)
+        availabilityReason = try container.decodeIfPresent(String.self, forKey: .availabilityReason)
         source = try container.decodeFirstStringIfPresent(for: [.source, .sourceType])
         masterCatalogItemId = try container.decodeFirstStringIfPresent(for: [.masterCatalogItemId, .templateId])
+        canSell = try container.decodeIfPresent(Bool.self, forKey: .canSell)
+        ?? container.decodeIfPresent(Bool.self, forKey: .availableForSale)
         canActivate = try container.decodeIfPresent(Bool.self, forKey: .canActivate)
         canDeactivate = try container.decodeIfPresent(Bool.self, forKey: .canDeactivate)
+        requiresReview = try container.decodeIfPresent(Bool.self, forKey: .requiresReview)
         unit = try container.decodeIfPresent(BusinessCatalogUnit.self, forKey: .unit)
         price = try container.decodeFirstMoneyIfPresent(for: [.price, .basePrice, .unitPrice, .localPrice])
         taxProfileCode = try container.decodeIfPresent(String.self, forKey: .taxProfileCode)
@@ -369,7 +386,6 @@ private extension KeyedDecodingContainer where Key == BusinessCatalogItem.Coding
         return nil
     }
 }
-
 
 private extension String {
     var nilIfEmptyForCatalog: String? {

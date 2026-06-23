@@ -270,8 +270,13 @@ extension BusinessProduct {
 
         switch effectiveStatus?.lowercased() {
         case "available": return "Disponible"
-        case "paused_by_business": return "No disponible"
-        case "blocked_by_master", "disabled_by_master": return "Bloqueado por catálogo"
+        case "paused_by_business": return "Pausado por negocio"
+        case "out_of_stock_by_business": return "Sin stock"
+        case "archived_by_business": return "Archivado por negocio"
+        case "draft_by_master": return "En preparación por catálogo"
+        case "paused_by_master", "blocked_by_master", "disabled_by_master": return "Pausado por catálogo"
+        case "removed_by_master": return "Retirado por catálogo"
+        case "legacy_needs_review", "local_needs_review": return "Requiere revisión"
         case "removed_from_account": return "Removido"
         default: break
         }
@@ -285,6 +290,9 @@ extension BusinessProduct {
     }
     
     var productsIsActive: Bool {
+        if let canSell {
+            return canSell
+        }
         if let effectiveStatus {
             return effectiveStatus.lowercased() == "available"
         }
@@ -297,6 +305,10 @@ extension BusinessProduct {
 
     var productsCanDeactivate: Bool {
         canDeactivate ?? productsIsActive
+    }
+
+    var productsAvailabilityReason: String? {
+        availabilityReason?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmptyForProducts
     }
     
     var productsPrimaryCode: String? {
