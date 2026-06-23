@@ -163,7 +163,7 @@ struct InventoryItem: Decodable, Equatable, Identifiable, Sendable {
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
 
-        id = try container.decodeFirstString(for: [.id, .mongoId, .inventoryItemId])
+        id = try container.decodeFirstString(for: [.id, .mongoId, .inventoryItemId, .itemId])
         catalogItemId = try container.decodeFirstStringIfPresent(for: [.catalogItemId, .itemId]) ?? id
         name = try container.decodeFirstString(for: [.name, .localName, .displayName])
         sku = try container.decodeIfPresent(String.self, forKey: .sku)
@@ -221,6 +221,8 @@ struct InventoryItemsResponse: Decodable, Equatable, Sendable {
     private enum CodingKeys: String, CodingKey {
         case items
         case inventoryItems
+        case stock
+        case stockItems
         case results
         case data
         case catalogRevision
@@ -233,6 +235,8 @@ struct InventoryItemsResponse: Decodable, Equatable, Sendable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         items = try container.decodeIfPresent([InventoryItem].self, forKey: .items)
             ?? container.decodeIfPresent([InventoryItem].self, forKey: .inventoryItems)
+            ?? container.decodeIfPresent([InventoryItem].self, forKey: .stock)
+            ?? container.decodeIfPresent([InventoryItem].self, forKey: .stockItems)
             ?? container.decodeIfPresent([InventoryItem].self, forKey: .results)
             ?? container.decodeIfPresent([InventoryItem].self, forKey: .data)
             ?? []
@@ -240,6 +244,45 @@ struct InventoryItemsResponse: Decodable, Equatable, Sendable {
         totalCount = try container.decodeIfPresent(Int.self, forKey: .totalCount)
         lowStockCount = try container.decodeIfPresent(Int.self, forKey: .lowStockCount)
         outOfStockCount = try container.decodeIfPresent(Int.self, forKey: .outOfStockCount)
+    }
+}
+
+struct InventoryStockItemResponse: Decodable, Equatable, Sendable {
+    let item: InventoryItem
+    let catalogRevision: String?
+
+    init(item: InventoryItem, catalogRevision: String? = nil) {
+        self.item = item
+        self.catalogRevision = catalogRevision
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case item
+        case inventoryItem
+        case stockItem
+        case catalogRevision
+    }
+
+    init(from decoder: Decoder) throws {
+        if let container = try? decoder.container(keyedBy: CodingKeys.self) {
+            catalogRevision = try container.decodeIfPresent(String.self, forKey: .catalogRevision)
+            if let item = try? container.decode(InventoryItem.self, forKey: .item) {
+                self.item = item
+                return
+            }
+            if let item = try? container.decode(InventoryItem.self, forKey: .inventoryItem) {
+                self.item = item
+                return
+            }
+            if let item = try? container.decode(InventoryItem.self, forKey: .stockItem) {
+                self.item = item
+                return
+            }
+        } else {
+            catalogRevision = nil
+        }
+
+        self.item = try InventoryItem(from: decoder)
     }
 }
 
@@ -272,6 +315,56 @@ struct InventoryMovement: Decodable, Equatable, Identifiable, Sendable {
         self.reason = reason
         self.createdAt = createdAt
     }
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case mongoId = "_id"
+        case movementId
+        case inventoryItemId
+        case itemId
+        case productId
+        case type
+        case movementType
+        case direction
+        case quantity
+        case deltaQuantity
+        case previousQuantity
+        case beforeQuantity
+        case newQuantity
+        case afterQuantity
+        case reason
+        case note
+        case notes
+        case createdAt
+        case occurredAt
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decodeFirstString(for: [.id, .mongoId, .movementId])
+        inventoryItemId = try container.decodeFirstStringIfPresent(for: [.inventoryItemId, .itemId, .productId]) ?? ""
+        type = try container.decodeFirstStringIfPresent(for: [.type, .movementType, .direction]) ?? "adjustment"
+        quantity = try container.decodeFirstQuantityIfPresent(
+            for: [.quantity, .deltaQuantity],
+            unitCode: nil,
+            unitName: nil
+        ) ?? InventoryQuantity(quantity: "0")
+        previousQuantity = try container.decodeFirstQuantityIfPresent(
+            for: [.previousQuantity, .beforeQuantity],
+            unitCode: nil,
+            unitName: nil
+        )
+        newQuantity = try container.decodeFirstQuantityIfPresent(
+            for: [.newQuantity, .afterQuantity],
+            unitCode: nil,
+            unitName: nil
+        )
+        reason = try container.decodeIfPresent(String.self, forKey: .reason)
+            ?? container.decodeIfPresent(String.self, forKey: .note)
+            ?? container.decodeIfPresent(String.self, forKey: .notes)
+        createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt)
+            ?? container.decodeIfPresent(Date.self, forKey: .occurredAt)
+    }
 }
 
 struct InventoryMovementsResponse: Decodable, Equatable, Sendable {
@@ -280,24 +373,53 @@ struct InventoryMovementsResponse: Decodable, Equatable, Sendable {
     init(movements: [InventoryMovement]) {
         self.movements = movements
     }
+
+    private enum CodingKeys: String, CodingKey {
+        case movements
+        case inventoryMovements
+        case results
+        case data
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        movements = try container.decodeIfPresent([InventoryMovement].self, forKey: .movements)
+            ?? container.decodeIfPresent([InventoryMovement].self, forKey: .inventoryMovements)
+            ?? container.decodeIfPresent([InventoryMovement].self, forKey: .results)
+            ?? container.decodeIfPresent([InventoryMovement].self, forKey: .data)
+            ?? []
+    }
 }
 
 struct InventoryAdjustmentRequest: Encodable, Equatable, Sendable {
+    let itemId: String?
     let type: InventoryAdjustmentType
     let quantity: String
     let reason: String
     let note: String?
 
     init(
+        itemId: String? = nil,
         type: InventoryAdjustmentType,
         quantity: String,
         reason: String,
         note: String? = nil
     ) {
+        self.itemId = itemId
         self.type = type
         self.quantity = quantity
         self.reason = reason
         self.note = note
+    }
+
+    func withItemId(_ itemId: String) -> InventoryAdjustmentRequest {
+        InventoryAdjustmentRequest(
+            itemId: itemId,
+            type: type,
+            quantity: quantity,
+            reason: reason,
+            note: note
+        )
     }
 }
 
@@ -317,6 +439,29 @@ struct InventoryAdjustmentResponse: Decodable, Equatable, Sendable {
         self.movement = movement
         self.catalogRevision = catalogRevision
         self.idempotencyReplayed = idempotencyReplayed
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case item
+        case inventoryItem
+        case stockItem
+        case movement
+        case inventoryMovement
+        case stockMovement
+        case catalogRevision
+        case idempotencyReplayed
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        item = try container.decodeIfPresent(InventoryItem.self, forKey: .item)
+            ?? container.decodeIfPresent(InventoryItem.self, forKey: .inventoryItem)
+            ?? container.decode(InventoryItem.self, forKey: .stockItem)
+        movement = try container.decodeIfPresent(InventoryMovement.self, forKey: .movement)
+            ?? container.decodeIfPresent(InventoryMovement.self, forKey: .inventoryMovement)
+            ?? container.decodeIfPresent(InventoryMovement.self, forKey: .stockMovement)
+        catalogRevision = try container.decodeIfPresent(String.self, forKey: .catalogRevision)
+        idempotencyReplayed = try container.decodeIfPresent(Bool.self, forKey: .idempotencyReplayed)
     }
 }
 

@@ -24,6 +24,7 @@ final class BusinessAppContainer: @unchecked Sendable {
     let documentsRepository: BusinessDocumentsRepository
     let pendingOperationsRepository: PendingOperationsRepository
     let dailyReportRepository: BusinessDailyReportRepository
+    let exportsRepository: BusinessExportsRepository
     let salesHistoryRepository: SalesHistoryRepository
     let customersRepository: CustomersRepository
     let inventoryRepository: InventoryRepository
@@ -46,6 +47,7 @@ final class BusinessAppContainer: @unchecked Sendable {
         documentsRepository: BusinessDocumentsRepository,
         pendingOperationsRepository: PendingOperationsRepository,
         dailyReportRepository: BusinessDailyReportRepository,
+        exportsRepository: BusinessExportsRepository,
         salesHistoryRepository: SalesHistoryRepository,
         customersRepository: CustomersRepository,
         inventoryRepository: InventoryRepository,
@@ -67,6 +69,7 @@ final class BusinessAppContainer: @unchecked Sendable {
         self.documentsRepository = documentsRepository
         self.pendingOperationsRepository = pendingOperationsRepository
         self.dailyReportRepository = dailyReportRepository
+        self.exportsRepository = exportsRepository
         self.salesHistoryRepository = salesHistoryRepository
         self.customersRepository = customersRepository
         self.inventoryRepository = inventoryRepository
@@ -114,6 +117,7 @@ final class BusinessAppContainer: @unchecked Sendable {
             documentsRepository: BusinessDocumentsAPIRepository(apiClient: apiClient),
             pendingOperationsRepository: PendingOperationsAPIRepository(apiClient: apiClient),
             dailyReportRepository: BusinessDailyReportAPIRepository(apiClient: apiClient),
+            exportsRepository: BusinessExportsAPIRepository(apiClient: apiClient),
             salesHistoryRepository: SalesHistoryAPIRepository(apiClient: apiClient),
             customersRepository: CustomersAPIRepository(apiClient: apiClient),
             inventoryRepository: InventoryAPIRepository(apiClient: apiClient),

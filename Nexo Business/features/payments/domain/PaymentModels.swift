@@ -257,3 +257,31 @@ struct PaymentResponse: Decodable, Equatable, Sendable {
         self.idempotencyReplayed = nil
     }
 }
+
+struct PaymentsListResponse: Decodable, Equatable, Sendable {
+    let payments: [PaymentRecord]
+    let totalCount: Int?
+
+    init(payments: [PaymentRecord], totalCount: Int? = nil) {
+        self.payments = payments
+        self.totalCount = totalCount
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case payments
+        case items
+        case results
+        case data
+        case totalCount
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        payments = try container.decodeIfPresent([PaymentRecord].self, forKey: .payments)
+            ?? container.decodeIfPresent([PaymentRecord].self, forKey: .items)
+            ?? container.decodeIfPresent([PaymentRecord].self, forKey: .results)
+            ?? container.decodeIfPresent([PaymentRecord].self, forKey: .data)
+            ?? []
+        totalCount = try container.decodeIfPresent(Int.self, forKey: .totalCount)
+    }
+}

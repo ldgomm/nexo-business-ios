@@ -42,6 +42,7 @@ extension BusinessAppContainer {
             documentsRepository: PreviewBusinessDocumentsRepository(),
             pendingOperationsRepository: PreviewPendingOperationsRepository(),
             dailyReportRepository: PreviewBusinessDailyReportRepository(),
+            exportsRepository: PreviewBusinessExportsRepository(),
             salesHistoryRepository: PreviewSalesHistoryRepository(),
             customersRepository: PreviewCustomersRepository(),
             inventoryRepository: PreviewInventoryRepository(),

@@ -409,6 +409,67 @@ struct CashMovementResponse: Decodable, Equatable, Sendable {
     }
 }
 
+
+struct CashSessionsResponse: Decodable, Equatable, Sendable {
+    let sessions: [CashSession]
+    let totalCount: Int?
+
+    init(sessions: [CashSession], totalCount: Int? = nil) {
+        self.sessions = sessions
+        self.totalCount = totalCount
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case sessions
+        case cashSessions
+        case items
+        case results
+        case data
+        case totalCount
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        sessions = try container.decodeIfPresent([CashSession].self, forKey: .sessions)
+            ?? container.decodeIfPresent([CashSession].self, forKey: .cashSessions)
+            ?? container.decodeIfPresent([CashSession].self, forKey: .items)
+            ?? container.decodeIfPresent([CashSession].self, forKey: .results)
+            ?? container.decodeIfPresent([CashSession].self, forKey: .data)
+            ?? []
+        totalCount = try container.decodeIfPresent(Int.self, forKey: .totalCount)
+    }
+}
+
+struct CashMovementsResponse: Decodable, Equatable, Sendable {
+    let movements: [CashMovement]
+    let totalCount: Int?
+
+    init(movements: [CashMovement], totalCount: Int? = nil) {
+        self.movements = movements
+        self.totalCount = totalCount
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case movements
+        case cashMovements
+        case items
+        case results
+        case data
+        case totalCount
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        movements = try container.decodeIfPresent([CashMovement].self, forKey: .movements)
+            ?? container.decodeIfPresent([CashMovement].self, forKey: .cashMovements)
+            ?? container.decodeIfPresent([CashMovement].self, forKey: .items)
+            ?? container.decodeIfPresent([CashMovement].self, forKey: .results)
+            ?? container.decodeIfPresent([CashMovement].self, forKey: .data)
+            ?? []
+        totalCount = try container.decodeIfPresent(Int.self, forKey: .totalCount)
+    }
+}
+
 private extension String {
     var nilIfBlank: String? {
         isEmpty ? nil : self

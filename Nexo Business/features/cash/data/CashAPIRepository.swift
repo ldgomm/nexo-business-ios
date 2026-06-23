@@ -9,6 +9,7 @@ import Foundation
 
 enum BusinessCashRoutes {
     static let current = "/api/v1/business/cash/current"
+    static let sessions = "/api/v1/business/cash/sessions"
     static let open = "/api/v1/business/cash/open"
     
     static func movements(cashSessionId: String) -> String {
@@ -46,6 +47,43 @@ final class CashAPIRepository: CashRepository, @unchecked Sendable {
         )
     }
     
+
+    func listSessions(
+        organizationId: String,
+        branchId: String,
+        limit: Int = 20
+    ) async throws -> CashSessionsResponse {
+        try await apiClient.send(
+            APIRequest(
+                method: .get,
+                path: BusinessCashRoutes.sessions,
+                queryItems: [
+                    URLQueryItem(name: "branchId", value: branchId),
+                    URLQueryItem(name: "limit", value: String(limit))
+                ],
+                headers: [
+                    BusinessHeaders.organizationId: organizationId,
+                    BusinessHeaders.branchId: branchId
+                ]
+            )
+        )
+    }
+
+    func listMovements(
+        organizationId: String,
+        cashSessionId: String,
+        limit: Int = 20
+    ) async throws -> CashMovementsResponse {
+        try await apiClient.send(
+            APIRequest(
+                method: .get,
+                path: BusinessCashRoutes.movements(cashSessionId: cashSessionId),
+                queryItems: [URLQueryItem(name: "limit", value: String(limit))],
+                headers: [BusinessHeaders.organizationId: organizationId]
+            )
+        )
+    }
+
     func open(
         organizationId: String,
         idempotencyKey: IdempotencyKey,

@@ -207,6 +207,7 @@ struct BusinessHomeView: View {
             ScrollView {
                 LazyVStack(spacing: 14) {
                     operationHero
+                    dailyOperationCard
                     toolsCard
                     contextCard
                     businessCard
@@ -235,6 +236,204 @@ struct BusinessHomeView: View {
             countryCode: context.organization.countryCode,
             readinessTint: readinessTint
         )
+    }
+
+    @ViewBuilder
+    private var dailyOperationCard: some View {
+        BusinessHomeCard(
+            title: "Operación diaria",
+            subtitle: "Accesos rápidos para vender, cobrar, revisar caja, historial, comprobantes, inventario, reporte y exportación."
+        ) {
+            LazyVGrid(columns: toolColumns, spacing: 12) {
+                if capabilityGate.canAccessSales {
+                    NavigationLink {
+                        makeSaleCartView()
+                    } label: {
+                        BusinessHomeToolTile(
+                            title: "Venta rápida",
+                            subtitle: "Crear y cobrar",
+                            systemImage: "cart.badge.plus",
+                            tint: .accentColor
+                        )
+                    }
+                    .buttonStyle(.plain)
+                } else {
+                    BusinessHomeToolTile(
+                        title: "Venta rápida",
+                        subtitle: "Sin permiso",
+                        systemImage: "lock",
+                        tint: .secondary,
+                        isDisabled: true
+                    )
+                }
+
+                if capabilityGate.canAccessCash {
+                    NavigationLink {
+                        makeCashDashboardView(refreshOnAppear: true)
+                    } label: {
+                        BusinessHomeToolTile(
+                            title: "Caja",
+                            subtitle: "Abrir, cerrar y revisar",
+                            systemImage: "banknote",
+                            tint: .green
+                        )
+                    }
+                    .buttonStyle(.plain)
+                } else {
+                    BusinessHomeToolTile(
+                        title: "Caja",
+                        subtitle: "Sin permiso",
+                        systemImage: "lock",
+                        tint: .secondary,
+                        isDisabled: true
+                    )
+                }
+
+                if capabilityGate.canAccessHistory {
+                    NavigationLink {
+                        SalesHistoryView(
+                            viewModel: SalesHistoryViewModel(
+                                organizationId: organizationId,
+                                branchId: branchId,
+                                revisions: revisions,
+                                effectivePermissions: permissions,
+                                historyRepository: container.salesHistoryRepository,
+                                documentsRepository: container.documentsRepository
+                            ),
+                            salesRepository: container.salesRepository,
+                            salesHistoryRepository: container.salesHistoryRepository,
+                            cashRepository: container.cashRepository,
+                            paymentsRepository: container.paymentsRepository,
+                            receivablesRepository: container.receivablesRepository,
+                            documentsRepository: container.documentsRepository
+                        )
+                    } label: {
+                        BusinessHomeToolTile(
+                            title: "Historial",
+                            subtitle: "Ventas y cobros",
+                            systemImage: "clock.arrow.circlepath",
+                            tint: .blue
+                        )
+                    }
+                    .buttonStyle(.plain)
+                } else {
+                    BusinessHomeToolTile(
+                        title: "Historial",
+                        subtitle: "Sin permiso",
+                        systemImage: "lock",
+                        tint: .secondary,
+                        isDisabled: true
+                    )
+                }
+
+                if canAccessElectronicDocumentVault {
+                    NavigationLink {
+                        BusinessElectronicDocumentsListView(
+                            viewModel: BusinessElectronicDocumentsViewModel(
+                                organizationId: organizationId,
+                                effectivePermissions: permissions,
+                                documentsRepository: container.documentsRepository
+                            ),
+                            documentsRepository: container.documentsRepository
+                        )
+                    } label: {
+                        BusinessHomeToolTile(
+                            title: "Comprobantes",
+                            subtitle: "RIDE y XML",
+                            systemImage: "doc.text.magnifyingglass",
+                            tint: .green
+                        )
+                    }
+                    .buttonStyle(.plain)
+                } else {
+                    BusinessHomeToolTile(
+                        title: "Comprobantes",
+                        subtitle: "Sin permiso",
+                        systemImage: "lock",
+                        tint: .secondary,
+                        isDisabled: true
+                    )
+                }
+
+                if capabilityGate.canAccessInventory {
+                    NavigationLink {
+                        makeInventoryDashboardView()
+                    } label: {
+                        BusinessHomeToolTile(
+                            title: "Inventario",
+                            subtitle: "Stock físico",
+                            systemImage: "shippingbox",
+                            tint: .orange
+                        )
+                    }
+                    .buttonStyle(.plain)
+                } else {
+                    BusinessHomeToolTile(
+                        title: "Inventario",
+                        subtitle: "Sin permiso",
+                        systemImage: "lock",
+                        tint: .secondary,
+                        isDisabled: true
+                    )
+                }
+
+                if capabilityGate.canAccessToday {
+                    NavigationLink {
+                        makeDailyClosureView()
+                    } label: {
+                        BusinessHomeToolTile(
+                            title: "Reporte de hoy",
+                            subtitle: "Ventas, caja y alertas",
+                            systemImage: "chart.bar.doc.horizontal",
+                            tint: .blue
+                        )
+                    }
+                    .buttonStyle(.plain)
+                } else {
+                    BusinessHomeToolTile(
+                        title: "Reporte de hoy",
+                        subtitle: "Sin permiso",
+                        systemImage: "lock",
+                        tint: .secondary,
+                        isDisabled: true
+                    )
+                }
+
+                if canAccessOperationalExports {
+                    NavigationLink {
+                        makeBusinessExportsView()
+                    } label: {
+                        BusinessHomeToolTile(
+                            title: "Exportar",
+                            subtitle: "ZIP operativo diario",
+                            systemImage: "square.and.arrow.down",
+                            tint: .purple
+                        )
+                    }
+                    .buttonStyle(.plain)
+                } else {
+                    BusinessHomeToolTile(
+                        title: "Exportar",
+                        subtitle: "Sin permiso",
+                        systemImage: "lock",
+                        tint: .secondary,
+                        isDisabled: true
+                    )
+                }
+            }
+
+            BusinessHomeInlineMessage(
+                message: "Proformas quedan como superficie secundaria cuando exista backend; no se fuerza una pantalla falsa en 21F.",
+                systemImage: "doc.badge.plus",
+                tint: .secondary
+            )
+
+            BusinessHomeInlineMessage(
+                message: "Exportación operativa para revisión diaria. No reemplaza al contador ni a obligaciones tributarias.",
+                systemImage: "info.circle",
+                tint: .secondary
+            )
+        }
     }
 
     @ViewBuilder
@@ -293,6 +492,14 @@ struct BusinessHomeView: View {
                     }
                     .buttonStyle(.plain)
                 }
+
+                BusinessHomeToolTile(
+                    title: "Proformas",
+                    subtitle: "Pendiente backend",
+                    systemImage: "doc.badge.plus",
+                    tint: .secondary,
+                    isDisabled: true
+                )
 
                 if capabilityGate.canAccessReceivables {
                     NavigationLink {
@@ -390,26 +597,7 @@ struct BusinessHomeView: View {
                     }
                     .buttonStyle(.plain)
                 }
-
-                if capabilityGate.canAccessInventory {
-                    BusinessHomeToolTile(
-                        title: "Inventario",
-                        subtitle: "Pendiente",
-                        systemImage: "shippingbox",
-                        tint: .orange,
-                        isDisabled: true
-                    )
-                }
-            }
-
-            if capabilityGate.canAccessInventory {
-                BusinessHomeInlineMessage(
-                    message: "Inventario básico se activará después. Por ahora administra productos y precios desde Productos.",
-                    systemImage: "shippingbox",
-                    tint: .secondary
-                )
-            }
-        }
+            }        }
     }
 
     private var contextCard: some View {
@@ -467,6 +655,7 @@ struct BusinessHomeView: View {
                         capabilityDiagnosticRow("Clientes", enabled: capabilityGate.canAccessCustomers)
                         capabilityDiagnosticRow("Cuentas por cobrar", enabled: capabilityGate.canAccessReceivables)
                         capabilityDiagnosticRow("Inventario", enabled: capabilityGate.canAccessInventory)
+                        capabilityDiagnosticRow("Exportaciones", enabled: canAccessOperationalExports)
                     }
                     .padding(.top, 8)
                 } label: {
@@ -537,6 +726,84 @@ struct BusinessHomeView: View {
                 .buttonStyle(.plain)
             }
         }
+    }
+
+    private func makeSaleCartView() -> SaleCartView {
+        SaleCartView(
+            viewModel: SaleCartViewModel(
+                organizationId: organizationId,
+                branchId: branchId,
+                activityId: activityId,
+                revisions: revisions,
+                effectivePermissions: permissions,
+                catalogRepository: container.catalogRepository,
+                salesRepository: container.salesRepository,
+                contextRepository: container.contextRepository
+            ),
+            customersRepository: container.customersRepository,
+            cashRepository: container.cashRepository,
+            paymentsRepository: container.paymentsRepository,
+            receivablesRepository: container.receivablesRepository,
+            documentsRepository: container.documentsRepository
+        )
+    }
+
+    private func makeDailyClosureView() -> DailyClosureView {
+        DailyClosureView(
+            viewModel: DailyClosureViewModel(
+                organizationId: organizationId,
+                branchId: branchId,
+                revisions: revisions,
+                effectivePermissions: permissions,
+                capabilities: context.capabilities,
+                pendingRepository: container.pendingOperationsRepository,
+                dailyReportRepository: container.dailyReportRepository,
+                cashRepository: container.cashRepository,
+                historyRepository: container.salesHistoryRepository
+            ),
+            salesRepository: container.salesRepository,
+            cashRepository: container.cashRepository,
+            paymentsRepository: container.paymentsRepository,
+            receivablesRepository: container.receivablesRepository,
+            documentsRepository: container.documentsRepository
+        )
+    }
+
+    private func makeCashDashboardView(refreshOnAppear: Bool = false) -> CashDashboardView {
+        CashDashboardView(
+            viewModel: CashDashboardViewModel(
+                organizationId: organizationId,
+                branchId: branchId,
+                permissions: permissions,
+                cashCapabilities: context.capabilities.cash,
+                cashRepository: container.cashRepository
+            ),
+            refreshOnAppear: refreshOnAppear
+        )
+    }
+
+    private func makeInventoryDashboardView() -> InventoryDashboardView {
+        InventoryDashboardView(
+            viewModel: InventoryDashboardViewModel(
+                organizationId: organizationId,
+                branchId: branchId,
+                activityId: activityId,
+                catalogRevision: revisions.catalogRevision,
+                effectivePermissions: permissions,
+                inventoryRepository: container.inventoryRepository
+            )
+        )
+    }
+
+    private func makeBusinessExportsView() -> BusinessExportsView {
+        BusinessExportsView(
+            viewModel: BusinessExportsViewModel(
+                organizationId: organizationId,
+                branchId: branchId,
+                effectivePermissions: permissions,
+                exportsRepository: container.exportsRepository
+            )
+        )
     }
 
     private func capabilityDiagnosticRow(_ title: String, enabled: Bool) -> some View {
@@ -634,6 +901,19 @@ struct BusinessHomeView: View {
         permissionGate.allows("documents.electronic_invoice.email") ||
         permissionGate.allows("documents.view") ||
         permissionGate.allows("business.documents.view")
+    }
+
+
+    private var canAccessOperationalExports: Bool {
+        permissionGate.allowsAny([
+            "business.exports.view",
+            "business.exports.generate",
+            "business.exports.download",
+            "exports.view",
+            "exports.generate",
+            "exports.download",
+            "reports.export"
+        ]) || context.effectivePermissions.contains("*")
     }
 
     private var organizationId: String {

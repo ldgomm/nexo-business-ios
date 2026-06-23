@@ -8,14 +8,19 @@
 import Foundation
 
 enum BusinessInventoryRoutes {
-    static let items = "/api/v1/business/inventory/items"
+    static let stock = "/api/v1/business/inventory/stock"
+    static let adjustments = "/api/v1/business/inventory/adjustments"
 
-    static func movements(inventoryItemId: String) -> String {
-        "/api/v1/business/inventory/items/\(inventoryItemId)/movements"
+    static func stockItem(itemId: String) -> String {
+        "/api/v1/business/inventory/stock/\(itemId)"
     }
 
-    static func adjustments(inventoryItemId: String) -> String {
-        "/api/v1/business/inventory/items/\(inventoryItemId)/adjustments"
+    static func movements(itemId: String) -> String {
+        "/api/v1/business/inventory/stock/\(itemId)/movements"
+    }
+
+    static func inventorySettings(productId: String) -> String {
+        "/api/v1/business/products/\(productId)/inventory-settings"
     }
 }
 
@@ -53,7 +58,7 @@ final class InventoryAPIRepository: InventoryRepository, @unchecked Sendable {
         return try await apiClient.send(
             APIRequest(
                 method: .get,
-                path: BusinessInventoryRoutes.items,
+                path: BusinessInventoryRoutes.stock,
                 queryItems: queryItems,
                 headers: [
                     BusinessHeaders.organizationId: organizationId,
@@ -71,10 +76,27 @@ final class InventoryAPIRepository: InventoryRepository, @unchecked Sendable {
         try await apiClient.send(
             APIRequest(
                 method: .get,
-                path: BusinessInventoryRoutes.movements(inventoryItemId: inventoryItemId),
+                path: BusinessInventoryRoutes.movements(itemId: inventoryItemId),
                 queryItems: [URLQueryItem(name: "limit", value: String(limit))],
                 headers: [
                     BusinessHeaders.organizationId: organizationId
+                ]
+            )
+        )
+    }
+
+    func stockItem(
+        organizationId: String,
+        itemId: String,
+        catalogRevision: String
+    ) async throws -> InventoryStockItemResponse {
+        try await apiClient.send(
+            APIRequest(
+                method: .get,
+                path: BusinessInventoryRoutes.stockItem(itemId: itemId),
+                headers: [
+                    BusinessHeaders.organizationId: organizationId,
+                    BusinessHeaders.catalogRevision: catalogRevision
                 ]
             )
         )
@@ -90,8 +112,8 @@ final class InventoryAPIRepository: InventoryRepository, @unchecked Sendable {
         try await apiClient.send(
             try APIRequest<InventoryAdjustmentResponse>.json(
                 method: .post,
-                path: BusinessInventoryRoutes.adjustments(inventoryItemId: inventoryItemId),
-                body: body,
+                path: BusinessInventoryRoutes.adjustments,
+                body: body.withItemId(inventoryItemId),
                 headers: [
                     BusinessHeaders.organizationId: organizationId,
                     BusinessHeaders.catalogRevision: catalogRevision,

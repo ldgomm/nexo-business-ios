@@ -151,7 +151,7 @@ struct DailyClosureView: View {
                 } else {
                     DailyNoticeCard(
                         icon: "exclamationmark.triangle",
-                        title: "No se pudieron cargar las estadísticas",
+                        title: "No pudimos cargar esta información",
                         message: message,
                         style: .error
                     )
@@ -444,6 +444,38 @@ private struct TodayStatsView: View {
                         systemImage: "banknote.fill"
                     )
                 }
+
+                HStack(spacing: 12) {
+                    TodayMetricCard(
+                        title: "Pagos",
+                        value: String(paymentsCount),
+                        subtitle: "registrados",
+                        systemImage: "creditcard.fill"
+                    )
+
+                    TodayMetricCard(
+                        title: "Productos",
+                        value: productSummaryText,
+                        subtitle: productSummarySubtitle,
+                        systemImage: "shippingbox.fill"
+                    )
+                }
+
+                HStack(spacing: 12) {
+                    TodayMetricCard(
+                        title: "Documentos",
+                        value: String(documentsPendingCount),
+                        subtitle: "pendientes",
+                        systemImage: "doc.text.fill"
+                    )
+
+                    TodayMetricCard(
+                        title: "Alertas",
+                        value: String(alertsCount),
+                        subtitle: alertsSubtitle,
+                        systemImage: "bell.badge.fill"
+                    )
+                }
             }
 
             if cancelledSalesCount > 0 {
@@ -482,6 +514,54 @@ private struct TodayStatsView: View {
 
     private var cashExpectedAmount: MoneyAmount {
         report?.cashExpectedAmount ?? paymentsTotal
+    }
+
+    private var paymentsCount: Int {
+        report?.paymentsCount ?? report?.paymentSummary?.count ?? 0
+    }
+
+    private var productSummaryText: String {
+        if let topCount = report?.productSummary?.topProducts.count, topCount > 0 {
+            return String(topCount)
+        }
+
+        if let lowStockCount = report?.productSummary?.lowStockCount, lowStockCount > 0 {
+            return String(lowStockCount)
+        }
+
+        if let movementCount = report?.productSummary?.movementCount, movementCount > 0 {
+            return String(movementCount)
+        }
+
+        return "0"
+    }
+
+    private var productSummarySubtitle: String {
+        if let topCount = report?.productSummary?.topProducts.count, topCount > 0 {
+            return topCount == 1 ? "top producto" : "top productos"
+        }
+
+        if let lowStockCount = report?.productSummary?.lowStockCount, lowStockCount > 0 {
+            return lowStockCount == 1 ? "bajo stock" : "bajo stock"
+        }
+
+        if let movementCount = report?.productSummary?.movementCount, movementCount > 0 {
+            return movementCount == 1 ? "movimiento" : "movimientos"
+        }
+
+        return "sin movimiento"
+    }
+
+    private var documentsPendingCount: Int {
+        report?.pendingDocumentsCount ?? report?.documentSummary?.pendingCount ?? 0
+    }
+
+    private var alertsCount: Int {
+        report?.alerts.count ?? 0
+    }
+
+    private var alertsSubtitle: String {
+        alertsCount == 1 ? "importante" : "importantes"
     }
 
     private var activeSales: [BusinessSale] {

@@ -8,7 +8,8 @@
 import Foundation
 
 enum BusinessPaymentsRoutes {
-    static let register = "/api/v1/business/payments"
+    static let payments = "/api/v1/business/payments"
+    static let register = "/api/v1/business/payments/register"
 }
 
 final class PaymentsAPIRepository: PaymentsRepository, @unchecked Sendable {
@@ -16,6 +17,31 @@ final class PaymentsAPIRepository: PaymentsRepository, @unchecked Sendable {
 
     init(apiClient: APIClient) {
         self.apiClient = apiClient
+    }
+
+    func list(
+        organizationId: String,
+        branchId: String? = nil,
+        limit: Int = 20
+    ) async throws -> PaymentsListResponse {
+        var queryItems = [URLQueryItem(name: "limit", value: String(limit))]
+        if let branchId, !branchId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            queryItems.append(URLQueryItem(name: "branchId", value: branchId))
+        }
+
+        var headers = [BusinessHeaders.organizationId: organizationId]
+        if let branchId, !branchId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            headers[BusinessHeaders.branchId] = branchId
+        }
+
+        return try await apiClient.send(
+            APIRequest(
+                method: .get,
+                path: BusinessPaymentsRoutes.payments,
+                queryItems: queryItems,
+                headers: headers
+            )
+        )
     }
 
     func register(
@@ -26,7 +52,7 @@ final class PaymentsAPIRepository: PaymentsRepository, @unchecked Sendable {
         try await apiClient.send(
             try APIRequest<PaymentResponse>.json(
                 method: .post,
-                path: BusinessPaymentsRoutes.register,
+                path: BusinessPaymentsRoutes.payments,
                 body: body,
                 headers: [
                     BusinessHeaders.organizationId: organizationId,
