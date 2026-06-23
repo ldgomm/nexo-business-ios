@@ -2,6 +2,8 @@
 //  BusinessProductModels.swift
 //  Nexo Business
 //
+//  Created by José Ruiz on 29/5/26.
+//
 
 import Foundation
 
@@ -65,6 +67,100 @@ struct BusinessProductMutationResponse: Decodable, Equatable, Sendable {
     }
 }
 
+struct BusinessMasterCatalogItemsResponse: Decodable, Equatable, Sendable {
+    let items: [BusinessMasterCatalogItem]
+
+    private enum CodingKeys: String, CodingKey {
+        case items
+        case products
+        case data
+        case results
+    }
+
+    init(items: [BusinessMasterCatalogItem]) {
+        self.items = items
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        items = try container.decodeIfPresent([BusinessMasterCatalogItem].self, forKey: .items)
+        ?? container.decodeIfPresent([BusinessMasterCatalogItem].self, forKey: .products)
+        ?? container.decodeIfPresent([BusinessMasterCatalogItem].self, forKey: .data)
+        ?? container.decodeIfPresent([BusinessMasterCatalogItem].self, forKey: .results)
+        ?? []
+    }
+}
+
+struct BusinessMasterCatalogItem: Decodable, Equatable, Identifiable, Sendable {
+    let id: String
+    let name: String
+    let type: String
+    let categoryName: String?
+    let defaultTaxProfileCode: String?
+    let masterStatus: String
+    let alreadyAdopted: Bool
+    let existingBusinessProductId: String?
+    let canAdopt: Bool
+    let blockedReason: String?
+
+    init(
+        id: String,
+        name: String,
+        type: String = "PRODUCT",
+        categoryName: String? = nil,
+        defaultTaxProfileCode: String? = nil,
+        masterStatus: String = "ACTIVE",
+        alreadyAdopted: Bool = false,
+        existingBusinessProductId: String? = nil,
+        canAdopt: Bool = true,
+        blockedReason: String? = nil
+    ) {
+        self.id = id
+        self.name = name
+        self.type = type
+        self.categoryName = categoryName
+        self.defaultTaxProfileCode = defaultTaxProfileCode
+        self.masterStatus = masterStatus
+        self.alreadyAdopted = alreadyAdopted
+        self.existingBusinessProductId = existingBusinessProductId
+        self.canAdopt = canAdopt
+        self.blockedReason = blockedReason
+    }
+
+    fileprivate enum CodingKeys: String, CodingKey {
+        case id
+        case mongoId = "_id"
+        case name
+        case canonicalName
+        case displayName
+        case type
+        case categoryName
+        case category
+        case productFamilyId
+        case defaultTaxProfileCode
+        case taxProfileCode
+        case masterStatus
+        case status
+        case alreadyAdopted
+        case existingBusinessProductId
+        case canAdopt
+        case blockedReason
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decodeFirstString(for: [.id, .mongoId])
+        name = try container.decodeFirstString(for: [.name, .canonicalName, .displayName])
+        type = try container.decodeIfPresent(String.self, forKey: .type) ?? "PRODUCT"
+        categoryName = try container.decodeFirstStringIfPresent(for: [.categoryName, .category, .productFamilyId])
+        defaultTaxProfileCode = try container.decodeFirstStringIfPresent(for: [.defaultTaxProfileCode, .taxProfileCode])
+        masterStatus = try container.decodeFirstStringIfPresent(for: [.masterStatus, .status]) ?? "ACTIVE"
+        alreadyAdopted = try container.decodeIfPresent(Bool.self, forKey: .alreadyAdopted) ?? false
+        existingBusinessProductId = try container.decodeIfPresent(String.self, forKey: .existingBusinessProductId)
+        canAdopt = try container.decodeIfPresent(Bool.self, forKey: .canAdopt) ?? !alreadyAdopted
+        blockedReason = try container.decodeIfPresent(String.self, forKey: .blockedReason)
+    }
+}
 
 struct BusinessTaxProfilesResponse: Decodable, Equatable, Sendable {
     let profiles: [BusinessTaxProfile]
@@ -136,16 +232,14 @@ struct BusinessTaxProfile: Decodable, Equatable, Identifiable, Sendable {
     }
 }
 
-struct BusinessProductUpsertRequest: Encodable, Equatable, Sendable {
-    let name: String
-    let description: String?
-    let code: String?
-    let category: String?
-    let type: String
-    let price: MoneyAmount
-    let taxProfileCode: String?
+struct BusinessProductAdoptRequest: Encodable, Equatable, Sendable {
+    let masterCatalogItemId: String
     let branchId: String?
     let activityId: String
+    let price: MoneyAmount
+    let taxProfileCode: String?
+    let localCode: String?
+    let localName: String?
     let reason: String
 }
 
@@ -170,25 +264,76 @@ extension BusinessProduct {
     }
     
     var productsDisplayStatus: String {
+        if let availabilityLabel, !availabilityLabel.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return availabilityLabel
+        }
+
+        switch effectiveStatus?.lowercased() {
+        case "available": return "Disponible"
+        case "paused_by_business": return "No disponible"
+        case "blocked_by_master", "disabled_by_master": return "Bloqueado por catálogo"
+        case "removed_from_account": return "Removido"
+        default: break
+        }
+
         switch status?.lowercased() {
         case "active": return "Disponible"
-        case "disabled", "inactive": return "No disponible"
+        case "paused", "disabled", "inactive", "out_of_stock": return "No disponible"
+        case "removed_from_account", "archived": return "Removido"
         default: return status ?? "Sin estado"
         }
     }
     
     var productsIsActive: Bool {
-        status?.lowercased() == "active"
+        if let effectiveStatus {
+            return effectiveStatus.lowercased() == "available"
+        }
+        return status?.lowercased() == "active"
+    }
+
+    var productsCanActivate: Bool {
+        canActivate ?? !productsIsActive
+    }
+
+    var productsCanDeactivate: Bool {
+        canDeactivate ?? productsIsActive
     }
     
     var productsPrimaryCode: String? {
         sku?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmptyForProducts
         ?? barcode?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmptyForProducts
     }
+
+    var productsMasterReferenceLabel: String? {
+        masterCatalogItemId?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmptyForProducts.map { "Catálogo: \($0)" }
+    }
 }
 
 private extension String {
     var nilIfEmptyForProducts: String? {
         isEmpty ? nil : self
+    }
+}
+
+private extension KeyedDecodingContainer where Key == BusinessMasterCatalogItem.CodingKeys {
+    func decodeFirstString(for keys: [BusinessMasterCatalogItem.CodingKeys]) throws -> String {
+        for key in keys {
+            if let value = try decodeIfPresent(String.self, forKey: key), !value.isEmpty {
+                return value
+            }
+        }
+        throw DecodingError.keyNotFound(
+            keys.first ?? .id,
+            DecodingError.Context(codingPath: codingPath, debugDescription: "Expected one of \(keys.map(\.stringValue))")
+        )
+    }
+
+    func decodeFirstStringIfPresent(for keys: [BusinessMasterCatalogItem.CodingKeys]) throws -> String? {
+        for key in keys {
+            if let value = try decodeIfPresent(String.self, forKey: key), !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                return value
+            }
+        }
+        return nil
     }
 }

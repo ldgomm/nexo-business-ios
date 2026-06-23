@@ -2,11 +2,15 @@
 //  ProductsAPIRepository.swift
 //  Nexo Business
 //
+//  Created by José Ruiz on 29/5/26.
+//
 
 import Foundation
 
 enum BusinessProductsRoutes {
     static let products = "/api/v1/business/products"
+    static let adopt = "/api/v1/business/products/adopt"
+    static let masterItems = "/api/v1/business/catalog/master-items"
     static let taxProfiles = "/api/v1/business/tax-profiles"
 
     static func product(_ productId: String) -> String {
@@ -75,16 +79,40 @@ final class ProductsAPIRepository: ProductsRepository, @unchecked Sendable {
         return response
     }
 
-    func createProduct(
+    func searchMasterCatalogItems(
         organizationId: String,
         branchId: String,
         activityId: String,
-        request: BusinessProductUpsertRequest
+        query: String,
+        type: String?,
+        limit: Int
+    ) async throws -> BusinessMasterCatalogItemsResponse {
+        try await apiClient.send(
+            APIRequest(
+                method: .get,
+                path: BusinessProductsRoutes.masterItems,
+                queryItems: [
+                    URLQueryItem(name: "branchId", value: branchId),
+                    URLQueryItem(name: "activityId", value: activityId),
+                    URLQueryItem(name: "q", value: query),
+                    URLQueryItem(name: "type", value: type),
+                    URLQueryItem(name: "limit", value: String(limit))
+                ],
+                headers: headers(organizationId: organizationId, branchId: branchId, activityId: activityId, catalogRevision: "")
+            )
+        )
+    }
+
+    func adoptProduct(
+        organizationId: String,
+        branchId: String,
+        activityId: String,
+        request: BusinessProductAdoptRequest
     ) async throws -> BusinessProductMutationResponse {
         let response: BusinessProductMutationResponse = try await apiClient.send(
             APIRequest<BusinessProductMutationResponse>.json(
                 method: .post,
-                path: BusinessProductsRoutes.products,
+                path: BusinessProductsRoutes.adopt,
                 body: request,
                 headers: headers(organizationId: organizationId, branchId: branchId, activityId: activityId, catalogRevision: "")
             )

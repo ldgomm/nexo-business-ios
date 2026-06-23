@@ -2,6 +2,8 @@
 //  ProductsRepository.swift
 //  Nexo Business
 //
+//  Created by José Ruiz on 29/5/26.
+//
 
 import Foundation
 
@@ -18,11 +20,20 @@ protocol ProductsRepository: Sendable {
         limit: Int
     ) async throws -> BusinessProductsResponse
 
-    func createProduct(
+    func searchMasterCatalogItems(
         organizationId: String,
         branchId: String,
         activityId: String,
-        request: BusinessProductUpsertRequest
+        query: String,
+        type: String?,
+        limit: Int
+    ) async throws -> BusinessMasterCatalogItemsResponse
+
+    func adoptProduct(
+        organizationId: String,
+        branchId: String,
+        activityId: String,
+        request: BusinessProductAdoptRequest
     ) async throws -> BusinessProductMutationResponse
 
     func updateProduct(
@@ -64,6 +75,12 @@ final class PreviewProductsRepository: ProductsRepository, @unchecked Sendable {
         )
     ]
 
+    private let masterItems: [BusinessMasterCatalogItem] = [
+        BusinessMasterCatalogItem(id: "master_cuy", name: "Cuy entero", type: "PRODUCT", categoryName: "Platos fuertes", defaultTaxProfileCode: "iva_full"),
+        BusinessMasterCatalogItem(id: "master_borrego", name: "Borrego", type: "PRODUCT", categoryName: "Platos fuertes", defaultTaxProfileCode: "iva_full"),
+        BusinessMasterCatalogItem(id: "master_jugo", name: "Jarra de jugo", type: "PRODUCT", categoryName: "Bebidas", defaultTaxProfileCode: "iva_zero")
+    ]
+
     private var storage: [BusinessProduct] = [
         BusinessProduct(
             id: "prod_cuy",
@@ -72,6 +89,14 @@ final class PreviewProductsRepository: ProductsRepository, @unchecked Sendable {
             sku: "CUY-ENTERO",
             type: "PRODUCT",
             status: "ACTIVE",
+            localStatus: "ACTIVE",
+            masterStatus: "ACTIVE",
+            effectiveStatus: "AVAILABLE",
+            availabilityLabel: "Disponible",
+            source: "MASTER_ADOPTION",
+            masterCatalogItemId: "master_cuy",
+            canActivate: false,
+            canDeactivate: true,
             price: MoneyAmount(amount: "24.00", currency: "USD"),
             taxProfileCode: "iva_full",
             taxProfileId: "iva_full"
@@ -83,6 +108,14 @@ final class PreviewProductsRepository: ProductsRepository, @unchecked Sendable {
             sku: "BORREGO",
             type: "PRODUCT",
             status: "ACTIVE",
+            localStatus: "ACTIVE",
+            masterStatus: "ACTIVE",
+            effectiveStatus: "AVAILABLE",
+            availabilityLabel: "Disponible",
+            source: "MASTER_ADOPTION",
+            masterCatalogItemId: "master_borrego",
+            canActivate: false,
+            canDeactivate: true,
             price: MoneyAmount(amount: "10.00", currency: "USD"),
             taxProfileCode: "iva_full",
             taxProfileId: "iva_full"
@@ -105,30 +138,72 @@ final class PreviewProductsRepository: ProductsRepository, @unchecked Sendable {
         let normalized = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         let filtered = storage.filter { product in
             let matchesQuery = normalized.isEmpty || product.name.lowercased().contains(normalized) || (product.productsPrimaryCode?.lowercased().contains(normalized) == true)
-            let matchesStatus = status == nil || status == "all" || product.status?.lowercased() == status?.lowercased()
+            let normalizedStatus = status?.lowercased()
+            let matchesStatus = normalizedStatus == nil
+            || normalizedStatus == "all"
+            || (normalizedStatus == "active" && product.productsIsActive)
+            || (normalizedStatus == "disabled" && !product.productsIsActive)
             return matchesQuery && matchesStatus
         }
         return BusinessProductsResponse(products: Array(filtered.prefix(limit)), catalogRevision: catalogRevision)
     }
 
-    func createProduct(organizationId: String, branchId: String, activityId: String, request: BusinessProductUpsertRequest) async throws -> BusinessProductMutationResponse {
-        let resolvedTaxProfileCode = request.taxProfileCode ?? previewTaxProfiles.first(where: { $0.defaultForProducts })?.code ?? previewTaxProfiles.first?.code
+    func searchMasterCatalogItems(
+        organizationId: String,
+        branchId: String,
+        activityId: String,
+        query: String,
+        type: String?,
+        limit: Int
+    ) async throws -> BusinessMasterCatalogItemsResponse {
+        let normalized = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let items = masterItems.map { item -> BusinessMasterCatalogItem in
+            let existing = storage.first { $0.masterCatalogItemId == item.id }
+            return BusinessMasterCatalogItem(
+                id: item.id,
+                name: item.name,
+                type: item.type,
+                categoryName: item.categoryName,
+                defaultTaxProfileCode: item.defaultTaxProfileCode,
+                masterStatus: item.masterStatus,
+                alreadyAdopted: existing != nil,
+                existingBusinessProductId: existing?.id,
+                canAdopt: existing == nil && item.canAdopt,
+                blockedReason: existing == nil ? item.blockedReason : "Ya fue agregado a este negocio."
+            )
+        }.filter { item in
+            let matchesQuery = normalized.isEmpty || item.name.lowercased().contains(normalized) || item.id.lowercased().contains(normalized)
+            let matchesType = type == nil || item.type.lowercased() == type?.lowercased()
+            return matchesQuery && matchesType
+        }
+        return BusinessMasterCatalogItemsResponse(items: Array(items.prefix(limit)))
+    }
+
+    func adoptProduct(organizationId: String, branchId: String, activityId: String, request: BusinessProductAdoptRequest) async throws -> BusinessProductMutationResponse {
+        guard let master = masterItems.first(where: { $0.id == request.masterCatalogItemId }) else { throw ProductsPreviewError.notFound }
+        if storage.contains(where: { $0.masterCatalogItemId == master.id }) { throw ProductsPreviewError.duplicate }
+        let resolvedTaxProfileCode = request.taxProfileCode ?? master.defaultTaxProfileCode ?? previewTaxProfiles.first(where: { $0.defaultForProducts })?.code ?? previewTaxProfiles.first?.code
         let product = BusinessProduct(
             id: "prod_preview_\(UUID().uuidString.prefix(8))",
-            name: request.name,
-            itemDescription: request.description,
-            sku: request.code,
-            type: request.type,
+            name: request.localName?.nilIfEmptyForPreviewProducts ?? master.name,
+            itemDescription: nil,
+            sku: request.localCode,
+            type: master.type,
             status: "ACTIVE",
+            localStatus: "ACTIVE",
+            masterStatus: "ACTIVE",
+            effectiveStatus: "AVAILABLE",
+            availabilityLabel: "Disponible",
+            source: "MASTER_ADOPTION",
+            masterCatalogItemId: master.id,
+            canActivate: false,
+            canDeactivate: true,
             price: request.price,
             taxProfileCode: resolvedTaxProfileCode,
             taxProfileId: resolvedTaxProfileCode
         )
         storage.append(product)
-        return BusinessProductMutationResponse(
-            product: product,
-            catalogRevision: nil
-        )
+        return BusinessProductMutationResponse(product: product, catalogRevision: nil)
     }
 
     func updateProduct(organizationId: String, branchId: String, activityId: String, productId: String, request: BusinessProductPatchRequest) async throws -> BusinessProductMutationResponse {
@@ -142,6 +217,14 @@ final class PreviewProductsRepository: ProductsRepository, @unchecked Sendable {
             barcode: current.barcode,
             type: current.type,
             status: current.status,
+            localStatus: current.localStatus,
+            masterStatus: current.masterStatus,
+            effectiveStatus: current.effectiveStatus,
+            availabilityLabel: current.availabilityLabel,
+            source: current.source,
+            masterCatalogItemId: current.masterCatalogItemId,
+            canActivate: current.canActivate,
+            canDeactivate: current.canDeactivate,
             unit: current.unit,
             price: request.price ?? current.price,
             taxProfileCode: request.taxProfileCode ?? current.taxProfileCode,
@@ -151,21 +234,18 @@ final class PreviewProductsRepository: ProductsRepository, @unchecked Sendable {
             allowsDecimalQuantity: current.allowsDecimalQuantity
         )
         storage[index] = product
-        return BusinessProductMutationResponse(
-            product: product,
-            catalogRevision: nil
-        )
+        return BusinessProductMutationResponse(product: product, catalogRevision: nil)
     }
 
     func deactivateProduct(organizationId: String, productId: String, reason: String) async throws -> BusinessProductMutationResponse {
-        try await setStatus(productId: productId, status: "DISABLED")
+        try await setStatus(productId: productId, status: "PAUSED", effectiveStatus: "PAUSED_BY_BUSINESS", label: "No disponible")
     }
 
     func activateProduct(organizationId: String, productId: String, reason: String) async throws -> BusinessProductMutationResponse {
-        try await setStatus(productId: productId, status: "ACTIVE")
+        try await setStatus(productId: productId, status: "ACTIVE", effectiveStatus: "AVAILABLE", label: "Disponible")
     }
 
-    private func setStatus(productId: String, status: String) async throws -> BusinessProductMutationResponse {
+    private func setStatus(productId: String, status: String, effectiveStatus: String, label: String) async throws -> BusinessProductMutationResponse {
         guard let index = storage.firstIndex(where: { $0.id == productId }) else { throw ProductsPreviewError.notFound }
         let current = storage[index]
         let product = BusinessProduct(
@@ -176,6 +256,14 @@ final class PreviewProductsRepository: ProductsRepository, @unchecked Sendable {
             barcode: current.barcode,
             type: current.type,
             status: status,
+            localStatus: status,
+            masterStatus: current.masterStatus,
+            effectiveStatus: effectiveStatus,
+            availabilityLabel: label,
+            source: current.source,
+            masterCatalogItemId: current.masterCatalogItemId,
+            canActivate: status != "ACTIVE",
+            canDeactivate: status == "ACTIVE",
             unit: current.unit,
             price: current.price,
             taxProfileCode: current.taxProfileCode,
@@ -185,16 +273,15 @@ final class PreviewProductsRepository: ProductsRepository, @unchecked Sendable {
             allowsDecimalQuantity: current.allowsDecimalQuantity
         )
         storage[index] = product
-        return BusinessProductMutationResponse(
-            product: product,
-            catalogRevision: nil
-        )
+        return BusinessProductMutationResponse(product: product, catalogRevision: nil)
     }
 }
 
-private enum ProductsPreviewError: Error { case notFound }
+private enum ProductsPreviewError: Error { case notFound, duplicate }
 
-//private struct PreviewProductMutationEnvelope: Encodable { //Type 'PreviewProductMutationEnvelope' does not conform to protocol 'Encodable'
-//    let product: BusinessProduct
-//    let catalogRevision: String?
-//}
+private extension String {
+    var nilIfEmptyForPreviewProducts: String? {
+        let trimmed = trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+}

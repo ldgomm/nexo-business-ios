@@ -2,13 +2,15 @@
 //  ProductFormViewModel.swift
 //  Nexo Business
 //
+//  Created by José Ruiz on 29/5/26.
+//
 
 import Foundation
 
 @Observable
 final class ProductFormViewModel {
     enum Mode: Equatable {
-        case create
+        case adopt(BusinessMasterCatalogItem)
         case edit(BusinessProduct)
     }
 
@@ -49,13 +51,13 @@ final class ProductFormViewModel {
         )
 
         switch mode {
-        case .create:
+        case .adopt(let master):
             name = ""
             description = ""
             code = ""
             price = ""
             selectedTaxProfileCode = defaultTaxProfileCode
-            type = "PRODUCT"
+            type = master.type
         case .edit(let product):
             name = product.name
             description = product.itemDescription ?? ""
@@ -68,8 +70,31 @@ final class ProductFormViewModel {
 
     var title: String {
         switch mode {
-        case .create: "Nuevo producto"
+        case .adopt: "Agregar desde catálogo"
         case .edit: "Editar producto"
+        }
+    }
+
+    var masterName: String? {
+        switch mode {
+        case .adopt(let master): master.name
+        case .edit: nil
+        }
+    }
+
+    var masterSubtitle: String? {
+        switch mode {
+        case .adopt(let master):
+            [master.categoryName, master.type].compactMap { $0?.nilIfEmptyForProductForm }.joined(separator: " · ").nilIfEmptyForProductForm
+        case .edit(let product):
+            product.productsMasterReferenceLabel
+        }
+    }
+
+    var localNamePlaceholder: String {
+        switch mode {
+        case .adopt: "Nombre local opcional"
+        case .edit: "Nombre *"
         }
     }
 
@@ -78,9 +103,14 @@ final class ProductFormViewModel {
     }
 
     var canSave: Bool {
+        let requiresName: Bool
+        switch mode {
+        case .adopt: requiresName = false
+        case .edit: requiresName = true
+        }
         let hasName = !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         let hasValidPrice = Decimal(string: normalizedPrice) != nil
-        return hasName && hasValidPrice && selectedTaxProfile != nil
+        return (!requiresName || hasName) && hasValidPrice && selectedTaxProfile != nil
     }
 
     var normalizedPrice: String {
@@ -92,7 +122,7 @@ final class ProductFormViewModel {
             if taxProfiles.isEmpty {
                 errorMessage = "No hay perfiles tributarios habilitados para productos. Revisa configuración tributaria."
             } else {
-                errorMessage = "Completa nombre, precio válido y perfil tributario."
+                errorMessage = "Completa precio válido y perfil tributario."
             }
             return nil
         }
@@ -105,22 +135,20 @@ final class ProductFormViewModel {
             let money = MoneyAmount(amount: normalizedPrice, currency: "USD")
             let taxProfileCode = selectedTaxProfileCode.trimmingCharacters(in: .whitespacesAndNewlines)
             switch mode {
-            case .create:
-                let response = try await repository.createProduct(
+            case .adopt(let master):
+                let response = try await repository.adoptProduct(
                     organizationId: organizationId,
                     branchId: branchId,
                     activityId: activityId,
-                    request: BusinessProductUpsertRequest(
-                        name: name.trimmingCharacters(in: .whitespacesAndNewlines),
-                        description: description.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmptyForProductForm,
-                        code: code.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmptyForProductForm,
-                        category: nil,
-                        type: type,
-                        price: money,
-                        taxProfileCode: taxProfileCode.nilIfEmptyForProductForm,
+                    request: BusinessProductAdoptRequest(
+                        masterCatalogItemId: master.id,
                         branchId: branchId,
                         activityId: activityId,
-                        reason: "Producto creado desde Business."
+                        price: money,
+                        taxProfileCode: taxProfileCode.nilIfEmptyForProductForm,
+                        localCode: code.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmptyForProductForm,
+                        localName: name.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmptyForProductForm,
+                        reason: "Producto adoptado desde catálogo maestro."
                     )
                 )
                 return response.product
@@ -158,8 +186,11 @@ final class ProductFormViewModel {
             if let productCode, taxProfiles.contains(where: { $0.code == productCode }) {
                 return productCode
             }
-        case .create:
-            break
+        case .adopt(let master):
+            let masterCode = master.defaultTaxProfileCode?.trimmingCharacters(in: .whitespacesAndNewlines)
+            if let masterCode, taxProfiles.contains(where: { $0.code == masterCode }) {
+                return masterCode
+            }
         }
 
         return taxProfiles.first(where: { $0.defaultForProducts })?.code

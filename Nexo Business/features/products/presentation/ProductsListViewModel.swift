@@ -2,6 +2,8 @@
 //  ProductsListViewModel.swift
 //  Nexo Business
 //
+//  Created by José Ruiz on 29/5/26.
+//
 
 import Foundation
 
@@ -45,7 +47,7 @@ final class ProductsListViewModel {
     var isLoading = false
     var errorMessage: String?
     var successMessage: String?
-    var isShowingCreate = false
+    var isShowingAdoption = false
     var editingProduct: BusinessProduct?
 
     init(
@@ -143,6 +145,12 @@ enum ProductsErrorPresenter {
         }
         if raw.contains("403") {
             return "Tu usuario no tiene permiso para administrar productos."
+        }
+        if raw.lowercased().contains("already") || raw.lowercased().contains("duplic") || raw.lowercased().contains("ya fue") {
+            return "Ese producto ya fue agregado desde el catálogo maestro."
+        }
+        if raw.lowercased().contains("master catalog") || raw.lowercased().contains("catálogo maestro") {
+            return "Los productos deben agregarse desde el catálogo maestro."
         }
         if raw.lowercased().contains("tax profile") || raw.lowercased().contains("perfil tributario") {
             return "No se pudo usar el perfil tributario seleccionado. Recarga Productos y elige un perfil habilitado."
