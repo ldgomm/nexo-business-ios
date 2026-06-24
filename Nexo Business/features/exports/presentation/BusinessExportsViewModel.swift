@@ -102,16 +102,6 @@ final class BusinessExportsViewModel {
         defer { isGenerating = false }
 
         do {
-            let identity = BusinessMutationIdentity.generate(prefix: "export-daily")
-            _ = try await exportsRepository.generateDaily(
-                organizationId: organizationId,
-                idempotencyKey: identity.idempotencyKey,
-                request: BusinessExportGenerateRequest(
-                    businessDate: selectedBusinessDateString,
-                    branchId: branchId
-                )
-            )
-
             let file = try await exportsRepository.downloadDailyZip(
                 organizationId: organizationId,
                 branchId: branchId,
@@ -166,7 +156,11 @@ final class BusinessExportsViewModel {
         "exports.view",
         "exports.generate",
         "exports.download",
-        "reports.export"
+        "reports.export",
+        "reports.dashboard.view",
+        "reports.sales.view",
+        "reports.cash.view",
+        "reports.documents.view"
     ]
 
     private static let businessDateFormatter: DateFormatter = {

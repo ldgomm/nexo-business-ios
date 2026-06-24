@@ -37,6 +37,30 @@ final class BusinessExports21F2ContractTests: XCTestCase {
         XCTAssertEqual(response.exports.first?.contentType, "application/zip")
     }
 
+    @MainActor
+    func testCanExportWithOperationalReportPermissionFrom21D() {
+        let viewModel = BusinessExportsViewModel(
+            organizationId: "org_1",
+            branchId: "br_1",
+            effectivePermissions: ["reports.dashboard.view"],
+            exportsRepository: PreviewBusinessExportsRepository()
+        )
+
+        XCTAssertTrue(viewModel.canExport)
+    }
+
+    @MainActor
+    func testCanExportWithExplicitBusinessExportPermission() {
+        let viewModel = BusinessExportsViewModel(
+            organizationId: "org_1",
+            branchId: "br_1",
+            effectivePermissions: ["business.exports.download"],
+            exportsRepository: PreviewBusinessExportsRepository()
+        )
+
+        XCTAssertTrue(viewModel.canExport)
+    }
+
     func testEncodesDailyExportGenerateRequest() throws {
         let request = BusinessExportGenerateRequest(
             businessDate: "2026-06-23",

@@ -905,16 +905,26 @@ struct BusinessHomeView: View {
 
 
     private var canAccessOperationalExports: Bool {
-        permissionGate.allowsAny([
-            "business.exports.view",
-            "business.exports.generate",
-            "business.exports.download",
-            "exports.view",
-            "exports.generate",
-            "exports.download",
-            "reports.export"
-        ]) || context.effectivePermissions.contains("*")
+        guard capabilityGate.canAccessToday || context.effectivePermissions.contains("*") else {
+            return false
+        }
+
+        return permissionGate.allowsAny(Self.operationalExportPermissions) || context.effectivePermissions.contains("*")
     }
+
+    private static let operationalExportPermissions = [
+        "business.exports.view",
+        "business.exports.generate",
+        "business.exports.download",
+        "exports.view",
+        "exports.generate",
+        "exports.download",
+        "reports.export",
+        "reports.dashboard.view",
+        "reports.sales.view",
+        "reports.cash.view",
+        "reports.documents.view"
+    ]
 
     private var organizationId: String {
         context.organization.id
