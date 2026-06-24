@@ -23,6 +23,55 @@ final class PreviewAuthRepository: AuthRepository, @unchecked Sendable {
         )
     }
 
+    func recoverSessions(email: String, password: String) async throws -> LoginResponse {
+        try await login(email: email, password: password)
+    }
+
+    func listSessions() async throws -> [AuthUserSession] {
+        [
+            AuthUserSession(
+                id: "ses_preview_current",
+                userId: "usr_preview",
+                status: "ACTIVE",
+                createdAt: Date().addingTimeInterval(-3600),
+                expiresAt: Date().addingTimeInterval(3600 * 24),
+                lastSeenAt: Date(),
+                userAgent: "Preview iOS",
+                ipAddress: "127.0.0.1",
+                deviceId: "ios-business-preview",
+                appType: "nexo-business-ios",
+                appVersion: "21E.11",
+                appBuild: "preview",
+                platform: "ios",
+                current: true
+            ),
+            AuthUserSession(
+                id: "ses_preview_other",
+                userId: "usr_preview",
+                status: "ACTIVE",
+                createdAt: Date().addingTimeInterval(-7200),
+                expiresAt: Date().addingTimeInterval(3600 * 24),
+                lastSeenAt: Date().addingTimeInterval(-1200),
+                userAgent: "Otro dispositivo",
+                ipAddress: "127.0.0.1",
+                deviceId: "ios-business-other",
+                appType: "nexo-business-ios",
+                appVersion: "21E.11",
+                appBuild: "preview",
+                platform: "ios",
+                current: false
+            )
+        ]
+    }
+
+    func revokeSession(sessionId: String, reason: String) async throws -> RevokeAuthSessionResponse {
+        RevokeAuthSessionResponse(revokedSessions: 1, revokedRefreshTokens: 1)
+    }
+
+    func revokeAllSessions(reason: String) async throws -> RevokeAuthSessionResponse {
+        RevokeAuthSessionResponse(revokedSessions: 2, revokedRefreshTokens: 2)
+    }
+
     func logout() async throws {}
 }
 

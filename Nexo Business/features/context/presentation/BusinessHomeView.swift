@@ -713,6 +713,23 @@ struct BusinessHomeView: View {
                 }
                 .buttonStyle(.plain)
 
+                NavigationLink {
+                    AuthSessionsView(
+                        viewModel: AuthSessionsViewModel(
+                            authRepository: container.authRepository
+                        ),
+                        onAllSessionsRevoked: onLogout
+                    )
+                } label: {
+                    BusinessHomeActionLabel(
+                        title: "Mis sesiones",
+                        subtitle: "Ver y revocar dispositivos activos",
+                        systemImage: "iphone.and.arrow.forward",
+                        tint: .orange
+                    )
+                }
+                .buttonStyle(.plain)
+
                 Button(role: .destructive) {
                     onLogout()
                 } label: {

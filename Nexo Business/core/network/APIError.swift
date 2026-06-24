@@ -60,6 +60,14 @@ enum APIError: Error, Equatable, Sendable {
         return normalizedCode == nil
     }
 
+    var isMaxSessionsReached: Bool {
+        code?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == "max_sessions_reached"
+    }
+
+    var isLockedByTooManyAttempts: Bool {
+        code?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == "account_locked_too_many_attempts"
+    }
+
     var serverMessage: String? {
         switch self {
         case let .server(_, _, message, _):
@@ -117,6 +125,15 @@ enum APIErrorHumanizer {
         code: String?,
         fallback: String
     ) -> String {
+        let normalizedCode = code?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if normalizedCode == "max_sessions_reached" {
+            return "Ya alcanzaste el máximo de dispositivos activos. Puedes cerrar las sesiones anteriores e ingresar nuevamente."
+        }
+
+        if normalizedCode == "account_locked_too_many_attempts" {
+            return "Usuario bloqueado temporalmente por demasiados intentos. Contacte al administrador de la empresa."
+        }
+
         if let businessMessage = humanizedBusinessMessage(fallback) {
             return businessMessage
         }
@@ -297,4 +314,22 @@ struct APIErrorBody: Decodable, Sendable {
     let message: String
     let requestId: String?
     let details: [String: String]?
+}
+
+
+struct APIFlatErrorEnvelope: Decodable, Sendable {
+    let error: String?
+    let message: String?
+    let requestId: String?
+}
+
+
+struct APITolerantErrorEnvelope: Decodable, Sendable {
+    let error: APITolerantErrorBody
+}
+
+struct APITolerantErrorBody: Decodable, Sendable {
+    let code: String?
+    let message: String
+    let requestId: String?
 }

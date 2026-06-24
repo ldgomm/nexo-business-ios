@@ -165,11 +165,13 @@ final class URLSessionAPIClient: APIDataClient, @unchecked Sendable {
     private func validate(http: HTTPURLResponse, data: Data) throws {
         guard (200..<300).contains(http.statusCode) else {
             let envelope = try? decoder.decode(APIErrorEnvelope.self, from: data)
+            let tolerantEnvelope = try? decoder.decode(APITolerantErrorEnvelope.self, from: data)
+            let flatEnvelope = try? decoder.decode(APIFlatErrorEnvelope.self, from: data)
             throw APIError.server(
                 statusCode: http.statusCode,
-                code: envelope?.error.code,
-                message: envelope?.error.message ?? "Solicitud rechazada.",
-                requestId: envelope?.error.requestId
+                code: envelope?.error.code ?? tolerantEnvelope?.error.code ?? flatEnvelope?.error,
+                message: envelope?.error.message ?? tolerantEnvelope?.error.message ?? flatEnvelope?.message ?? "Solicitud rechazada.",
+                requestId: envelope?.error.requestId ?? tolerantEnvelope?.error.requestId ?? flatEnvelope?.requestId
             )
         }
     }
