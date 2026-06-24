@@ -2,11 +2,14 @@
 //  BusinessExportsModels.swift
 //  Nexo Business
 //
+//  Created by José Ruiz on 23/6/26.
+//
 
 import Foundation
 
 enum BusinessExportKind: String, Codable, CaseIterable, Identifiable, Sendable {
     case dailyOperational = "daily_operational"
+    case operationalIntelligent = "operational_intelligent"
 
     var id: String { rawValue }
 
@@ -14,6 +17,52 @@ enum BusinessExportKind: String, Codable, CaseIterable, Identifiable, Sendable {
         switch self {
         case .dailyOperational:
             return "Exportación operativa diaria"
+        case .operationalIntelligent:
+            return "Informe operativo inteligente"
+        }
+    }
+}
+
+enum BusinessExportPeriodPreset: String, CaseIterable, Identifiable, Sendable {
+    case today
+    case yesterday
+    case thisWeek
+    case last7Days
+    case thisFortnight
+    case thisMonth
+    case lastMonth
+    case custom
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .today: return "Hoy"
+        case .yesterday: return "Ayer"
+        case .thisWeek: return "Esta semana"
+        case .last7Days: return "Últimos 7 días"
+        case .thisFortnight: return "Esta quincena"
+        case .thisMonth: return "Este mes"
+        case .lastMonth: return "Mes anterior"
+        case .custom: return "Personalizado"
+        }
+    }
+}
+
+enum BusinessExportChartKind: String, CaseIterable, Identifiable, Sendable {
+    case salesByDay
+    case topItems
+    case paymentStatuses
+    case documentStatuses
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .salesByDay: return "Ventas"
+        case .topItems: return "Productos"
+        case .paymentStatuses: return "Pagos"
+        case .documentStatuses: return "Documentos"
         }
     }
 }
@@ -79,7 +128,7 @@ struct BusinessExportDescriptor: Decodable, Equatable, Identifiable, Sendable {
             ?? [kind, version].compactMap { $0 }.joined(separator: ":")
         title = try container.decodeIfPresent(String.self, forKey: .title)
             ?? container.decodeIfPresent(String.self, forKey: .name)
-            ?? BusinessExportKind.dailyOperational.displayName
+            ?? (BusinessExportKind(rawValue: kind)?.displayName ?? BusinessExportKind.dailyOperational.displayName)
         description = try container.decodeIfPresent(String.self, forKey: .description)
         contentType = try container.decodeIfPresent(String.self, forKey: .contentType)
         fileName = try container.decodeIfPresent(String.self, forKey: .fileName)
@@ -181,4 +230,136 @@ struct BusinessExportDownloadedFile: Identifiable, Equatable, Sendable {
     var sizeText: String {
         ByteCountFormatter.string(fromByteCount: Int64(sizeBytes), countStyle: .file)
     }
+}
+
+struct BusinessOperationalSummaryResponse: Decodable, Equatable, Sendable {
+    let period: BusinessOperationalPeriod
+    let hasData: Bool
+    let totals: BusinessOperationalTotals
+    let comparisons: [BusinessOperationalComparison]
+    let charts: BusinessOperationalCharts
+    let alerts: [BusinessOperationalAlert]
+    let availableExports: [String]
+    let recommendedSummary: [String]
+}
+
+struct BusinessOperationalPeriod: Decodable, Equatable, Sendable {
+    let from: String
+    let to: String
+    let label: String
+    let timezone: String
+    let isSingleDay: Bool
+    let isPartialMonth: Bool
+    let daysInPeriod: Int
+    let daysWithData: Int
+}
+
+struct BusinessOperationalTotals: Decodable, Equatable, Sendable {
+    let saleCount: Int
+    let closedSaleCount: Int
+    let canceledSaleCount: Int
+    let itemCount: Int
+    let grandTotal: BusinessExportMoney
+    let paidTotal: BusinessExportMoney
+    let receivableTotal: BusinessExportMoney
+    let pendingReceivables: BusinessExportMoney
+    let pendingReceivablesCount: Int
+    let cashInTotal: BusinessExportMoney
+    let cashOutTotal: BusinessExportMoney
+    let netCashMovement: BusinessExportMoney
+    let cashDifferenceTotal: BusinessExportMoney
+    let documentCount: Int
+    let authorizedDocumentCount: Int
+    let pendingDocumentCount: Int
+    let taxTotal: BusinessExportMoney
+}
+
+struct BusinessExportMoney: Decodable, Equatable, Sendable {
+    let amount: String
+    let currency: String
+
+    var doubleValue: Double {
+        Double(amount) ?? 0
+    }
+
+    var displayText: String {
+        let value = doubleValue
+        return value.formatted(.currency(code: currency))
+    }
+}
+
+struct BusinessOperationalComparison: Decodable, Equatable, Sendable {
+    let label: String
+    let from: String
+    let to: String
+    let currentGrandTotal: BusinessExportMoney
+    let previousGrandTotal: BusinessExportMoney
+    let grandTotalDelta: BusinessExportMoney
+    let grandTotalDeltaPercent: String?
+    let currentSaleCount: Int
+    let previousSaleCount: Int
+    let saleCountDelta: Int
+    let currentPaidTotal: BusinessExportMoney
+    let previousPaidTotal: BusinessExportMoney
+    let paidTotalDelta: BusinessExportMoney
+
+    var deltaDisplayText: String {
+        let prefix = grandTotalDelta.doubleValue >= 0 ? "+" : ""
+        if let percent = grandTotalDeltaPercent {
+            return "\(prefix)\(grandTotalDelta.displayText) · \(prefix)\(percent)%"
+        }
+        return "\(prefix)\(grandTotalDelta.displayText)"
+    }
+}
+
+struct BusinessOperationalCharts: Decodable, Equatable, Sendable {
+    let salesByDay: [BusinessOperationalDailyPoint]
+    let topItems: [BusinessOperationalTopItem]
+    let paymentStatuses: [BusinessOperationalStatusCount]
+    let documentStatuses: [BusinessOperationalStatusCount]
+    let cashMovementTypes: [BusinessOperationalStatusCount]
+}
+
+struct BusinessOperationalDailyPoint: Decodable, Equatable, Identifiable, Sendable {
+    let date: String
+    let label: String
+    let saleCount: Int
+    let grandTotal: BusinessExportMoney
+    let paidTotal: BusinessExportMoney
+
+    var id: String { date }
+}
+
+struct BusinessOperationalTopItem: Decodable, Equatable, Identifiable, Sendable {
+    let catalogItemId: String?
+    let name: String
+    let quantity: String
+    let netTotal: BusinessExportMoney
+    let lineTotal: BusinessExportMoney
+
+    var id: String { catalogItemId ?? name }
+}
+
+struct BusinessOperationalStatusCount: Decodable, Equatable, Identifiable, Sendable {
+    let status: String
+    let count: Int
+
+    var id: String { status }
+}
+
+struct BusinessOperationalAlert: Decodable, Equatable, Identifiable, Sendable {
+    let code: String
+    let severity: String
+    let message: String
+    let actionHint: String?
+
+    var id: String { code + message }
+}
+
+struct BusinessExportChartPoint: Identifiable, Equatable, Sendable {
+    let id: String
+    let title: String
+    let subtitle: String?
+    let value: Double
+    let valueText: String
 }

@@ -2,6 +2,8 @@
 //  BusinessExportsView.swift
 //  Nexo Business
 //
+//  Created by José Ruiz on 23/6/26.
+//
 
 import SwiftUI
 
@@ -14,8 +16,10 @@ struct BusinessExportsView: View {
 
     var body: some View {
         List {
-            guideSection
+            periodSection
             messagesSection
+            summarySection
+            chartsSection
             availableExportsSection
             actionSection
         }
@@ -26,41 +30,79 @@ struct BusinessExportsView: View {
                 Button {
                     Task { await viewModel.load() }
                 } label: {
-                    if viewModel.isLoading {
+                    if viewModel.isLoading || viewModel.isLoadingSummary {
                         ProgressView()
                             .controlSize(.small)
                     } else {
                         Image(systemName: "arrow.clockwise")
                     }
                 }
-                .disabled(viewModel.isLoading || viewModel.isGenerating)
-                .accessibilityLabel("Actualizar exportaciones")
+                .disabled(viewModel.isLoading || viewModel.isLoadingSummary || viewModel.isGenerating)
+                .accessibilityLabel("Actualizar informe")
             }
         }
         .task { await viewModel.loadIfNeeded() }
+        .onChange(of: viewModel.selectedPreset) { _, _ in
+            viewModel.clearGeneratedReport()
+            Task { await viewModel.loadSummary() }
+        }
+        .onChange(of: viewModel.customStartDate) { _, _ in
+            guard viewModel.selectedPreset == .custom else { return }
+            viewModel.clearGeneratedReport()
+            Task { await viewModel.loadSummary() }
+        }
+        .onChange(of: viewModel.customEndDate) { _, _ in
+            guard viewModel.selectedPreset == .custom else { return }
+            viewModel.clearGeneratedReport()
+            Task { await viewModel.loadSummary() }
+        }
     }
 
-    private var guideSection: some View {
+    private var periodSection: some View {
         Section {
-            VStack(alignment: .leading, spacing: 12) {
-                Label("Exportación operativa diaria", systemImage: "square.and.arrow.down")
+            VStack(alignment: .leading, spacing: 14) {
+                Label("Informe operativo inteligente", systemImage: "chart.xyaxis.line")
                     .font(.headline)
 
-                DatePicker(
-                    "Fecha",
-                    selection: $viewModel.businessDate,
-                    displayedComponents: [.date]
-                )
+                Picker("Período", selection: $viewModel.selectedPreset) {
+                    ForEach(BusinessExportPeriodPreset.allCases) { preset in
+                        Text(preset.displayName).tag(preset)
+                    }
+                }
+                .pickerStyle(.menu)
 
-                Text("Genera un ZIP operativo para revisar ventas, pagos, caja, documentos y cuentas por cobrar del día seleccionado.")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
+                if viewModel.selectedPreset == .custom {
+                    DatePicker(
+                        "Desde",
+                        selection: $viewModel.customStartDate,
+                        in: ...Date(),
+                        displayedComponents: [.date]
+                    )
 
-                Text("No reemplaza al contador ni a obligaciones tributarias.")
-                    .font(.footnote.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
+                    DatePicker(
+                        "Hasta",
+                        selection: $viewModel.customEndDate,
+                        in: ...Date(),
+                        displayedComponents: [.date]
+                    )
+                }
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(viewModel.periodDisplayText)
+                        .font(.subheadline.weight(.semibold))
+                    Text("PDF ejecutivo, HTML con diagramas, resumen JSON y CSV operativos.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                    Text("No reemplaza al contador ni a obligaciones tributarias.")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                }
+
+                if let validation = viewModel.validationMessage {
+                    Label(validation, systemImage: "exclamationmark.triangle")
+                        .font(.footnote)
+                        .foregroundStyle(.orange)
+                }
             }
             .padding(.vertical, 4)
         }
@@ -81,6 +123,85 @@ struct BusinessExportsView: View {
                 Label(message, systemImage: "checkmark.circle")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var summarySection: some View {
+        Section("Resumen") {
+            if viewModel.isLoadingSummary {
+                HStack(spacing: 10) {
+                    ProgressView()
+                    Text("Calculando informe…")
+                        .foregroundStyle(.secondary)
+                }
+            } else if let summary = viewModel.summary {
+                if !summary.hasData {
+                    ContentUnavailableView(
+                        "Sin movimientos",
+                        systemImage: "calendar.badge.exclamationmark",
+                        description: Text("No hay datos en este período. Cambia las fechas para generar un informe con contenido.")
+                    )
+                } else {
+                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+                        BusinessExportMetricCard(title: "Vendido", value: summary.totals.grandTotal.displayText, systemImage: "cart")
+                        BusinessExportMetricCard(title: "Cobrado", value: summary.totals.paidTotal.displayText, systemImage: "banknote")
+                        BusinessExportMetricCard(title: "Por cobrar", value: summary.totals.receivableTotal.displayText, systemImage: "clock")
+                        BusinessExportMetricCard(title: "Documentos", value: "\(summary.totals.authorizedDocumentCount)/\(summary.totals.documentCount)", systemImage: "doc.text")
+                    }
+                    .padding(.vertical, 4)
+
+                    if let comparison = summary.comparisons.first {
+                        Label("\(comparison.label): \(comparison.deltaDisplayText)", systemImage: "arrow.left.arrow.right")
+                            .font(.footnote.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                    }
+
+                    ForEach(summary.recommendedSummary, id: \.self) { item in
+                        Label(item, systemImage: "sparkles")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            } else {
+                ContentUnavailableView(
+                    "Sin resumen",
+                    systemImage: "chart.bar.doc.horizontal",
+                    description: Text("Selecciona un período y actualiza para calcular el informe.")
+                )
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var chartsSection: some View {
+        if let summary = viewModel.summary, summary.hasData {
+            Section("Diagramas") {
+                Picker("Diagrama", selection: $viewModel.selectedChart) {
+                    ForEach(BusinessExportChartKind.allCases) { chart in
+                        Text(chart.displayName).tag(chart)
+                    }
+                }
+                .pickerStyle(.segmented)
+
+                BusinessExportInteractiveBarsView(
+                    title: viewModel.selectedChart.displayName,
+                    points: viewModel.chartPoints(for: viewModel.selectedChart)
+                )
+
+                if !summary.alerts.isEmpty {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Alertas")
+                            .font(.subheadline.weight(.semibold))
+                        ForEach(summary.alerts) { alert in
+                            Label(alert.message, systemImage: alert.severity == "warning" ? "exclamationmark.triangle" : "info.circle")
+                                .font(.caption)
+                                .foregroundStyle(alert.severity == "warning" ? .orange : .secondary)
+                        }
+                    }
+                    .padding(.vertical, 4)
+                }
             }
         }
     }
@@ -129,17 +250,17 @@ struct BusinessExportsView: View {
     private var actionSection: some View {
         Section {
             Button {
-                Task { await viewModel.generateAndDownloadDailyZip() }
+                Task { await viewModel.generateAndDownloadOperationalZip() }
             } label: {
                 HStack {
-                    Label("Generar y descargar ZIP", systemImage: "square.and.arrow.down")
+                    Label("Generar informe inteligente", systemImage: "square.and.arrow.down")
                     Spacer(minLength: 12)
                     if viewModel.isGenerating {
                         ProgressView()
                     }
                 }
             }
-            .disabled(!viewModel.canExport || viewModel.isLoading || viewModel.isGenerating)
+            .disabled(!viewModel.canGenerateOperationalReport)
 
             if let file = viewModel.downloadedFile {
                 ShareLink(item: file.localURL) {
@@ -155,8 +276,169 @@ struct BusinessExportsView: View {
                 }
             }
         } footer: {
-            Text("El archivo queda guardado temporalmente en el dispositivo para que puedas compartirlo desde la hoja nativa de iOS.")
+            Text("El ZIP incluye PDF, HTML con diagramas, JSON de resumen, CSV operativos y manifest. El archivo queda temporalmente en el dispositivo para compartirlo desde iOS.")
         }
+    }
+}
+
+private struct BusinessExportMetricCard: View {
+    let title: String
+    let value: String
+    let systemImage: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label(title, systemImage: systemImage)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Text(value)
+                .font(.headline.weight(.bold))
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(12)
+        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+    }
+}
+
+private struct BusinessExportInteractiveBarsView: View {
+    let title: String
+    let points: [BusinessExportChartPoint]
+
+    @State private var selectedId: String?
+
+    private var visiblePoints: [BusinessExportChartPoint] {
+        Array(points.prefix(10))
+    }
+
+    private var maxValue: Double {
+        max(visiblePoints.map { $0.value }.max() ?? 0, 1)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(title)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.primary)
+
+            if visiblePoints.isEmpty {
+                BusinessExportEmptyChartView()
+            } else {
+                VStack(alignment: .leading, spacing: 12) {
+                    ForEach(visiblePoints, id: \.id) { point in
+                        BusinessExportInteractiveBarRow(
+                            point: point,
+                            maxValue: maxValue,
+                            isSelected: selectedId == point.id
+                        ) {
+                            toggle(point)
+                        }
+                    }
+                }
+            }
+        }
+        .padding(.vertical, 6)
+    }
+
+    private func toggle(_ point: BusinessExportChartPoint) {
+        selectedId = selectedId == point.id ? nil : point.id
+    }
+}
+
+private struct BusinessExportEmptyChartView: View {
+    var body: some View {
+        ContentUnavailableView(
+            "Sin datos para graficar",
+            systemImage: "chart.bar",
+            description: Text("Este período no tiene datos suficientes para este diagrama.")
+        )
+    }
+}
+
+private struct BusinessExportInteractiveBarRow: View {
+    let point: BusinessExportChartPoint
+    let maxValue: Double
+    let isSelected: Bool
+    let onTap: () -> Void
+
+    private var progress: CGFloat {
+        guard maxValue > 0 else { return 0 }
+        let rawValue = point.value / maxValue
+        let clampedValue = min(max(rawValue, 0), 1)
+        return CGFloat(clampedValue)
+    }
+
+    var body: some View {
+        Button(action: onTap) {
+            VStack(alignment: .leading, spacing: 6) {
+                header
+                BusinessExportInteractiveBar(progress: progress, isSelected: isSelected)
+                subtitle
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var header: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 12) {
+            Text(point.title)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.primary)
+                .lineLimit(1)
+
+            Spacer(minLength: 8)
+
+            Text(point.valueText)
+                .font(.caption.monospacedDigit().weight(.bold))
+                .foregroundStyle(.primary)
+                .lineLimit(1)
+        }
+    }
+
+    @ViewBuilder
+    private var subtitle: some View {
+        if isSelected, let subtitle = point.subtitle, !subtitle.isEmpty {
+            Text(subtitle)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+}
+
+private struct BusinessExportInteractiveBar: View {
+    let progress: CGFloat
+    let isSelected: Bool
+
+    private var safeProgress: CGFloat {
+        min(max(progress, 0), 1)
+    }
+
+    private var barFillColor: Color {
+        isSelected
+            ? Color.primary.opacity(0.55)
+            : Color.primary.opacity(0.28)
+    }
+
+    var body: some View {
+        GeometryReader { proxy in
+            let availableWidth = proxy.size.width
+            let filledWidth = max(availableWidth * safeProgress, 8)
+
+            ZStack(alignment: .leading) {
+                Capsule()
+                    .fill(Color.secondary.opacity(0.14))
+
+                Capsule()
+                    .fill(barFillColor)
+                    .frame(width: filledWidth)
+            }
+        }
+        .frame(height: 12)
+        .animation(.snappy(duration: 0.18), value: safeProgress)
+        .animation(.snappy(duration: 0.18), value: isSelected)
     }
 }
 
