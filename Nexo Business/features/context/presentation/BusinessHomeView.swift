@@ -75,11 +75,13 @@ struct BusinessHomeView: View {
                         effectivePermissions: permissions,
                         catalogRepository: container.catalogRepository,
                         salesRepository: container.salesRepository,
+                        salesHistoryRepository: container.salesHistoryRepository,
                         contextRepository: container.contextRepository
                     ),
                     customersRepository: container.customersRepository,
                     cashRepository: container.cashRepository,
                     paymentsRepository: container.paymentsRepository,
+                    salesHistoryRepository: container.salesHistoryRepository,
                     receivablesRepository: container.receivablesRepository,
                     documentsRepository: container.documentsRepository
                 )
@@ -791,11 +793,13 @@ struct BusinessHomeView: View {
                 effectivePermissions: permissions,
                 catalogRepository: container.catalogRepository,
                 salesRepository: container.salesRepository,
+                salesHistoryRepository: container.salesHistoryRepository,
                 contextRepository: container.contextRepository
             ),
             customersRepository: container.customersRepository,
             cashRepository: container.cashRepository,
             paymentsRepository: container.paymentsRepository,
+            salesHistoryRepository: container.salesHistoryRepository,
             receivablesRepository: container.receivablesRepository,
             documentsRepository: container.documentsRepository
         )

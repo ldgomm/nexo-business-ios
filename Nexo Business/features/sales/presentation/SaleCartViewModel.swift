@@ -395,6 +395,10 @@ final class SaleCartViewModel {
     private(set) var isPreviewDirty = false
     private(set) var createdSale: BusinessSale?
     private(set) var registeredSaleHasUnsavedChanges = false
+    private(set) var pendingSales: [BusinessSale] = []
+    private(set) var isLoadingPendingSales = false
+    private(set) var deletingPendingSaleId: String?
+    private(set) var pendingSalesErrorMessage: String?
 
     private(set) var orderState: SaleCartOrderState = .editing
     private(set) var isSearching = false
@@ -418,9 +422,11 @@ final class SaleCartViewModel {
     
     private let catalogRepository: CatalogRepository
     private let salesRepository: SalesRepository
+    private let salesHistoryRepository: SalesHistoryRepository?
     private let contextRepository: BusinessContextRepository?
     private let revisionRegistry: BusinessRevisionRegistry
     private var scheduledPreviewTask: Task<Void, Never>?
+    private var lastPendingSalesLoadedAt: Date?
     
     init(
         organizationId: String,
@@ -431,6 +437,7 @@ final class SaleCartViewModel {
         cashSessionId: String? = nil,
         catalogRepository: CatalogRepository,
         salesRepository: SalesRepository,
+        salesHistoryRepository: SalesHistoryRepository? = nil,
         contextRepository: BusinessContextRepository? = nil,
         revisionRegistry: BusinessRevisionRegistry = .shared
     ) {
@@ -442,6 +449,7 @@ final class SaleCartViewModel {
         self.cashSessionId = cashSessionId
         self.catalogRepository = catalogRepository
         self.salesRepository = salesRepository
+        self.salesHistoryRepository = salesHistoryRepository
         self.contextRepository = contextRepository
         self.revisionRegistry = revisionRegistry
     }
@@ -543,6 +551,52 @@ final class SaleCartViewModel {
     var canStartNewOrder: Bool {
         createdSale != nil || !cartItems.isEmpty || preview != nil || selectedCustomer != nil
     }
+
+    var visiblePendingSales: [BusinessSale] {
+        let currentSaleId = createdSale?.id.trimmingCharacters(in: .whitespacesAndNewlines)
+        return pendingSales
+            .filter { sale in
+                if let currentSaleId, sale.id.trimmingCharacters(in: .whitespacesAndNewlines) == currentSaleId {
+                    return false
+                }
+                return Self.isPendingForCart(sale)
+            }
+            .sorted { lhs, rhs in
+                (lhs.createdAt ?? lhs.updatedAt ?? .distantPast) > (rhs.createdAt ?? rhs.updatedAt ?? .distantPast)
+            }
+    }
+
+    var shouldShowPendingSalesGroup: Bool {
+        isLoadingPendingSales || pendingSalesErrorMessage != nil || !visiblePendingSales.isEmpty
+    }
+
+    var pendingSalesSubtitle: String {
+        let count = visiblePendingSales.count
+        if pendingSalesErrorMessage != nil { return "Revisa el estado de ventas guardadas sin salir de venta rápida" }
+        if isLoadingPendingSales && count == 0 { return "Buscando ventas guardadas sin interrumpir la venta actual" }
+        if count == 1 { return "1 venta requiere seguimiento" }
+        return "\(count) ventas requieren seguimiento"
+    }
+
+    var pendingSalesBadgeTitle: String {
+        let count = visiblePendingSales.count
+        if isLoadingPendingSales && count == 0 { return "Buscando" }
+        if pendingSalesErrorMessage != nil { return "Revisar" }
+        if count == 1 { return "1 pendiente" }
+        return "\(min(count, 99)) pendientes"
+    }
+
+    func canDeletePendingSale(_ sale: BusinessSale) -> Bool {
+        deletingPendingSaleId == nil &&
+        hasPermission(["business.sales.cancel", "sales.cancel"]) &&
+        SaleStatusPresentation.canCancel(status: sale.status) &&
+        Self.isPendingForCart(sale)
+    }
+
+    func isDeletingPendingSale(_ sale: BusinessSale) -> Bool {
+        deletingPendingSaleId == sale.id
+    }
+
     
     var isOrderLocked: Bool {
         createdSale != nil || orderState == .created || orderState == .creating
@@ -675,6 +729,108 @@ final class SaleCartViewModel {
 
     var startNewOrderConfirmationMessage: String {
         "La venta fue registrada, pero todavía no se ha cobrado. Si continúas, aparecerá como venta sin cobrar y tendrás que cobrarla después."
+    }
+
+    func loadPendingSalesIfNeeded() async {
+        guard salesHistoryRepository != nil else { return }
+        if let lastPendingSalesLoadedAt, Date().timeIntervalSince(lastPendingSalesLoadedAt) < 20 {
+            return
+        }
+        await refreshPendingSales()
+    }
+
+    func refreshPendingSales() async {
+        guard let salesHistoryRepository else { return }
+        guard hasPermission(["*", "business.sales.view", "sales.view"]) else { return }
+        guard !isLoadingPendingSales else { return }
+
+        isLoadingPendingSales = true
+        pendingSalesErrorMessage = nil
+        defer {
+            isLoadingPendingSales = false
+            lastPendingSalesLoadedAt = Date()
+        }
+
+        do {
+            let response = try await salesHistoryRepository.searchSales(
+                organizationId: organizationId,
+                request: SalesHistorySearchRequest(
+                    branchId: branchId,
+                    statusValues: ["draft", "pending", "confirmed", "in_progress", "ready", "delivered"],
+                    limit: 30
+                )
+            )
+            pendingSales = response.sales.filter(Self.isPendingForCart)
+        } catch let error as APIError {
+            pendingSalesErrorMessage = error.userMessage
+        } catch is CancellationError {
+            // Ignore navigation refresh cancellation.
+        } catch {
+            pendingSalesErrorMessage = error.localizedDescription
+        }
+    }
+
+    @discardableResult
+    func deletePendingSale(_ sale: BusinessSale) async -> Bool {
+        guard canDeletePendingSale(sale) else {
+            pendingSalesErrorMessage = "No puedes eliminar esta venta pendiente con tu usuario o estado actual."
+            return false
+        }
+
+        let saleId = sale.id.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !saleId.isEmpty else {
+            pendingSalesErrorMessage = "No se encontró el identificador de la venta pendiente."
+            return false
+        }
+
+        deletingPendingSaleId = sale.id
+        pendingSalesErrorMessage = nil
+        infoMessage = nil
+
+        defer {
+            deletingPendingSaleId = nil
+        }
+
+        do {
+            _ = try await salesRepository.cancel(
+                organizationId: organizationId,
+                saleId: saleId,
+                revisions: revisions,
+                idempotencyKey: .generate(prefix: "sale-pending-delete"),
+                request: CancelSaleRequest(
+                    reason: "Eliminada desde ventas pendientes en Nexo Business"
+                )
+            )
+
+            pendingSales.removeAll { $0.id == sale.id }
+            infoMessage = "Venta eliminada de pendientes."
+            return true
+        } catch let error as APIError {
+            pendingSalesErrorMessage = error.userMessage
+        } catch is CancellationError {
+            // Ignore navigation refresh cancellation.
+        } catch {
+            pendingSalesErrorMessage = error.localizedDescription
+        }
+
+        return false
+    }
+
+    func pendingSaleReasonText(for sale: BusinessSale) -> String {
+        if SaleStatusPresentation.requiresConfirmationBeforeCollection(status: sale.status) {
+            return "Borrador: se confirma en Sales antes de cobrar."
+        }
+        if PaymentStatusPresentation.isPendingCollection(sale.paymentStatus) || PaymentStatusPresentation.canCollect(status: sale.paymentStatus) {
+            return "Pendiente de cobro en Sales."
+        }
+        return "Requiere revisión operativa."
+    }
+
+    private static func isPendingForCart(_ sale: BusinessSale) -> Bool {
+        let status = sale.status.trimmingCharacters(in: .whitespacesAndNewlines).lowercased().replacingOccurrences(of: "-", with: "_")
+        guard !["closed", "canceled", "cancelled", "voided"].contains(status) else { return false }
+        if SaleStatusPresentation.requiresConfirmationBeforeCollection(status: sale.status) { return true }
+        return SaleStatusPresentation.canCollect(status: sale.status) && PaymentStatusPresentation.canCollect(status: sale.paymentStatus)
     }
 
     func updateCreatedSale(_ sale: BusinessSale) {

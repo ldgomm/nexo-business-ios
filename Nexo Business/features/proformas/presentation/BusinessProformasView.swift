@@ -220,6 +220,7 @@ struct BusinessProformaDetailView: View {
     @State private var shareDocument: BusinessProformaDownloadedDocument?
     @State private var didCompleteShare = false
     @State private var convertedSaleRoute: BusinessProformaConvertedSaleRoute?
+    @State private var activeAction: BusinessProformaDetailAction?
 
     init(
         viewModel: BusinessProformaDetailViewModel,
@@ -317,26 +318,34 @@ struct BusinessProformaDetailView: View {
                     }
 
                     Button {
-                        Task {
+                        runExclusive(.previewDocument) {
                             await viewModel.downloadDocument()
                             previewDocument = viewModel.downloadedDocument
                         }
                     } label: {
-                        Label("Ver documento comercial", systemImage: "doc.richtext")
+                        if activeAction == .previewDocument {
+                            BusinessProformaProcessingLabel("Abriendo documento…")
+                        } else {
+                            Label("Ver documento comercial", systemImage: "doc.richtext")
+                        }
                     }
-                    .disabled(viewModel.isMutating)
+                    .disabled(isAnyActionInFlight)
 
                     Button {
-                        Task {
+                        runExclusive(.shareDocument) {
                             await viewModel.downloadDocument()
                             if viewModel.errorMessage == nil {
                                 shareDocument = viewModel.downloadedDocument
                             }
                         }
                     } label: {
-                        Label(proforma.status == .draft ? "Compartir proforma" : "Compartir de nuevo", systemImage: "square.and.arrow.up")
+                        if activeAction == .shareDocument {
+                            BusinessProformaProcessingLabel("Preparando para compartir…")
+                        } else {
+                            Label(proforma.status == .draft ? "Compartir proforma" : "Compartir de nuevo", systemImage: "square.and.arrow.up")
+                        }
                     }
-                    .disabled(viewModel.isMutating)
+                    .disabled(isAnyActionInFlight)
 
                     Text("Al completar el share sheet, Nexo marca automáticamente la proforma como Compartida. Si ya lo estaba, no vuelve a llamar al servidor.")
                         .font(.footnote)
@@ -344,7 +353,7 @@ struct BusinessProformaDetailView: View {
 
                     if viewModel.canAcceptAndConvertToSale {
                         Button {
-                            Task {
+                            runExclusive(.acceptAndConvert) {
                                 if let saleId = await viewModel.acceptAndConvertToSale() {
                                     notifyUpdated()
                                     convertedSaleRoute = BusinessProformaConvertedSaleRoute(saleId: saleId)
@@ -353,9 +362,13 @@ struct BusinessProformaDetailView: View {
                                 }
                             }
                         } label: {
-                            Label("Aceptar y crear venta", systemImage: "cart.badge.plus")
+                            if activeAction == .acceptAndConvert {
+                                BusinessProformaProcessingLabel("Creando venta…")
+                            } else {
+                                Label("Aceptar y crear venta", systemImage: "cart.badge.plus")
+                            }
                         }
-                        .disabled(viewModel.isMutating)
+                        .disabled(isAnyActionInFlight)
 
                         Text("Acepta la cotización, crea la venta y abre el detalle para continuar con confirmación y cobro.")
                             .font(.footnote)
@@ -368,17 +381,23 @@ struct BusinessProformaDetailView: View {
                         } label: {
                             Label("Rechazar", systemImage: "xmark.circle")
                         }
+                        .disabled(isAnyActionInFlight)
                     }
 
                     if viewModel.canExpire {
                         Button(role: .destructive) {
-                            Task {
+                            runExclusive(.expire) {
                                 await viewModel.expire()
                                 notifyUpdated()
                             }
                         } label: {
-                            Label("Expirar", systemImage: "clock.badge.exclamationmark")
+                            if activeAction == .expire {
+                                BusinessProformaProcessingLabel("Expirando…")
+                            } else {
+                                Label("Expirar", systemImage: "clock.badge.exclamationmark")
+                            }
                         }
+                        .disabled(isAnyActionInFlight)
                     }
 
                     if viewModel.canCreateRevision {
@@ -387,11 +406,12 @@ struct BusinessProformaDetailView: View {
                         } label: {
                             Label("Crear revisión", systemImage: "arrow.triangle.2.circlepath")
                         }
+                        .disabled(isAnyActionInFlight)
                     }
 
                     if let saleId = proforma.convertedSaleId, !saleId.isEmpty {
                         NavigationLink {
-                            makeSaleDetailView(saleId: saleId) //Cannot find 'makeSaleDetailView' in scope
+                            makeSaleDetailView(saleId: saleId)
                         } label: {
                             Label("Ir a venta", systemImage: "cart")
                         }
@@ -436,7 +456,7 @@ struct BusinessProformaDetailView: View {
                         Image(systemName: "arrow.clockwise")
                     }
                 }
-                .disabled(viewModel.isLoading)
+                .disabled(viewModel.isLoading || isAnyActionInFlight)
             }
         }
         .sheet(isPresented: $isShowingEditForm) {
@@ -477,12 +497,13 @@ struct BusinessProformaDetailView: View {
                     }
                     ToolbarItem(placement: .confirmationAction) {
                         Button("Rechazar") {
-                            Task {
+                            runExclusive(.reject) {
                                 await viewModel.reject()
                                 notifyUpdated()
                                 if viewModel.errorMessage == nil { isShowingRejectSheet = false }
                             }
                         }
+                        .disabled(isAnyActionInFlight)
                     }
                 }
             }
@@ -501,12 +522,13 @@ struct BusinessProformaDetailView: View {
                     }
                     ToolbarItem(placement: .confirmationAction) {
                         Button("Crear") {
-                            Task {
+                            runExclusive(.createRevision) {
                                 await viewModel.createRevision()
                                 notifyUpdated()
                                 if viewModel.errorMessage == nil { isShowingRevisionSheet = false }
                             }
                         }
+                        .disabled(isAnyActionInFlight)
                     }
                 }
             }
@@ -520,7 +542,7 @@ struct BusinessProformaDetailView: View {
                 let completed = didCompleteShare
                 didCompleteShare = false
                 guard completed else { return }
-                Task {
+                runExclusive(.markShared) {
                     await viewModel.markAsShared()
                     notifyUpdated()
                 }
@@ -555,6 +577,22 @@ struct BusinessProformaDetailView: View {
         }
     }
 
+    private var isAnyActionInFlight: Bool {
+        viewModel.isMutating || activeAction != nil
+    }
+
+    private func runExclusive(
+        _ action: BusinessProformaDetailAction,
+        operation: @escaping () async -> Void
+    ) {
+        guard activeAction == nil, !viewModel.isMutating else { return }
+        activeAction = action
+        Task { @MainActor in
+            defer { activeAction = nil }
+            await operation()
+        }
+    }
+
     private func notifyUpdated() {
         if let proforma = viewModel.proforma {
             onUpdated(proforma)
@@ -577,6 +615,31 @@ struct BusinessProformaDetailView: View {
         )
     }
 
+}
+
+private enum BusinessProformaDetailAction: Equatable {
+    case previewDocument
+    case shareDocument
+    case markShared
+    case acceptAndConvert
+    case reject
+    case expire
+    case createRevision
+}
+
+private struct BusinessProformaProcessingLabel: View {
+    let title: String
+
+    init(_ title: String) {
+        self.title = title
+    }
+
+    var body: some View {
+        HStack(spacing: 10) {
+            ProgressView()
+            Text(title)
+        }
+    }
 }
 
 private struct BusinessProformaLineSummaryRow: View {

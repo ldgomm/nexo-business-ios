@@ -51,7 +51,9 @@ final class SalesHistoryAPIRepository: SalesHistoryRepository, @unchecked Sendab
             items.append(URLQueryItem(name: "q", value: query))
         }
 
-        if let status = request.status.queryValue {
+        if let statusValues = request.statusValues, !statusValues.isEmpty {
+            items.append(URLQueryItem(name: "status", value: statusValues.joined(separator: ",")))
+        } else if let status = request.status.queryValue {
             items.append(URLQueryItem(name: "status", value: status))
         }
 

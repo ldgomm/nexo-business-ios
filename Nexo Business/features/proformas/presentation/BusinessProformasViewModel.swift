@@ -229,6 +229,7 @@ final class BusinessProformaDetailViewModel {
 
     @discardableResult
     func markAsShared() async -> Bool {
+        guard !isMutating else { return false }
         await ensureProformaLoadedIfNeeded()
 
         guard proforma?.hasRealCustomer == true else {
@@ -247,6 +248,7 @@ final class BusinessProformaDetailViewModel {
     }
 
     func accept() async {
+        guard !isMutating else { return }
         guard proforma?.hasRealCustomer == true else {
             errorMessage = "Selecciona un cliente real antes de aceptar una proforma."
             return
@@ -264,6 +266,7 @@ final class BusinessProformaDetailViewModel {
 
     @discardableResult
     func acceptAndConvertToSale() async -> String? {
+        guard !isMutating else { return nil }
         await ensureProformaLoadedIfNeeded()
 
         guard proforma?.hasRealCustomer == true else {
@@ -473,6 +476,7 @@ final class BusinessProformaDetailViewModel {
     }
 
     func reject() async {
+        guard !isMutating else { return }
         let reason = rejectionReason.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !reason.isEmpty else {
             errorMessage = "Ingresa una razón para rechazar la proforma."
@@ -491,6 +495,7 @@ final class BusinessProformaDetailViewModel {
     }
 
     func expire() async {
+        guard !isMutating else { return }
         await mutate("Proforma expirada.") {
             try await repository.expire(
                 organizationId: organizationId,
@@ -502,6 +507,7 @@ final class BusinessProformaDetailViewModel {
     }
 
     func createRevision() async {
+        guard !isMutating else { return }
         let reason = revisionReason.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !reason.isEmpty else {
             errorMessage = "Ingresa una razón para crear revisión."
@@ -527,6 +533,7 @@ final class BusinessProformaDetailViewModel {
 
     @discardableResult
     func convertToSale() async -> String? {
+        guard !isMutating else { return nil }
         guard let proforma else { return nil }
         if let existingSaleId = proforma.convertedSaleId?.trimmingCharacters(in: .whitespacesAndNewlines), !existingSaleId.isEmpty {
             infoMessage = "Esta proforma ya tenía una venta creada. Abriendo venta."
@@ -575,6 +582,7 @@ final class BusinessProformaDetailViewModel {
     }
 
     func downloadDocument() async {
+        guard !isMutating else { return }
         guard proforma != nil else { return }
 
         isMutating = true
@@ -599,6 +607,7 @@ final class BusinessProformaDetailViewModel {
     }
 
     private func mutate(_ successMessage: String, operation: () async throws -> BusinessProforma) async {
+        guard !isMutating else { return }
         isMutating = true
         errorMessage = nil
         infoMessage = nil
@@ -998,6 +1007,7 @@ final class BusinessProformaFormViewModel {
     }
 
     func save() async -> BusinessProforma? {
+        guard !isSaving else { return nil }
         guard canSave else {
             errorMessage = "Selecciona un cliente real y al menos un producto válido. La conversión a venta valida customerId."
             return nil

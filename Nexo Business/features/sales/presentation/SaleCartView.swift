@@ -12,9 +12,12 @@ struct SaleCartView: View {
     private let customersRepository: CustomersRepository
     private let cashRepository: CashRepository
     private let paymentsRepository: PaymentsRepository
+    private let salesHistoryRepository: SalesHistoryRepository?
     private let receivablesRepository: ReceivablesRepository
     private let documentsRepository: BusinessDocumentsRepository
     @State private var showStartNewOrderConfirmation = false
+    @State private var isPendingSalesExpanded = false
+    @State private var pendingSaleDeletionCandidate: BusinessSale?
 
     @State private var preparedPaymentViewModel: PaymentRegisterViewModel?
     @State private var isPreparingPaymentNavigation = false
@@ -26,6 +29,7 @@ struct SaleCartView: View {
         customersRepository: CustomersRepository = UnavailableCustomersRepository(),
         cashRepository: CashRepository,
         paymentsRepository: PaymentsRepository,
+        salesHistoryRepository: SalesHistoryRepository? = nil,
         receivablesRepository: ReceivablesRepository,
         documentsRepository: BusinessDocumentsRepository
     ) {
@@ -33,6 +37,7 @@ struct SaleCartView: View {
         self.customersRepository = customersRepository
         self.cashRepository = cashRepository
         self.paymentsRepository = paymentsRepository
+        self.salesHistoryRepository = salesHistoryRepository
         self.receivablesRepository = receivablesRepository
         self.documentsRepository = documentsRepository
     }
@@ -41,10 +46,15 @@ struct SaleCartView: View {
         ScrollView {
             LazyVStack(spacing: 14) {
                 operationGroup
+
                 saleBuilderGroup
 
                 if shouldShowSummaryGroup {
                     summaryGroup
+                }
+                
+                if viewModel.shouldShowPendingSalesGroup {
+                    pendingSalesGroup
                 }
             }
             .padding(.horizontal, 16)
@@ -62,6 +72,7 @@ struct SaleCartView: View {
                     customersRepository: customersRepository,
                     onSaleUpdated: { updatedSale in
                         viewModel.updateCreatedSale(updatedSale)
+                        Task { await viewModel.refreshPendingSales() }
                     }
                 )
             }
@@ -85,8 +96,25 @@ struct SaleCartView: View {
         } message: {
             Text(viewModel.startNewOrderConfirmationMessage)
         }
+        .alert("Eliminar venta pendiente", isPresented: pendingSaleDeletionConfirmationBinding) {
+            Button("Cancelar", role: .cancel) {
+                pendingSaleDeletionCandidate = nil
+            }
+            Button("Eliminar", role: .destructive) {
+                guard let sale = pendingSaleDeletionCandidate else { return }
+                pendingSaleDeletionCandidate = nil
+                Task {
+                    await viewModel.deletePendingSale(sale)
+                }
+            }
+        } message: {
+            Text(pendingSaleDeletionConfirmationMessage)
+        }
         .onAppear {
             viewModel.recalculateLocalTotalsIfNeeded()
+        }
+        .task {
+            await viewModel.loadPendingSalesIfNeeded()
         }
         .onDisappear {
             viewModel.cancelScheduledPreview()
@@ -862,6 +890,7 @@ struct SaleCartView: View {
                         SaleDetailView(
                             viewModel: viewModel.makeSaleDetailViewModel(for: sale),
                             customersRepository: customersRepository,
+                            salesHistoryRepository: salesHistoryRepository ?? PreviewSaleCartSalesHistoryRepository(),
                             cashRepository: cashRepository,
                             paymentsRepository: paymentsRepository,
                             receivablesRepository: receivablesRepository,
@@ -912,12 +941,98 @@ struct SaleCartView: View {
         }
     }
 
+    private var pendingSaleDeletionConfirmationBinding: Binding<Bool> {
+        Binding(
+            get: { pendingSaleDeletionCandidate != nil },
+            set: { isPresented in
+                if !isPresented {
+                    pendingSaleDeletionCandidate = nil
+                }
+            }
+        )
+    }
+
+    private var pendingSaleDeletionConfirmationMessage: String {
+        guard let sale = pendingSaleDeletionCandidate else {
+            return "La venta se cancelará y saldrá de pendientes."
+        }
+
+        let displayNumber = sale.number?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmptyForSaleCart ?? sale.id
+        return "Se cancelará \(displayNumber) y saldrá de ventas pendientes. No se borra historial fiscal ni comprobantes."
+    }
+
     private var selectedCustomerSummary: String {
         if let customer = viewModel.selectedCustomer {
             return customer.displayName
         }
 
         return "Consumidor final"
+    }
+
+    private var pendingSalesGroup: some View {
+        SaleCartPendingSalesSummaryCard(
+            subtitle: viewModel.pendingSalesSubtitle,
+            badgeTitle: viewModel.pendingSalesBadgeTitle,
+            isExpanded: isPendingSalesExpanded,
+            isLoading: viewModel.isLoadingPendingSales,
+            hasError: viewModel.pendingSalesErrorMessage != nil,
+            onToggle: {
+                withAnimation(.easeInOut(duration: 0.18)) {
+                    isPendingSalesExpanded.toggle()
+                }
+            }
+        ) {
+            VStack(alignment: .leading, spacing: 12) {
+                if let message = viewModel.pendingSalesErrorMessage {
+                    NexoMessageBanner(message, style: .warning)
+                }
+
+                if viewModel.isLoadingPendingSales && viewModel.visiblePendingSales.isEmpty {
+                    ProgressView("Buscando ventas pendientes…")
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+
+                if isPendingSalesExpanded {
+                    ForEach(Array(viewModel.visiblePendingSales.prefix(5))) { sale in
+                        NavigationLink {
+                            SaleDetailView(
+                                viewModel: viewModel.makeSaleDetailViewModel(for: sale),
+                                customersRepository: customersRepository,
+                                salesHistoryRepository: salesHistoryRepository ?? PreviewSaleCartSalesHistoryRepository(),
+                                cashRepository: cashRepository,
+                                paymentsRepository: paymentsRepository,
+                                receivablesRepository: receivablesRepository,
+                                documentsRepository: documentsRepository
+                            )
+                        } label: {
+                            SaleCartPendingSaleRow(
+                                sale: sale,
+                                reason: viewModel.pendingSaleReasonText(for: sale),
+                                isDeleting: viewModel.isDeletingPendingSale(sale)
+                            )
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(viewModel.isDeletingPendingSale(sale))
+                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                            if viewModel.canDeletePendingSale(sale) {
+                                Button(role: .destructive) {
+                                    pendingSaleDeletionCandidate = sale
+                                } label: {
+                                    Label("Eliminar", systemImage: "trash")
+                                }
+                            }
+                        }
+                    }
+
+                    Label("Seguimiento operativo: Proformas solo convierte; Sales confirma y cobra.", systemImage: "info.circle")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.top, 2)
+                }
+            }
+        }
     }
 
     private var saleBuilderTitle: String {
@@ -1269,6 +1384,190 @@ struct SaleCartView: View {
     }
 }
 
+private struct SaleCartPendingSalesSummaryCard<Content: View>: View {
+    let subtitle: String
+    let badgeTitle: String
+    let isExpanded: Bool
+    let isLoading: Bool
+    let hasError: Bool
+    let onToggle: () -> Void
+    @ViewBuilder let content: Content
+
+    private var shouldShowContent: Bool {
+        isExpanded || hasError
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Button(action: onToggle) {
+                HStack(alignment: .center, spacing: 14) {
+                    Image(systemName: "tray.full")
+                        .font(.headline.weight(.semibold))
+                        .foregroundStyle(Color.accentColor)
+                        .frame(width: 42, height: 42)
+                        .background(Color.accentColor.opacity(0.12), in: RoundedRectangle(cornerRadius: 15, style: .continuous))
+
+                    VStack(alignment: .leading, spacing: 5) {
+                        Text("Ventas pendientes")
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(.secondary)
+                            .textCase(.uppercase)
+                            .tracking(0.6)
+
+                        Text(subtitle)
+                            .font(.subheadline.weight(.bold))
+                            .foregroundStyle(.primary)
+                            .lineLimit(2)
+                    }
+
+                    Spacer(minLength: 0)
+
+                    HStack(spacing: 8) {
+                        if isLoading {
+                            ProgressView()
+                                .controlSize(.small)
+                        } else {
+                            Text(badgeTitle)
+                                .font(.caption.weight(.semibold))
+                                .lineLimit(1)
+                                .foregroundStyle(Color.accentColor)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 7)
+                                .background(Color.accentColor.opacity(0.10), in: Capsule())
+                        }
+
+                        Image(systemName: isExpanded ? "chevron.up.circle.fill" : "chevron.down.circle.fill")
+                            .font(.title3.weight(.semibold))
+                            .foregroundStyle(.tertiary)
+                            .frame(width: 18, height: 34)
+                            .accessibilityHidden(true)
+                    }
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(isExpanded ? "Ocultar ventas pendientes" : "Mostrar ventas pendientes")
+
+            if shouldShowContent {
+                VStack(alignment: .leading, spacing: 12) {
+                    Divider()
+                    content
+                }
+                .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+        }
+        .padding(18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            LinearGradient(
+                colors: [
+                    Color.accentColor.opacity(0.12),
+                    Color(uiColor: .secondarySystemGroupedBackground)
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            ),
+            in: RoundedRectangle(cornerRadius: 26, style: .continuous)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: 26, style: .continuous)
+                .strokeBorder(Color.primary.opacity(0.06), lineWidth: 1)
+        }
+        .shadow(color: Color.black.opacity(0.035), radius: 10, x: 0, y: 5)
+    }
+}
+
+private struct SaleCartPendingSaleRow: View {
+    let sale: BusinessSale
+    let reason: String
+    let isDeleting: Bool
+
+    private var customerName: String {
+        sale.customer?.displayName ?? sale.customerName ?? "Consumidor final"
+    }
+
+    private var saleTitle: String {
+        sale.number?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmptyForSaleCart ?? sale.id
+    }
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 12) {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(alignment: .firstTextBaseline, spacing: 10) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(saleTitle)
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(.primary)
+                            .lineLimit(1)
+
+                        Text(customerName)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+
+                    Spacer(minLength: 8)
+
+                    Text(sale.totals.grandTotal.displayText)
+                        .font(.subheadline.weight(.bold))
+                        .foregroundStyle(.primary)
+                        .monospacedDigit()
+                }
+
+                HStack(spacing: 8) {
+                    NexoStatusBadge(
+                        SaleStatusPresentation.title(for: sale.status),
+                        systemImage: SaleStatusPresentation.systemImage(for: sale.status),
+                        style: SaleStatusPresentation.requiresConfirmationBeforeCollection(status: sale.status) ? .warning : .info
+                    )
+
+                    NexoStatusBadge(
+                        PaymentStatusPresentation.shortName(sale.paymentStatus),
+                        systemImage: PaymentStatusPresentation.systemImage(sale.paymentStatus),
+                        style: PaymentStatusPresentation.isCollected(sale.paymentStatus) ? .success : .warning
+                    )
+                }
+
+                Text(reason)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            if isDeleting {
+                ProgressView()
+                    .controlSize(.small)
+                    .accessibilityLabel("Eliminando venta pendiente")
+            } else {
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(.tertiary)
+                    .accessibilityHidden(true)
+            }
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(uiColor: .tertiarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .opacity(isDeleting ? 0.72 : 1)
+        .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+    }
+}
+
+private extension String {
+    var nilIfEmptyForSaleCart: String? {
+        let trimmed = trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+}
+
+private final class PreviewSaleCartSalesHistoryRepository: SalesHistoryRepository, @unchecked Sendable {
+    func searchSales(
+        organizationId: String,
+        request: SalesHistorySearchRequest
+    ) async throws -> BusinessSalesHistoryResponse {
+        BusinessSalesHistoryResponse(sales: [])
+    }
+}
 
 private struct SaleCartGroupedCard<Content: View>: View {
     let title: String
@@ -1690,11 +1989,13 @@ private struct SaleCartRow: View {
                 effectivePermissions: PreviewData.businessContext.effectivePermissions,
                 catalogRepository: PreviewCatalogRepository(),
                 salesRepository: PreviewSalesRepository(),
+                salesHistoryRepository: PreviewSaleCartSalesHistoryRepository(),
                 contextRepository: PreviewBusinessContextRepository()
             ),
             customersRepository: PreviewCustomersRepository(),
             cashRepository: PreviewCashRepository(),
             paymentsRepository: PreviewPaymentsRepository(),
+            salesHistoryRepository: PreviewSaleCartSalesHistoryRepository(),
             receivablesRepository: PreviewReceivablesRepository(),
             documentsRepository: PreviewBusinessDocumentsRepository()
         )

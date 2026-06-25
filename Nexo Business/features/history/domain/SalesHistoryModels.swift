@@ -54,6 +54,7 @@ struct SalesHistorySearchRequest: Equatable, Sendable {
     let branchId: String
     let query: String?
     let status: SalesHistoryStatusFilter
+    let statusValues: [String]?
     let date: Date?
     let limit: Int
 
@@ -61,12 +62,14 @@ struct SalesHistorySearchRequest: Equatable, Sendable {
         branchId: String,
         query: String? = nil,
         status: SalesHistoryStatusFilter = .all,
+        statusValues: [String]? = nil,
         date: Date? = nil,
         limit: Int = 50
     ) {
         self.branchId = branchId
         self.query = query
         self.status = status
+        self.statusValues = statusValues
         self.date = date
         self.limit = limit
     }
