@@ -219,7 +219,7 @@ final class BusinessProformaDetailViewModel {
             return
         }
 
-        await mutate("Proforma marcada como enviada.") {
+        await mutate("Proforma marcada como compartida/enviada. No se envió correo automático desde Nexo.") {
             try await repository.send(
                 organizationId: organizationId,
                 proformaId: proformaId,
@@ -396,6 +396,8 @@ struct BusinessProformaLineDraft: Identifiable, Equatable {
     var unitPrice: String
     var discountAmount: String
     var taxAmount: String
+    var taxProfileCode: String?
+    var taxRatePercent: String?
     var notes: String
 
     init(
@@ -407,6 +409,8 @@ struct BusinessProformaLineDraft: Identifiable, Equatable {
         unitPrice: String = "0.00",
         discountAmount: String = "0.00",
         taxAmount: String = "0.00",
+        taxProfileCode: String? = nil,
+        taxRatePercent: String? = nil,
         notes: String = ""
     ) {
         self.id = id
@@ -417,6 +421,8 @@ struct BusinessProformaLineDraft: Identifiable, Equatable {
         self.unitPrice = unitPrice
         self.discountAmount = discountAmount
         self.taxAmount = taxAmount
+        self.taxProfileCode = taxProfileCode
+        self.taxRatePercent = taxRatePercent
         self.notes = notes
     }
 
@@ -430,6 +436,8 @@ struct BusinessProformaLineDraft: Identifiable, Equatable {
             unitPrice: line.unitPrice,
             discountAmount: line.discountAmount,
             taxAmount: line.taxAmount,
+            taxProfileCode: nil,
+            taxRatePercent: nil,
             notes: line.notes ?? ""
         )
     }
@@ -442,8 +450,24 @@ struct BusinessProformaLineDraft: Identifiable, Equatable {
         max(Decimal.zero, estimatedRawSubtotal - Self.decimal(discountAmount))
     }
 
+    var estimatedTaxAmount: Decimal {
+        if let taxRatePercent = taxRatePercent?.trimmedNilIfBlankForProforma {
+            return Self.taxAmount(
+                quantity: quantity,
+                unitPrice: unitPrice,
+                discountAmount: discountAmount,
+                taxRatePercent: taxRatePercent
+            )
+        }
+        return Self.decimal(taxAmount)
+    }
+
+    var estimatedTaxAmountText: String {
+        Self.money(estimatedTaxAmount)
+    }
+
     var estimatedGrandTotal: Decimal {
-        estimatedNetSubtotal + Self.decimal(taxAmount)
+        estimatedNetSubtotal + estimatedTaxAmount
     }
 
     var estimatedGrandTotalText: String {
@@ -454,12 +478,13 @@ struct BusinessProformaLineDraft: Identifiable, Equatable {
         productId == product.id &&
         Self.normalizedMoney(unitPrice) == Self.normalizedMoney(product.price?.amount ?? "0.00") &&
         Self.normalizedMoney(discountAmount) == "0.00" &&
-        Self.normalizedMoney(taxAmount) == "0.00" &&
+        normalizedTaxProfileCode == Self.normalizedTaxProfileCode(product.taxProfileCode) &&
         notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     mutating func incrementQuantity() {
         quantity = Self.quantity(Self.decimal(quantity) + Decimal(1))
+        taxAmount = estimatedTaxAmountText
     }
 
     var input: BusinessProformaLineInput {
@@ -470,7 +495,7 @@ struct BusinessProformaLineDraft: Identifiable, Equatable {
             quantity: quantity.trimmingCharacters(in: .whitespacesAndNewlines),
             unitPrice: unitPrice.trimmingCharacters(in: .whitespacesAndNewlines),
             discountAmount: discountAmount.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmptyForProforma ?? "0.00",
-            taxAmount: taxAmount.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmptyForProforma ?? "0.00",
+            taxAmount: estimatedTaxAmountText,
             notes: notes.trimmedNilIfBlankForProforma
         )
     }
@@ -482,16 +507,68 @@ struct BusinessProformaLineDraft: Identifiable, Equatable {
         Decimal(string: unitPrice.trimmingCharacters(in: .whitespacesAndNewlines)).map { $0 >= 0 } == true
     }
 
+    var normalizedTaxProfileCode: String? {
+        Self.normalizedTaxProfileCode(taxProfileCode)
+    }
+
+    private static func normalizedTaxProfileCode(_ value: String?) -> String? {
+        guard let normalized = value?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased(),
+              !normalized.isEmpty
+        else {
+            return nil
+        }
+        return normalized
+    }
+
+    static func taxRatePercent(for product: BusinessProduct) -> String {
+        let treatment = SaleLineTaxTreatmentOption.defaultForCatalogItem(product)
+        return percent(treatment.localTaxRate(using: .ecuadorStagingFallback))
+    }
+
+    static func taxAmount(
+        quantity: String,
+        unitPrice: String,
+        discountAmount: String,
+        taxRatePercent: String
+    ) -> Decimal {
+        let rawSubtotal = decimal(quantity) * decimal(unitPrice)
+        let netSubtotal = max(Decimal.zero, rawSubtotal - decimal(discountAmount))
+        return roundMoney(netSubtotal * decimal(taxRatePercent) / Decimal(100))
+    }
+
     private static func decimal(_ value: String) -> Decimal {
-        Decimal(string: value.trimmingCharacters(in: .whitespacesAndNewlines)) ?? .zero
+        Decimal(
+            string: value
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .replacingOccurrences(of: ",", with: "."),
+            locale: Locale(identifier: "en_US_POSIX")
+        ) ?? .zero
+    }
+
+    private static func roundMoney(_ value: Decimal) -> Decimal {
+        var input = value
+        var output = Decimal()
+        NSDecimalRound(&output, &input, 2, .plain)
+        return output
+    }
+
+    private static func percent(_ value: Decimal) -> String {
+        let number = NSDecimalNumber(decimal: value)
+        let double = number.doubleValue
+        if double.rounded() == double {
+            return String(format: "%.0f", double)
+        }
+        return String(format: "%.2f", double)
     }
 
     private static func normalizedMoney(_ value: String) -> String {
         money(decimal(value))
     }
 
-    private static func money(_ value: Decimal) -> String {
-        let number = NSDecimalNumber(decimal: value)
+    static func money(_ value: Decimal) -> String {
+        let number = NSDecimalNumber(decimal: roundMoney(value))
         return String(format: "%.2f", number.doubleValue)
     }
 
@@ -574,6 +651,13 @@ final class BusinessProformaFormViewModel {
         }
     }
 
+    var saveButtonTitle: String {
+        switch mode {
+        case .create: return "Guardar y continuar"
+        case .edit: return "Guardar cambios"
+        }
+    }
+
     var canSave: Bool {
         !isSaving && lines.contains(where: { $0.isValid }) && hasConvertibleCustomer
     }
@@ -643,19 +727,34 @@ final class BusinessProformaFormViewModel {
             return
         }
 
+        let unitPrice = product.price?.amount ?? "0.00"
+        let taxRatePercent = BusinessProformaLineDraft.taxRatePercent(for: product)
+        let taxAmount = BusinessProformaLineDraft.money(
+            BusinessProformaLineDraft.taxAmount(
+                quantity: "1",
+                unitPrice: unitPrice,
+                discountAmount: "0.00",
+                taxRatePercent: taxRatePercent
+            )
+        )
+
         lines.append(
             BusinessProformaLineDraft(
                 productId: product.id,
                 sku: product.productsPrimaryCode,
                 displayName: product.name,
                 quantity: "1",
-                unitPrice: product.price?.amount ?? "0.00",
+                unitPrice: unitPrice,
                 discountAmount: "0.00",
-                taxAmount: "0.00",
+                taxAmount: taxAmount,
+                taxProfileCode: product.taxProfileCode,
+                taxRatePercent: taxRatePercent,
                 notes: ""
             )
         )
-        infoMessage = "Producto agregado a la proforma."
+        infoMessage = taxAmount == "0.00"
+            ? "Producto agregado sin impuesto referencial según su perfil tributario."
+            : "Producto agregado con impuesto referencial de venta."
     }
 
     func removeLine(_ line: BusinessProformaLineDraft) {
@@ -735,7 +834,7 @@ final class BusinessProformaFormViewModel {
     }
 
     var estimatedTaxText: String {
-        Self.money(lines.reduce(Decimal.zero) { $0 + Self.decimal($1.taxAmount) })
+        Self.money(lines.reduce(Decimal.zero) { $0 + $1.estimatedTaxAmount })
     }
 
     var estimatedTotalText: String {
@@ -763,11 +862,32 @@ final class BusinessProformaFormViewModel {
     }
 
     private static func decimal(_ value: String) -> Decimal {
-        Decimal(string: value.trimmingCharacters(in: .whitespacesAndNewlines)) ?? .zero
+        Decimal(
+            string: value
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .replacingOccurrences(of: ",", with: "."),
+            locale: Locale(identifier: "en_US_POSIX")
+        ) ?? .zero
+    }
+
+    private static func roundMoney(_ value: Decimal) -> Decimal {
+        var input = value
+        var output = Decimal()
+        NSDecimalRound(&output, &input, 2, .plain)
+        return output
+    }
+
+    private static func percent(_ value: Decimal) -> String {
+        let number = NSDecimalNumber(decimal: value)
+        let double = number.doubleValue
+        if double.rounded() == double {
+            return String(format: "%.0f", double)
+        }
+        return String(format: "%.2f", double)
     }
 
     private static func money(_ value: Decimal) -> String {
-        let number = NSDecimalNumber(decimal: value)
+        let number = NSDecimalNumber(decimal: roundMoney(value))
         return String(format: "%.2f", number.doubleValue)
     }
 

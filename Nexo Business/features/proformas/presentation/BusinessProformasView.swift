@@ -21,6 +21,8 @@ struct BusinessProformasView: View {
     private let documentsRepository: BusinessDocumentsRepository
 
     @State private var isShowingCreateForm = false
+    @State private var selectedProformaForDetail: BusinessProforma?
+    @State private var pendingProformaToOpen: BusinessProforma?
 
     init(
         viewModel: BusinessProformasViewModel,
@@ -153,10 +155,19 @@ struct BusinessProformasView: View {
                     customersRepository: customersRepository,
                     onSaved: { proforma in
                         viewModel.apply(proforma)
+                        pendingProformaToOpen = proforma
                         isShowingCreateForm = false
                     }
                 )
             }
+        }
+        .navigationDestination(item: $selectedProformaForDetail) { proforma in
+            makeDetailView(proforma)
+        }
+        .onChange(of: isShowingCreateForm) { _, isPresented in
+            guard !isPresented, let pending = pendingProformaToOpen else { return }
+            pendingProformaToOpen = nil
+            selectedProformaForDetail = pending
         }
         .task {
             await viewModel.loadIfNeeded()
@@ -209,6 +220,7 @@ struct BusinessProformaDetailView: View {
     @State private var shareDocument: BusinessProformaDownloadedDocument?
     @State private var didCompleteShare = false
     @State private var isShowingMarkSentAfterShare = false
+    @State private var isShowingManualSentConfirmation = false
 
     init(
         viewModel: BusinessProformaDetailViewModel,
@@ -334,14 +346,15 @@ struct BusinessProformaDetailView: View {
                     }
                     .disabled(viewModel.isMutating)
 
+                    Text("Compartir abre WhatsApp, Mail, AirDrop, Archivos o Imprimir. No cambia el estado ni garantiza entrega por sí solo.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+
                     if viewModel.canSend {
                         Button {
-                            Task {
-                                await viewModel.send()
-                                notifyUpdated()
-                            }
+                            isShowingManualSentConfirmation = true
                         } label: {
-                            Label("Marcar como enviada", systemImage: "paperplane")
+                            Label("Marcar como compartida/enviada", systemImage: "paperplane")
                         }
                     }
 
@@ -533,16 +546,27 @@ struct BusinessProformaDetailView: View {
                 didCompleteShare = completed
             }
         }
-        .alert("¿Marcar como enviada?", isPresented: $isShowingMarkSentAfterShare) {
+        .alert("¿Cambiar estado a compartida/enviada?", isPresented: $isShowingMarkSentAfterShare) {
             Button("No", role: .cancel) {}
-            Button("Marcar enviada") {
+            Button("Cambiar estado") {
                 Task {
                     await viewModel.send()
                     notifyUpdated()
                 }
             }
         } message: {
-            Text("Compartir por WhatsApp, AirDrop, Archivos o Imprimir no confirma entrega real. Márcala como enviada solo si corresponde.")
+            Text("Compartir por WhatsApp, Mail, AirDrop, Archivos o Imprimir no confirma entrega real. Esta acción solo marca la proforma como compartida/enviada; no envía correo automático desde Nexo.")
+        }
+        .alert("Marcar como compartida/enviada", isPresented: $isShowingManualSentConfirmation) {
+            Button("Cancelar", role: .cancel) {}
+            Button("Cambiar estado") {
+                Task {
+                    await viewModel.send()
+                    notifyUpdated()
+                }
+            }
+        } message: {
+            Text("Esto solo cambia el estado de la proforma. No envía correo automáticamente. Para correo manual usa Compartir proforma y elige Mail.")
         }
         .task {
             if viewModel.shouldLoadOnAppear {
@@ -714,8 +738,12 @@ struct BusinessProformaFormView: View {
                             HStack {
                                 TextField("Descuento", text: $line.discountAmount)
                                     .keyboardType(.decimalPad)
-                                TextField("Impuesto ref.", text: $line.taxAmount)
-                                    .keyboardType(.decimalPad)
+                                LabeledContent("Imp. ref.", value: "$\(line.estimatedTaxAmountText)")
+                            }
+                            if let taxRatePercent = line.taxRatePercent, !taxRatePercent.isEmpty {
+                                Text("Calculado con el mismo perfil tributario local usado en ventas: \(taxRatePercent)%")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
                             }
                             TextField("Notas de línea", text: $line.notes)
                         }
@@ -770,7 +798,7 @@ struct BusinessProformaFormView: View {
                     if viewModel.isSaving {
                         ProgressView()
                     } else {
-                        Text("Guardar")
+                        Text(viewModel.saveButtonTitle)
                     }
                 }
                 .disabled(!viewModel.canSave)

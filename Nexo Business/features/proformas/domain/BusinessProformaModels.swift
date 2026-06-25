@@ -21,7 +21,7 @@ enum BusinessProformaStatus: String, Codable, CaseIterable, Identifiable, Sendab
     var displayName: String {
         switch self {
         case .draft: return "Borrador"
-        case .sent: return "Enviada"
+        case .sent: return "Compartida/enviada"
         case .accepted: return "Aceptada"
         case .rejected: return "Rechazada"
         case .expired: return "Expirada"
@@ -207,7 +207,11 @@ struct BusinessProformaTotals: Codable, Equatable, Sendable {
     }
 }
 
-struct BusinessProforma: Decodable, Equatable, Identifiable, Sendable {
+struct BusinessProforma: Decodable, Equatable, Hashable, Identifiable, Sendable {
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
+    }
+    
     let id: String
     let organizationId: String
     let branchId: String
