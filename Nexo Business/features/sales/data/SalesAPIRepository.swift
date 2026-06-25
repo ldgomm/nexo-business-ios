@@ -409,13 +409,48 @@ final class SalesAPIRepository: SalesRepository, @unchecked Sendable {
     private func currentCatalogRevision(from error: APIError) -> String? {
         guard error.statusCode == 409 || error.statusCode == 428 else { return nil }
 
-        let candidates = [error.userMessage, String(describing: error)]
+        let candidates = revisionConflictCandidateMessages(from: error)
         for candidate in candidates {
             if let parsed = parseCurrentCatalogRevision(from: candidate) {
                 return parsed
             }
         }
         return nil
+    }
+
+    private func revisionConflictCandidateMessages(from error: APIError) -> [String] {
+        var messages = [
+            error.userMessage,
+            String(describing: error),
+            String(reflecting: error)
+        ]
+
+        messages.append(contentsOf: mirrorStrings(from: error))
+
+        var seen = Set<String>()
+        return messages.filter { message in
+            let trimmed = message.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty, !seen.contains(trimmed) else { return false }
+            seen.insert(trimmed)
+            return true
+        }
+    }
+
+    private func mirrorStrings(from value: Any, depth: Int = 0) -> [String] {
+        guard depth < 5 else { return [] }
+
+        if let string = value as? String {
+            return [string]
+        }
+
+        if let optional = Mirror(reflecting: value).children.first, Mirror(reflecting: value).displayStyle == .optional {
+            return mirrorStrings(from: optional.value, depth: depth + 1)
+        }
+
+        let mirror = Mirror(reflecting: value)
+        return mirror.children.flatMap { child in
+            mirrorStrings(from: child.value, depth: depth + 1)
+        }
     }
 
     private func parseCurrentCatalogRevision(from text: String) -> String? {

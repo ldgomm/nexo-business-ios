@@ -279,18 +279,7 @@ struct BusinessProformaDetailView: View {
 
                 Section("Líneas agrupadas") {
                     ForEach(proforma.lines) { line in
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text(line.displayName)
-                                .font(.headline)
-                            HStack {
-                                Text("Cant. \(line.quantity)")
-                                Spacer()
-                                Text("Total $\(line.grandTotal)")
-                                    .fontWeight(.semibold)
-                            }
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                        }
+                        BusinessProformaLineSummaryRow(line: line)
                     }
                 }
 
@@ -402,7 +391,7 @@ struct BusinessProformaDetailView: View {
 
                     if let saleId = proforma.convertedSaleId, !saleId.isEmpty {
                         NavigationLink {
-                            makeSaleDetailView(saleId: saleId)
+                            makeSaleDetailView(saleId: saleId) //Cannot find 'makeSaleDetailView' in scope
                         } label: {
                             Label("Ir a venta", systemImage: "cart")
                         }
@@ -542,7 +531,19 @@ struct BusinessProformaDetailView: View {
             }
         }
         .navigationDestination(item: $convertedSaleRoute) { route in
-            makeSaleDetailView(saleId: route.saleId)
+            BusinessProformaSaleDetailRouteView(
+                organizationId: viewModel.organizationId,
+                saleId: route.saleId,
+                revisions: viewModel.revisions,
+                effectivePermissions: viewModel.effectivePermissions,
+                salesRepository: salesRepository,
+                customersRepository: customersRepository,
+                salesHistoryRepository: salesHistoryRepository,
+                cashRepository: cashRepository,
+                paymentsRepository: paymentsRepository,
+                receivablesRepository: receivablesRepository,
+                documentsRepository: documentsRepository
+            )
         }
         .onChange(of: viewModel.proforma) { _, updated in
             if let updated { onUpdated(updated) }
@@ -560,15 +561,95 @@ struct BusinessProformaDetailView: View {
         }
     }
 
-    private func makeSaleDetailView(saleId: String) -> SaleDetailView {
-        SaleDetailView(
-            viewModel: SaleDetailViewModel(
-                organizationId: viewModel.organizationId,
+    private func makeSaleDetailView(saleId: String) -> BusinessProformaSaleDetailRouteView {
+        BusinessProformaSaleDetailRouteView(
+            organizationId: viewModel.organizationId,
+            saleId: saleId,
+            revisions: viewModel.revisions,
+            effectivePermissions: viewModel.effectivePermissions,
+            salesRepository: salesRepository,
+            customersRepository: customersRepository,
+            salesHistoryRepository: salesHistoryRepository,
+            cashRepository: cashRepository,
+            paymentsRepository: paymentsRepository,
+            receivablesRepository: receivablesRepository,
+            documentsRepository: documentsRepository
+        )
+    }
+
+}
+
+private struct BusinessProformaLineSummaryRow: View {
+    let line: BusinessProformaLine
+
+    private var quantityText: String {
+        "Cant. " + line.quantity
+    }
+
+    private var totalText: String {
+        "Total $" + line.grandTotal
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(line.displayName)
+                .font(.headline)
+
+            HStack {
+                Text(quantityText)
+                Spacer()
+                Text(totalText)
+                    .fontWeight(.semibold)
+            }
+            .font(.footnote)
+            .foregroundStyle(.secondary)
+        }
+    }
+}
+
+private struct BusinessProformaSaleDetailRouteView: View {
+    @State private var saleDetailViewModel: SaleDetailViewModel
+
+    private let customersRepository: CustomersRepository
+    private let salesHistoryRepository: SalesHistoryRepository
+    private let cashRepository: CashRepository
+    private let paymentsRepository: PaymentsRepository
+    private let receivablesRepository: ReceivablesRepository
+    private let documentsRepository: BusinessDocumentsRepository
+
+    init(
+        organizationId: String,
+        saleId: String,
+        revisions: BusinessRevisions,
+        effectivePermissions: Set<String>,
+        salesRepository: SalesRepository,
+        customersRepository: CustomersRepository,
+        salesHistoryRepository: SalesHistoryRepository,
+        cashRepository: CashRepository,
+        paymentsRepository: PaymentsRepository,
+        receivablesRepository: ReceivablesRepository,
+        documentsRepository: BusinessDocumentsRepository
+    ) {
+        _saleDetailViewModel = State(
+            initialValue: SaleDetailViewModel(
+                organizationId: organizationId,
                 saleId: saleId,
-                revisions: viewModel.revisions,
-                effectivePermissions: viewModel.effectivePermissions,
+                revisions: revisions,
+                effectivePermissions: effectivePermissions,
                 salesRepository: salesRepository
-            ),
+            )
+        )
+        self.customersRepository = customersRepository
+        self.salesHistoryRepository = salesHistoryRepository
+        self.cashRepository = cashRepository
+        self.paymentsRepository = paymentsRepository
+        self.receivablesRepository = receivablesRepository
+        self.documentsRepository = documentsRepository
+    }
+
+    var body: some View {
+        SaleDetailView(
+            viewModel: saleDetailViewModel,
             customersRepository: customersRepository,
             salesHistoryRepository: salesHistoryRepository,
             cashRepository: cashRepository,
