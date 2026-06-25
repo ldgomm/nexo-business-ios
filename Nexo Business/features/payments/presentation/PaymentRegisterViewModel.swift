@@ -143,6 +143,10 @@ final class PaymentRegisterViewModel {
     }
 
     var collectionClosedMessage: String {
+        if SaleStatusPresentation.requiresConfirmationBeforeCollection(status: sale.status) {
+            return "Primero confirma la venta. Las ventas en borrador no se pueden cobrar."
+        }
+
         if PaymentStatusPresentation.isCollected(sale.paymentStatus) {
             return "Esta venta ya está cobrada. Si acabas de confirmar el cobro desde otro intento, vuelve al detalle o al historial y actualiza."
         }
@@ -849,6 +853,10 @@ final class PaymentRegisterViewModel {
             return "Este cobro ya fue registrado. Actualiza la venta o vuelve al historial."
         }
 
+        if SaleStatusPresentation.requiresConfirmationBeforeCollection(status: sale.status) {
+            return "Primero confirma la venta. La proforma crea una venta en borrador y el backend no permite cobrar borradores."
+        }
+
         if !hasPaymentPermission {
             return "No tienes permiso para registrar cobros."
         }
@@ -873,6 +881,10 @@ final class PaymentRegisterViewModel {
     private func receivableValidationMessage() -> String {
         if hasCompletedSubmission {
             return "Esta operación ya fue registrada. Actualiza la venta o vuelve al historial."
+        }
+
+        if SaleStatusPresentation.requiresConfirmationBeforeCollection(status: sale.status) {
+            return "Primero confirma la venta. La proforma crea una venta en borrador y el backend no permite convertir borradores en cuenta por cobrar."
         }
 
         if !hasReceivablePermission {
@@ -904,6 +916,10 @@ final class PaymentRegisterViewModel {
                 : "No puedes cobrar con tu usuario actual. Pide que activen Registrar cobros."
         }
 
+        if isDraftSaleCollectionError(error) {
+            return "Primero confirma la venta. El backend no permite registrar cobros para ventas en borrador."
+        }
+
         return error.userMessage
     }
 
@@ -913,6 +929,13 @@ final class PaymentRegisterViewModel {
         message.localizedCaseInsensitiveContains("cash.session") ||
         message.localizedCaseInsensitiveContains("payments.") ||
         message.localizedCaseInsensitiveContains("receivables.")
+    }
+
+    private func isDraftSaleCollectionError(_ error: APIError) -> Bool {
+        guard case let .server(_, _, message, _) = error else { return false }
+        return message.localizedCaseInsensitiveContains("Cannot register payment for sale with status DRAFT") ||
+        message.localizedCaseInsensitiveContains("sale with status DRAFT") ||
+        message.localizedCaseInsensitiveContains("status DRAFT")
     }
 
     private func inferredPaymentStatus(after payment: PaymentRecord) -> String {

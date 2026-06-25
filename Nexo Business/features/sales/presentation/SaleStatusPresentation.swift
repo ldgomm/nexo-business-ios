@@ -59,10 +59,19 @@ enum SaleStatusPresentation {
         switch normalized(status) {
         case "confirmed", "closed", "delivered", "ready", "in_progress", "pending":
             return true
-        case "canceled", "cancelled", "voided":
+        case "draft", "borrador", "canceled", "cancelled", "voided":
             return false
         default:
-            return normalized(status) != "canceled"
+            return false
+        }
+    }
+
+    static func requiresConfirmationBeforeCollection(status: String) -> Bool {
+        switch normalized(status) {
+        case "draft", "borrador":
+            return true
+        default:
+            return false
         }
     }
 

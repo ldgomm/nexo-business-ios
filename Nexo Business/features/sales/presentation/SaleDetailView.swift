@@ -405,7 +405,14 @@ struct SaleDetailView: View {
     private var actionsSection: some View {
         SaleDetailCard(title: "Acciones", subtitle: "Continúa con el siguiente paso operativo de la venta") {
             VStack(alignment: .leading, spacing: 12) {
-                if let sale = viewModel.sale, viewModel.canCollect {
+                if let sale = viewModel.sale,
+                   SaleStatusPresentation.requiresConfirmationBeforeCollection(status: sale.status) {
+                    SaleDetailInlineMessage(
+                        message: "Primero confirma la venta. Las ventas en borrador todavía pueden editarse y el backend no permite cobrarlas.",
+                        systemImage: "checkmark.seal",
+                        tint: .accentColor
+                    )
+                } else if let sale = viewModel.sale, viewModel.canCollect {
                     SaleDetailActionButton(
                         title: collectionActionTitle(for: sale),
                         subtitle: collectionActionSubtitle(for: sale),
@@ -570,6 +577,18 @@ struct SaleDetailView: View {
 
     private func preparePaymentNavigation(for sale: BusinessSale) {
         guard !isPreparingPaymentNavigation else { return }
+
+        guard SaleStatusPresentation.canCollect(status: sale.status) else {
+            paymentPreparationMessage = SaleStatusPresentation.requiresConfirmationBeforeCollection(status: sale.status)
+                ? "Primero confirma la venta. Luego podrás registrar el cobro."
+                : "No se puede cobrar esta venta con el estado actual."
+            return
+        }
+
+        guard PaymentStatusPresentation.canCollect(status: sale.paymentStatus) else {
+            paymentPreparationMessage = "Esta venta ya no está pendiente de cobro. Actualiza el detalle antes de continuar."
+            return
+        }
 
         let branchId = sale.branchId.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !branchId.isEmpty else {

@@ -330,7 +330,7 @@ final class BusinessProformaDetailViewModel {
 
             infoMessage = response.wasAlreadyConverted
                 ? "Esta proforma ya tenía una venta creada."
-                : "Venta borrador creada. Revisa y cobra desde el flujo normal de ventas."
+                : "Venta borrador creada. Abre la venta, confirma la venta y recién después registra el cobro."
         } catch let error as APIError {
             errorMessage = error.userMessage
         } catch {
