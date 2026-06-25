@@ -98,6 +98,9 @@ final class BusinessProformasViewModel {
                 limit: 100
             )
             infoMessage = proformas.isEmpty ? "No hay proformas para este filtro." : nil
+        } catch is CancellationError {
+            // Navigation/sheet transitions can cancel an in-flight list refresh.
+            // Do not surface Swift.CancellationError as a business error.
         } catch let error as APIError {
             errorMessage = error.userMessage
         } catch {
@@ -193,6 +196,14 @@ final class BusinessProformaDetailViewModel {
         return proforma.canConvertToSale && hasPermission(["*", "business.proformas.convert_to_sale", "proformas.convert_to_sale", "business.sales.create", "sales.create"])
     }
 
+    var canAcceptAndConvertToSale: Bool {
+        guard let proforma else { return false }
+        guard proforma.hasRealCustomer else { return false }
+        guard proforma.convertedSaleId?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty != false else { return false }
+        guard [.draft, .sent, .accepted].contains(proforma.status) else { return false }
+        return hasPermission(["*", "business.proformas.send", "proformas.send", "business.proformas.accept", "proformas.accept", "business.proformas.convert_to_sale", "proformas.convert_to_sale", "business.sales.create", "sales.create"])
+    }
+
     func load() async {
         isLoading = true
         errorMessage = nil
@@ -203,6 +214,8 @@ final class BusinessProformaDetailViewModel {
                 organizationId: organizationId,
                 proformaId: proformaId
             )
+        } catch is CancellationError {
+            // User navigated away while loading; keep the last known state.
         } catch let error as APIError {
             errorMessage = error.userMessage
         } catch {
@@ -214,35 +227,23 @@ final class BusinessProformaDetailViewModel {
         await load()
     }
 
-    func send() async {
+    @discardableResult
+    func markAsShared() async -> Bool {
+        await ensureProformaLoadedIfNeeded()
+
         guard proforma?.hasRealCustomer == true else {
-            errorMessage = "Selecciona un cliente real antes de marcar la proforma como compartida."
-            return
+            errorMessage = "Selecciona un cliente real antes de compartir una proforma comercial."
+            return false
         }
 
-        isMutating = true
-        errorMessage = nil
-        infoMessage = nil
-        defer { isMutating = false }
+        return await markAsSharedIfNeeded(
+            successMessage: "Proforma compartida. Estado actualizado a Compartida.",
+            alreadySharedMessage: "Esta proforma ya estaba compartida. Puedes compartirla de nuevo sin cambiar su estado."
+        )
+    }
 
-        do {
-            let updated = try await repository.send(
-                organizationId: organizationId,
-                proformaId: proformaId,
-                revisions: revisions,
-                idempotencyKey: Self.key("proforma-send", proformaId)
-            )
-            proforma = updated
-            infoMessage = "Proforma marcada como compartida. No se envió correo automático desde Nexo."
-
-            if updated.status != .sent {
-                await load()
-            }
-        } catch let error as APIError {
-            errorMessage = error.userMessage
-        } catch {
-            errorMessage = error.localizedDescription
-        }
+    func send() async {
+        await markAsShared()
     }
 
     func accept() async {
@@ -263,13 +264,20 @@ final class BusinessProformaDetailViewModel {
 
     @discardableResult
     func acceptAndConvertToSale() async -> String? {
-        guard let current = proforma else { return nil }
-        guard current.hasRealCustomer else {
+        await ensureProformaLoadedIfNeeded()
+
+        guard proforma?.hasRealCustomer == true else {
             errorMessage = "Selecciona un cliente real antes de aceptar y crear venta."
             return nil
         }
-        guard current.status == .sent || current.status == .accepted else {
-            errorMessage = "Primero marca la proforma como compartida. Luego podrás aceptarla y crear la venta."
+
+        if let existingSaleId = currentConvertedSaleId() {
+            infoMessage = "Esta proforma ya tenía una venta creada. Abriendo venta."
+            return existingSaleId
+        }
+
+        guard let initialStatus = proforma?.status, [.draft, .sent, .accepted, .converted].contains(initialStatus) else {
+            errorMessage = "Esta proforma no está lista para crear venta con su estado actual."
             return nil
         }
 
@@ -280,17 +288,30 @@ final class BusinessProformaDetailViewModel {
         defer { isMutating = false }
 
         do {
-            if current.status == .sent {
-                proforma = try await repository.accept(
-                    organizationId: organizationId,
-                    proformaId: proformaId,
-                    revisions: revisions,
-                    idempotencyKey: Self.key("proforma-accept", proformaId)
-                )
+            if proforma?.status == .draft {
+                guard await markAsSharedIfNeeded(
+                    successMessage: "Proforma compartida. Continuando con aceptación.",
+                    alreadySharedMessage: "La proforma ya estaba compartida. Continuando con aceptación.",
+                    managesMutationState: false
+                ) else { return nil }
+            }
+
+            if proforma?.status == .sent {
+                guard await acceptIfNeeded(managesMutationState: false) else { return nil }
+            }
+
+            if let existingSaleId = currentConvertedSaleId() {
+                infoMessage = "Esta proforma ya tenía una venta creada. Abriendo venta."
+                return existingSaleId
             }
 
             guard proforma?.canConvertToSale == true else {
-                errorMessage = "La proforma quedó aceptada, pero todavía no está lista para crear venta. Actualiza e intenta otra vez."
+                await load()
+                if let existingSaleId = currentConvertedSaleId() {
+                    infoMessage = "Esta proforma ya tenía una venta creada. Abriendo venta."
+                    return existingSaleId
+                }
+                errorMessage = "La proforma no pudo avanzar a venta. Estado actual: \(proforma?.status.displayName ?? "desconocido")."
                 return nil
             }
 
@@ -310,8 +331,18 @@ final class BusinessProformaDetailViewModel {
 
             infoMessage = response.wasAlreadyConverted
                 ? "Esta proforma ya tenía una venta creada. Abriendo venta."
-                : "Venta creada. Confirma la venta y registra el cobro desde el detalle."
+                : "Venta creada. Abriendo detalle para confirmar y cobrar."
             return response.saleId
+        } catch let error as APIError where error.statusCode == 409 {
+            await load()
+            if let existingSaleId = currentConvertedSaleId() {
+                errorMessage = nil
+                infoMessage = "La venta ya estaba creada. Abriendo venta."
+                return existingSaleId
+            }
+            errorMessage = error.userMessage
+        } catch is CancellationError {
+            // Ignore UI navigation cancellation.
         } catch let error as APIError {
             errorMessage = error.userMessage
         } catch {
@@ -319,6 +350,126 @@ final class BusinessProformaDetailViewModel {
         }
 
         return nil
+    }
+
+    private func ensureProformaLoadedIfNeeded() async {
+        if proforma == nil {
+            await load()
+        }
+    }
+
+    private func currentConvertedSaleId() -> String? {
+        proforma?.convertedSaleId?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .nilIfEmptyForProforma
+    }
+
+    private func markAsSharedIfNeeded(
+        successMessage: String,
+        alreadySharedMessage: String,
+        managesMutationState: Bool = true
+    ) async -> Bool {
+        guard let current = proforma else { return false }
+
+        switch current.status {
+        case .sent, .accepted, .converted:
+            errorMessage = nil
+            infoMessage = alreadySharedMessage
+            return true
+        case .draft:
+            break
+        default:
+            errorMessage = "No se puede compartir esta proforma con estado \(current.status.displayName)."
+            return false
+        }
+
+        if managesMutationState {
+            isMutating = true
+            errorMessage = nil
+            infoMessage = nil
+        }
+        defer {
+            if managesMutationState { isMutating = false }
+        }
+
+        do {
+            let updated = try await repository.send(
+                organizationId: organizationId,
+                proformaId: proformaId,
+                revisions: revisions,
+                idempotencyKey: Self.key("proforma-send", proformaId)
+            )
+            proforma = updated
+            errorMessage = nil
+            infoMessage = successMessage
+            return [.sent, .accepted, .converted].contains(updated.status)
+        } catch let error as APIError where error.statusCode == 409 {
+            await load()
+            if let status = proforma?.status, [.sent, .accepted, .converted].contains(status) {
+                errorMessage = nil
+                infoMessage = alreadySharedMessage
+                return true
+            }
+            errorMessage = error.userMessage
+            return false
+        } catch is CancellationError {
+            return false
+        } catch let error as APIError {
+            errorMessage = error.userMessage
+            return false
+        } catch {
+            errorMessage = error.localizedDescription
+            return false
+        }
+    }
+
+    private func acceptIfNeeded(managesMutationState: Bool = true) async -> Bool {
+        guard let current = proforma else { return false }
+
+        switch current.status {
+        case .accepted, .converted:
+            return true
+        case .sent:
+            break
+        default:
+            errorMessage = "No se puede aceptar esta proforma con estado \(current.status.displayName)."
+            return false
+        }
+
+        if managesMutationState {
+            isMutating = true
+            errorMessage = nil
+            infoMessage = nil
+        }
+        defer {
+            if managesMutationState { isMutating = false }
+        }
+
+        do {
+            proforma = try await repository.accept(
+                organizationId: organizationId,
+                proformaId: proformaId,
+                revisions: revisions,
+                idempotencyKey: Self.key("proforma-accept", proformaId)
+            )
+            return proforma?.status == .accepted || proforma?.status == .converted
+        } catch let error as APIError where error.statusCode == 409 {
+            await load()
+            if let status = proforma?.status, [.accepted, .converted].contains(status) {
+                errorMessage = nil
+                return true
+            }
+            errorMessage = error.userMessage
+            return false
+        } catch is CancellationError {
+            return false
+        } catch let error as APIError {
+            errorMessage = error.userMessage
+            return false
+        } catch {
+            errorMessage = error.localizedDescription
+            return false
+        }
     }
 
     func reject() async {
@@ -377,6 +528,10 @@ final class BusinessProformaDetailViewModel {
     @discardableResult
     func convertToSale() async -> String? {
         guard let proforma else { return nil }
+        if let existingSaleId = proforma.convertedSaleId?.trimmingCharacters(in: .whitespacesAndNewlines), !existingSaleId.isEmpty {
+            infoMessage = "Esta proforma ya tenía una venta creada. Abriendo venta."
+            return existingSaleId
+        }
         guard proforma.hasRealCustomer else {
             errorMessage = "Selecciona un cliente real antes de convertir. Consumidor final no aplica para proformas comerciales."
             return nil

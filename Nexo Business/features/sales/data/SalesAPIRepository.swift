@@ -297,20 +297,45 @@ final class SalesAPIRepository: SalesRepository, @unchecked Sendable {
             fallback: revisions
         )
 
-        return try await apiClient.send(
-            try APIRequest<ConfirmSaleResponse>.json(
-                method: .post,
-                path: BusinessSalesRoutes.confirm(saleId: saleId),
-                body: body,
-                headers: mutationHeaders(
-                    organizationId: organizationId,
-                    branchId: saleContext?.branchId,
-                    activityId: saleContext?.activityId,
-                    revisions: resolvedRevisions,
-                    idempotencyKey: idempotencyKey
-                )
+        do {
+            return try await sendConfirm(
+                organizationId: organizationId,
+                saleId: saleId,
+                branchId: saleContext?.branchId,
+                activityId: saleContext?.activityId,
+                revisions: resolvedRevisions,
+                idempotencyKey: idempotencyKey,
+                body: body
             )
-        )
+        } catch let error as APIError {
+            guard let currentCatalogRevision = currentCatalogRevision(from: error) else {
+                throw error
+            }
+
+            let recoveredRevisions = BusinessRevisions(
+                catalogRevision: currentCatalogRevision,
+                taxConfigurationRevision: resolvedRevisions.taxConfigurationRevision
+            )
+
+            if let branchId = saleContext?.branchId, let activityId = saleContext?.activityId {
+                await revisionRegistry.observeRevisions(
+                    organizationId: organizationId,
+                    branchId: branchId,
+                    activityId: activityId,
+                    revisions: recoveredRevisions
+                )
+            }
+
+            return try await sendConfirm(
+                organizationId: organizationId,
+                saleId: saleId,
+                branchId: saleContext?.branchId,
+                activityId: saleContext?.activityId,
+                revisions: recoveredRevisions,
+                idempotencyKey: idempotencyKey,
+                body: body
+            )
+        }
     }
 
     func cancel(
@@ -354,6 +379,71 @@ final class SalesAPIRepository: SalesRepository, @unchecked Sendable {
         }
 
         return headers
+    }
+
+    private func sendConfirm(
+        organizationId: String,
+        saleId: String,
+        branchId: String?,
+        activityId: String?,
+        revisions: BusinessRevisions,
+        idempotencyKey: IdempotencyKey,
+        body: ConfirmSaleRequest
+    ) async throws -> ConfirmSaleResponse {
+        try await apiClient.send(
+            try APIRequest<ConfirmSaleResponse>.json(
+                method: .post,
+                path: BusinessSalesRoutes.confirm(saleId: saleId),
+                body: body,
+                headers: mutationHeaders(
+                    organizationId: organizationId,
+                    branchId: branchId,
+                    activityId: activityId,
+                    revisions: revisions,
+                    idempotencyKey: idempotencyKey
+                )
+            )
+        )
+    }
+
+    private func currentCatalogRevision(from error: APIError) -> String? {
+        guard error.statusCode == 409 || error.statusCode == 428 else { return nil }
+
+        let candidates = [error.userMessage, String(describing: error)]
+        for candidate in candidates {
+            if let parsed = parseCurrentCatalogRevision(from: candidate) {
+                return parsed
+            }
+        }
+        return nil
+    }
+
+    private func parseCurrentCatalogRevision(from text: String) -> String? {
+        let patterns = [
+            "Current revision is ",
+            "current revision is ",
+            "currentRevision=",
+            "catalogRevision=",
+            "current catalog revision is "
+        ]
+
+        for pattern in patterns {
+            guard let range = text.range(of: pattern, options: [.caseInsensitive]) else { continue }
+            let suffix = text[range.upperBound...]
+            let token = suffix
+                .split { character in
+                    character.isWhitespace || character == "." || character == "," || character == ";"
+                }
+                .first
+                .map(String.init)?
+                .trimmingCharacters(in: CharacterSet(charactersIn: "\"'{}[]()"))
+
+            if let token, !token.isEmpty, token.lowercased().contains("catrev") {
+                return token
+            }
+        }
+
+        return nil
     }
 
     private func mutationHeaders(

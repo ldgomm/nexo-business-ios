@@ -49,7 +49,7 @@ struct SaleDetailView: View {
     var body: some View {
         ScrollView {
             LazyVStack(spacing: 14) {
-                if viewModel.isLoading, viewModel.sale == nil {
+                if viewModel.sale == nil, viewModel.isLoading || !viewModel.hasAttemptedLoad {
                     SaleDetailLoadingCard()
                 }
 
@@ -62,7 +62,7 @@ struct SaleDetailView: View {
                     paymentSection(sale)
                     electronicDocumentSection(sale)
                     actionsSection
-                } else if !viewModel.isLoading {
+                } else if !viewModel.isLoading, viewModel.hasAttemptedLoad {
                     SaleDetailEmptyState()
                 }
             }

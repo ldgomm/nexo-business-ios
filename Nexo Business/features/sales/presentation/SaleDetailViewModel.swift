@@ -13,6 +13,7 @@ import Observation
 final class SaleDetailViewModel {
     private(set) var sale: BusinessSale?
     private(set) var isLoading = false
+    private(set) var hasAttemptedLoad = false
     private(set) var isConfirming = false
     private(set) var isCanceling = false
     var cancelReason = ""
@@ -273,6 +274,7 @@ final class SaleDetailViewModel {
 
         defer {
             isLoading = false
+            hasAttemptedLoad = true
         }
 
         do {

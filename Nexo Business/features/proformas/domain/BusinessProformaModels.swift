@@ -21,7 +21,7 @@ enum BusinessProformaStatus: String, Codable, CaseIterable, Identifiable, Sendab
     var displayName: String {
         switch self {
         case .draft: return "Borrador"
-        case .sent: return "Compartida/enviada"
+        case .sent: return "Compartida"
         case .accepted: return "Aceptada"
         case .rejected: return "Rechazada"
         case .expired: return "Expirada"

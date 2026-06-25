@@ -219,8 +219,6 @@ struct BusinessProformaDetailView: View {
     @State private var previewDocument: BusinessProformaDownloadedDocument?
     @State private var shareDocument: BusinessProformaDownloadedDocument?
     @State private var didCompleteShare = false
-    @State private var isShowingMarkSentAfterShare = false
-    @State private var isShowingManualSentConfirmation = false
     @State private var convertedSaleRoute: BusinessProformaConvertedSaleRoute?
 
     init(
@@ -316,6 +314,10 @@ struct BusinessProformaDetailView: View {
                     }
                 }
 
+                Section("Estado comercial") {
+                    BusinessProformaCommercialStateCard(proforma: proforma)
+                }
+
                 Section("Acciones") {
                     if viewModel.canEdit {
                         Button {
@@ -343,23 +345,15 @@ struct BusinessProformaDetailView: View {
                             }
                         }
                     } label: {
-                        Label("Compartir proforma", systemImage: "square.and.arrow.up")
+                        Label(proforma.status == .draft ? "Compartir proforma" : "Compartir de nuevo", systemImage: "square.and.arrow.up")
                     }
                     .disabled(viewModel.isMutating)
 
-                    Text("Compartir abre WhatsApp, Mail, AirDrop, Archivos o Imprimir. No cambia el estado ni garantiza entrega por sí solo.")
+                    Text("Al completar el share sheet, Nexo marca automáticamente la proforma como Compartida. Si ya lo estaba, no vuelve a llamar al servidor.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
 
-                    if viewModel.canSend {
-                        Button {
-                            isShowingManualSentConfirmation = true
-                        } label: {
-                            Label("Marcar como compartida", systemImage: "paperplane")
-                        }
-                    }
-
-                    if viewModel.canAccept {
+                    if viewModel.canAcceptAndConvertToSale {
                         Button {
                             Task {
                                 if let saleId = await viewModel.acceptAndConvertToSale() {
@@ -404,22 +398,6 @@ struct BusinessProformaDetailView: View {
                         } label: {
                             Label("Crear revisión", systemImage: "arrow.triangle.2.circlepath")
                         }
-                    }
-
-                    if viewModel.canConvertToSale {
-                        Button {
-                            Task {
-                                if let saleId = await viewModel.convertToSale() {
-                                    notifyUpdated()
-                                    convertedSaleRoute = BusinessProformaConvertedSaleRoute(saleId: saleId)
-                                } else {
-                                    notifyUpdated()
-                                }
-                            }
-                        } label: {
-                            Label("Crear venta", systemImage: "cart.badge.plus")
-                        }
-                        .disabled(viewModel.isMutating)
                     }
 
                     if let saleId = proforma.convertedSaleId, !saleId.isEmpty {
@@ -550,40 +528,24 @@ struct BusinessProformaDetailView: View {
         .sheet(
             item: $shareDocument,
             onDismiss: {
-                if didCompleteShare && viewModel.canSend {
-                    isShowingMarkSentAfterShare = true
-                }
+                let completed = didCompleteShare
                 didCompleteShare = false
+                guard completed else { return }
+                Task {
+                    await viewModel.markAsShared()
+                    notifyUpdated()
+                }
             }
         ) { document in
             BusinessProformaShareSheet(activityItems: [document.localURL]) { completed in
                 didCompleteShare = completed
             }
         }
-        .alert("¿Marcar como compartida?", isPresented: $isShowingMarkSentAfterShare) {
-            Button("No", role: .cancel) {}
-            Button("Marcar compartida") {
-                Task {
-                    await viewModel.send()
-                    notifyUpdated()
-                }
-            }
-        } message: {
-            Text("Compartir por WhatsApp, Mail, AirDrop, Archivos o Imprimir no confirma entrega real. Esta acción solo marca la proforma como compartida; no envía correo automático desde Nexo.")
-        }
-        .alert("Marcar como compartida", isPresented: $isShowingManualSentConfirmation) {
-            Button("Cancelar", role: .cancel) {}
-            Button("Marcar compartida") {
-                Task {
-                    await viewModel.send()
-                    notifyUpdated()
-                }
-            }
-        } message: {
-            Text("Esto solo cambia el estado de la proforma. No envía correo automáticamente. Para correo manual usa Compartir proforma y elige Mail.")
-        }
         .navigationDestination(item: $convertedSaleRoute) { route in
             makeSaleDetailView(saleId: route.saleId)
+        }
+        .onChange(of: viewModel.proforma) { _, updated in
+            if let updated { onUpdated(updated) }
         }
         .task {
             if viewModel.shouldLoadOnAppear {
@@ -614,6 +576,60 @@ struct BusinessProformaDetailView: View {
             receivablesRepository: receivablesRepository,
             documentsRepository: documentsRepository
         )
+    }
+}
+
+struct BusinessProformaCommercialStateCard: View {
+    let proforma: BusinessProforma
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: proforma.status.systemImage)
+                .font(.title3.weight(.semibold))
+                .foregroundStyle(tint)
+                .frame(width: 28)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(proforma.status.displayName)
+                    .font(.headline)
+                    .foregroundStyle(tint)
+
+                Text(message)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(.vertical, 4)
+    }
+
+    private var tint: Color {
+        switch proforma.status {
+        case .draft: return .secondary
+        case .sent: return .blue
+        case .accepted: return .green
+        case .converted: return .purple
+        case .rejected, .expired: return .orange
+        case .unknown: return .secondary
+        }
+    }
+
+    private var message: String {
+        switch proforma.status {
+        case .draft:
+            return "Borrador interno. Comparte la proforma para marcarla como Compartida."
+        case .sent:
+            return "Ya fue compartida o marcada como compartida. Puedes aceptar y crear venta cuando el cliente confirme."
+        case .accepted:
+            return "Aceptada por el cliente. El siguiente paso es crear la venta."
+        case .converted:
+            return "Convertida a venta. Continúa desde la venta creada."
+        case .rejected:
+            return "Rechazada. Puedes crear una revisión si el cliente pide cambios."
+        case .expired:
+            return "Expirada. Crea una revisión si todavía hay interés comercial."
+        case .unknown:
+            return "Estado no reconocido por la app. Actualiza antes de continuar."
+        }
     }
 }
 
