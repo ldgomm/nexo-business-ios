@@ -68,6 +68,42 @@ final class LoginViewModelSessionCallbackTests: XCTestCase {
 }
 
 private final class TestAuthRepository: AuthRepository, @unchecked Sendable {
+    func recoverSessions(email: String, password: String) async throws -> Nexo_Business.LoginResponse {
+        throw APIError.server(
+            statusCode: 501,
+            code: "test_double_not_implemented",
+            message: "recoverSessions is not implemented for this test double.",
+            requestId: "test_login_callback"
+        )
+    }
+    
+    func listSessions() async throws -> [Nexo_Business.AuthUserSession] {
+        throw APIError.server(
+            statusCode: 501,
+            code: "test_double_not_implemented",
+            message: "listSessions is not implemented for this test double.",
+            requestId: "test_login_callback"
+        )
+    }
+    
+    func revokeSession(sessionId: String, reason: String) async throws -> Nexo_Business.RevokeAuthSessionResponse {
+        throw APIError.server(
+            statusCode: 501,
+            code: "test_double_not_implemented",
+            message: "revokeSession is not implemented for this test double.",
+            requestId: "test_login_callback"
+        )
+    }
+    
+    func revokeAllSessions(reason: String) async throws -> Nexo_Business.RevokeAuthSessionResponse {
+        throw APIError.server(
+            statusCode: 501,
+            code: "test_double_not_implemented",
+            message: "revokeAllSessions is not implemented for this test double.",
+            requestId: "test_login_callback"
+        )
+    }
+    
     private let result: Result<LoginResponse, Error>
 
     init(result: Result<LoginResponse, Error>) {
