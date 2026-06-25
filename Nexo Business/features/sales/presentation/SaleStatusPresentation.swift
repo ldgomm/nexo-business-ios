@@ -48,7 +48,12 @@ enum SaleStatusPresentation {
     }
 
     static func canConfirm(status: String) -> Bool {
-        !["confirmed", "closed", "canceled", "cancelled", "voided"].contains(normalized(status))
+        switch normalized(status) {
+        case "draft", "borrador":
+            return true
+        default:
+            return false
+        }
     }
 
     static func canCancel(status: String) -> Bool {

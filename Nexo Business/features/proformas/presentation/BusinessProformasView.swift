@@ -221,6 +221,7 @@ struct BusinessProformaDetailView: View {
     @State private var didCompleteShare = false
     @State private var isShowingMarkSentAfterShare = false
     @State private var isShowingManualSentConfirmation = false
+    @State private var convertedSaleRoute: BusinessProformaConvertedSaleRoute?
 
     init(
         viewModel: BusinessProformaDetailViewModel,
@@ -354,19 +355,28 @@ struct BusinessProformaDetailView: View {
                         Button {
                             isShowingManualSentConfirmation = true
                         } label: {
-                            Label("Marcar como compartida/enviada", systemImage: "paperplane")
+                            Label("Marcar como compartida", systemImage: "paperplane")
                         }
                     }
 
                     if viewModel.canAccept {
                         Button {
                             Task {
-                                await viewModel.accept()
-                                notifyUpdated()
+                                if let saleId = await viewModel.acceptAndConvertToSale() {
+                                    notifyUpdated()
+                                    convertedSaleRoute = BusinessProformaConvertedSaleRoute(saleId: saleId)
+                                } else {
+                                    notifyUpdated()
+                                }
                             }
                         } label: {
-                            Label("Marcar aceptada", systemImage: "checkmark.seal")
+                            Label("Aceptar y crear venta", systemImage: "cart.badge.plus")
                         }
+                        .disabled(viewModel.isMutating)
+
+                        Text("Acepta la cotización, crea la venta y abre el detalle para continuar con confirmación y cobro.")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
                     }
 
                     if viewModel.canReject {
@@ -399,8 +409,12 @@ struct BusinessProformaDetailView: View {
                     if viewModel.canConvertToSale {
                         Button {
                             Task {
-                                await viewModel.convertToSale()
-                                notifyUpdated()
+                                if let saleId = await viewModel.convertToSale() {
+                                    notifyUpdated()
+                                    convertedSaleRoute = BusinessProformaConvertedSaleRoute(saleId: saleId)
+                                } else {
+                                    notifyUpdated()
+                                }
                             }
                         } label: {
                             Label("Crear venta", systemImage: "cart.badge.plus")
@@ -546,20 +560,20 @@ struct BusinessProformaDetailView: View {
                 didCompleteShare = completed
             }
         }
-        .alert("¿Cambiar estado a compartida/enviada?", isPresented: $isShowingMarkSentAfterShare) {
+        .alert("¿Marcar como compartida?", isPresented: $isShowingMarkSentAfterShare) {
             Button("No", role: .cancel) {}
-            Button("Cambiar estado") {
+            Button("Marcar compartida") {
                 Task {
                     await viewModel.send()
                     notifyUpdated()
                 }
             }
         } message: {
-            Text("Compartir por WhatsApp, Mail, AirDrop, Archivos o Imprimir no confirma entrega real. Esta acción solo marca la proforma como compartida/enviada; no envía correo automático desde Nexo.")
+            Text("Compartir por WhatsApp, Mail, AirDrop, Archivos o Imprimir no confirma entrega real. Esta acción solo marca la proforma como compartida; no envía correo automático desde Nexo.")
         }
-        .alert("Marcar como compartida/enviada", isPresented: $isShowingManualSentConfirmation) {
+        .alert("Marcar como compartida", isPresented: $isShowingManualSentConfirmation) {
             Button("Cancelar", role: .cancel) {}
-            Button("Cambiar estado") {
+            Button("Marcar compartida") {
                 Task {
                     await viewModel.send()
                     notifyUpdated()
@@ -567,6 +581,9 @@ struct BusinessProformaDetailView: View {
             }
         } message: {
             Text("Esto solo cambia el estado de la proforma. No envía correo automáticamente. Para correo manual usa Compartir proforma y elige Mail.")
+        }
+        .navigationDestination(item: $convertedSaleRoute) { route in
+            makeSaleDetailView(saleId: route.saleId)
         }
         .task {
             if viewModel.shouldLoadOnAppear {
@@ -607,6 +624,8 @@ struct BusinessProformaFormView: View {
     private let onSaved: (BusinessProforma) -> Void
 
     @State private var isShowingCustomerPicker = false
+    @State private var hasValidUntil = false
+    @State private var validUntilDate = Calendar.current.date(byAdding: .day, value: 7, to: Date()) ?? Date()
 
     init(
         viewModel: BusinessProformaFormViewModel,
@@ -649,9 +668,26 @@ struct BusinessProformaFormView: View {
             }
 
             Section("Validez y condiciones") {
-                TextField("Válida hasta yyyy-mm-dd (opcional)", text: $viewModel.validUntil)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
+                Toggle("Agregar fecha de validez", isOn: $hasValidUntil)
+                    .onChange(of: hasValidUntil) { _, enabled in
+                        viewModel.validUntil = enabled ? Self.dateString(validUntilDate) : ""
+                    }
+
+                if hasValidUntil {
+                    DatePicker("Válida hasta", selection: $validUntilDate, displayedComponents: .date)
+                        .datePickerStyle(.compact)
+                        .onChange(of: validUntilDate) { _, date in
+                            viewModel.validUntil = Self.dateString(date)
+                        }
+
+                    Text("Se guardará como \(viewModel.validUntil).")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text("Sin vencimiento definido. Puedes agregarlo si la cotización necesita caducidad comercial.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
 
                 TextField("Notas", text: $viewModel.notes, axis: .vertical)
                     .lineLimit(2...4)
@@ -804,6 +840,9 @@ struct BusinessProformaFormView: View {
                 .disabled(!viewModel.canSave)
             }
         }
+        .onAppear {
+            initializeValidUntilStateIfNeeded()
+        }
         .sheet(isPresented: $isShowingCustomerPicker) {
             NavigationStack {
                 CustomerPickerView(
@@ -820,6 +859,30 @@ struct BusinessProformaFormView: View {
                 )
             }
         }
+    }
+
+    private func initializeValidUntilStateIfNeeded() {
+        guard !viewModel.validUntil.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        hasValidUntil = true
+        validUntilDate = Self.date(from: viewModel.validUntil) ?? validUntilDate
+    }
+
+    private static func dateString(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter.string(from: date)
+    }
+
+    private static func date(from value: String) -> Date? {
+        let formatter = DateFormatter()
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter.date(from: value)
     }
 }
 
@@ -922,6 +985,11 @@ private struct BusinessProformaStatusBadge: View {
         case .unknown: return .secondary
         }
     }
+}
+
+private struct BusinessProformaConvertedSaleRoute: Identifiable, Hashable {
+    let saleId: String
+    var id: String { saleId }
 }
 
 private struct BusinessProformaBoundaryBanner: View {

@@ -441,41 +441,68 @@ struct SaleDetailView: View {
                     )
                 }
 
-                if let sale = viewModel.sale, viewModel.canViewDocuments {
-                    NavigationLink {
-                        BusinessDocumentsRouteView(
-                            organizationId: viewModel.organizationId,
-                            sale: sale,
-                            effectivePermissions: viewModel.effectivePermissions,
-                            branchId: sale.branchId,
-                            activityId: sale.activityId,
-                            revisions: viewModel.revisions,
-                            documentsRepository: documentsRepository,
-                            onSaleUpdated: { updatedSale in
-                                viewModel.applySaleUpdate(updatedSale)
-                            }
-                        )
-                    } label: {
-                        SaleDetailNavigationActionLabel(
-                            title: viewModel.documentActionTitle(for: sale),
-                            subtitle: "Factura electrónica, RIDE, XML y respaldo interno",
-                            systemImage: viewModel.documentActionSystemImage(for: sale),
-                            tint: .accentColor
-                        )
+                if let sale = viewModel.sale,
+                   SaleStatusPresentation.requiresConfirmationBeforeCollection(status: sale.status),
+                   viewModel.canConfirm {
+                    SaleDetailActionButton(
+                        title: "Confirmar venta y cobrar",
+                        subtitle: "Confirma la venta y abre el registro de cobro en un solo flujo",
+                        systemImage: "checkmark.seal.fill",
+                        tint: .green,
+                        isLoading: viewModel.isConfirming || isPreparingPaymentNavigation,
+                        isDisabled: viewModel.isConfirming || isPreparingPaymentNavigation
+                    ) {
+                        confirmAndPreparePaymentNavigation(for: sale)
                     }
-                    .buttonStyle(.plain)
                 }
 
-                SaleDetailActionButton(
-                    title: "Confirmar venta",
-                    subtitle: "Marca la venta como confirmada",
-                    systemImage: "checkmark.seal",
-                    tint: .accentColor,
-                    isLoading: viewModel.isConfirming,
-                    isDisabled: !viewModel.canConfirm
-                ) {
-                    NexoKeyboard.dismiss()
-                    Task { await viewModel.confirm() }
+                if let sale = viewModel.sale, viewModel.canViewDocuments {
+                    if SaleStatusPresentation.requiresConfirmationBeforeCollection(status: sale.status) {
+                        SaleDetailInlineMessage(
+                            message: "Confirma la venta antes de emitir factura electrónica o registrar comprobantes.",
+                            systemImage: "doc.badge.clock",
+                            tint: .secondary
+                        )
+                    } else {
+                        NavigationLink {
+                            BusinessDocumentsRouteView(
+                                organizationId: viewModel.organizationId,
+                                sale: sale,
+                                effectivePermissions: viewModel.effectivePermissions,
+                                branchId: sale.branchId,
+                                activityId: sale.activityId,
+                                revisions: viewModel.revisions,
+                                documentsRepository: documentsRepository,
+                                onSaleUpdated: { updatedSale in
+                                    viewModel.applySaleUpdate(updatedSale)
+                                }
+                            )
+                        } label: {
+                            SaleDetailNavigationActionLabel(
+                                title: viewModel.documentActionTitle(for: sale),
+                                subtitle: "Factura electrónica, RIDE, XML y respaldo interno",
+                                systemImage: viewModel.documentActionSystemImage(for: sale),
+                                tint: .accentColor
+                            )
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+
+                if let sale = viewModel.sale,
+                   !SaleStatusPresentation.requiresConfirmationBeforeCollection(status: sale.status),
+                   viewModel.canConfirm {
+                    SaleDetailActionButton(
+                        title: "Confirmar venta",
+                        subtitle: "Marca la venta como confirmada",
+                        systemImage: "checkmark.seal",
+                        tint: .accentColor,
+                        isLoading: viewModel.isConfirming,
+                        isDisabled: !viewModel.canConfirm
+                    ) {
+                        NexoKeyboard.dismiss()
+                        Task { await viewModel.confirm() }
+                    }
                 }
 
                 Divider()
@@ -575,6 +602,16 @@ struct SaleDetailView: View {
         }
     }
 
+    private func confirmAndPreparePaymentNavigation(for sale: BusinessSale) {
+        guard !isPreparingPaymentNavigation else { return }
+        NexoKeyboard.dismiss()
+
+        Task {
+            guard let confirmedSale = await viewModel.confirm() else { return }
+            preparePaymentNavigation(for: confirmedSale)
+        }
+    }
+
     private func preparePaymentNavigation(for sale: BusinessSale) {
         guard !isPreparingPaymentNavigation else { return }
 
@@ -644,7 +681,7 @@ struct SaleDetailView: View {
         case .partialWithoutReceivable:
             return "Cobrar saldo"
         default:
-            return "Cobrar ahora"
+            return "Registrar cobro"
         }
     }
 
@@ -653,7 +690,7 @@ struct SaleDetailView: View {
         case .partialWithoutReceivable:
             return "Completa el saldo pendiente sin crear una cuenta por cobrar falsa"
         case .unpaidSavedSale:
-            return "Registra el pago de esta venta guardada o sin cobrar"
+            return "Registra el cobro de esta venta confirmada"
         default:
             return "Registra el pago y actualiza el estado de cobro"
         }

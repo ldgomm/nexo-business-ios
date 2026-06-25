@@ -285,6 +285,18 @@ final class SalesAPIRepository: SalesRepository, @unchecked Sendable {
         idempotencyKey: IdempotencyKey,
         request body: ConfirmSaleRequest
     ) async throws -> ConfirmSaleResponse {
+        let saleContext = try? await getSale(
+            organizationId: organizationId,
+            saleId: saleId
+        ).sale
+
+        let resolvedRevisions = await revisionRegistry.latestRevisions(
+            organizationId: organizationId,
+            branchId: saleContext?.branchId,
+            activityId: saleContext?.activityId,
+            fallback: revisions
+        )
+
         return try await apiClient.send(
             try APIRequest<ConfirmSaleResponse>.json(
                 method: .post,
@@ -292,9 +304,9 @@ final class SalesAPIRepository: SalesRepository, @unchecked Sendable {
                 body: body,
                 headers: mutationHeaders(
                     organizationId: organizationId,
-                    branchId: nil,
-                    activityId: nil,
-                    revisions: revisions,
+                    branchId: saleContext?.branchId,
+                    activityId: saleContext?.activityId,
+                    revisions: resolvedRevisions,
                     idempotencyKey: idempotencyKey
                 )
             )

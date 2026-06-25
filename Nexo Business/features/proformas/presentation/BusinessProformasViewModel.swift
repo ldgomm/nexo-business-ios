@@ -125,6 +125,7 @@ final class BusinessProformaDetailViewModel {
     private(set) var isLoading = false
     private(set) var isMutating = false
     private(set) var downloadedDocument: BusinessProformaDownloadedDocument?
+    private(set) var lastConvertedSaleId: String?
     var errorMessage: String?
     var infoMessage: String?
     var rejectionReason = ""
@@ -215,17 +216,32 @@ final class BusinessProformaDetailViewModel {
 
     func send() async {
         guard proforma?.hasRealCustomer == true else {
-            errorMessage = "Selecciona un cliente real antes de marcar la proforma como enviada."
+            errorMessage = "Selecciona un cliente real antes de marcar la proforma como compartida."
             return
         }
 
-        await mutate("Proforma marcada como compartida/enviada. No se envió correo automático desde Nexo.") {
-            try await repository.send(
+        isMutating = true
+        errorMessage = nil
+        infoMessage = nil
+        defer { isMutating = false }
+
+        do {
+            let updated = try await repository.send(
                 organizationId: organizationId,
                 proformaId: proformaId,
                 revisions: revisions,
                 idempotencyKey: Self.key("proforma-send", proformaId)
             )
+            proforma = updated
+            infoMessage = "Proforma marcada como compartida. No se envió correo automático desde Nexo."
+
+            if updated.status != .sent {
+                await load()
+            }
+        } catch let error as APIError {
+            errorMessage = error.userMessage
+        } catch {
+            errorMessage = error.localizedDescription
         }
     }
 
@@ -243,6 +259,66 @@ final class BusinessProformaDetailViewModel {
                 idempotencyKey: Self.key("proforma-accept", proformaId)
             )
         }
+    }
+
+    @discardableResult
+    func acceptAndConvertToSale() async -> String? {
+        guard let current = proforma else { return nil }
+        guard current.hasRealCustomer else {
+            errorMessage = "Selecciona un cliente real antes de aceptar y crear venta."
+            return nil
+        }
+        guard current.status == .sent || current.status == .accepted else {
+            errorMessage = "Primero marca la proforma como compartida. Luego podrás aceptarla y crear la venta."
+            return nil
+        }
+
+        isMutating = true
+        errorMessage = nil
+        infoMessage = nil
+        lastConvertedSaleId = nil
+        defer { isMutating = false }
+
+        do {
+            if current.status == .sent {
+                proforma = try await repository.accept(
+                    organizationId: organizationId,
+                    proformaId: proformaId,
+                    revisions: revisions,
+                    idempotencyKey: Self.key("proforma-accept", proformaId)
+                )
+            }
+
+            guard proforma?.canConvertToSale == true else {
+                errorMessage = "La proforma quedó aceptada, pero todavía no está lista para crear venta. Actualiza e intenta otra vez."
+                return nil
+            }
+
+            let response = try await repository.convertToSale(
+                organizationId: organizationId,
+                proformaId: proformaId,
+                revisions: revisions,
+                idempotencyKey: Self.key("proforma-convert-sale", proformaId)
+            )
+
+            lastConvertedSaleId = response.saleId
+            if let converted = response.proforma {
+                proforma = converted
+            } else {
+                await load()
+            }
+
+            infoMessage = response.wasAlreadyConverted
+                ? "Esta proforma ya tenía una venta creada. Abriendo venta."
+                : "Venta creada. Confirma la venta y registra el cobro desde el detalle."
+            return response.saleId
+        } catch let error as APIError {
+            errorMessage = error.userMessage
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+
+        return nil
     }
 
     func reject() async {
@@ -298,15 +374,16 @@ final class BusinessProformaDetailViewModel {
         }
     }
 
-    func convertToSale() async {
-        guard let proforma else { return }
+    @discardableResult
+    func convertToSale() async -> String? {
+        guard let proforma else { return nil }
         guard proforma.hasRealCustomer else {
             errorMessage = "Selecciona un cliente real antes de convertir. Consumidor final no aplica para proformas comerciales."
-            return
+            return nil
         }
         guard proforma.canConvertToSale else {
             errorMessage = "Solo una proforma aceptada y no convertida puede crear una venta."
-            return
+            return nil
         }
 
         isMutating = true
@@ -328,14 +405,18 @@ final class BusinessProformaDetailViewModel {
                 await refresh()
             }
 
+            lastConvertedSaleId = response.saleId
             infoMessage = response.wasAlreadyConverted
-                ? "Esta proforma ya tenía una venta creada."
-                : "Venta borrador creada. Abre la venta, confirma la venta y recién después registra el cobro."
+                ? "Esta proforma ya tenía una venta creada. Abriendo venta."
+                : "Venta creada. Confirma la venta y registra el cobro desde el detalle."
+            return response.saleId
         } catch let error as APIError {
             errorMessage = error.userMessage
         } catch {
             errorMessage = error.localizedDescription
         }
+
+        return nil
     }
 
     func downloadDocument() async {

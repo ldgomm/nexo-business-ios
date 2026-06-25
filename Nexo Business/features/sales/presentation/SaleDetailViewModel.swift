@@ -296,15 +296,16 @@ final class SaleDetailViewModel {
         sale = salePreservingKnownElectronicDocument(updatedSale)
     }
 
-    func confirm() async {
+    @discardableResult
+    func confirm() async -> BusinessSale? {
         guard let sale else {
             errorMessage = "No se encontró la venta. Actualiza e inténtalo nuevamente."
-            return
+            return nil
         }
 
         guard canConfirm else {
             errorMessage = "No puedes confirmar esta venta con tu usuario o estado actual."
-            return
+            return nil
         }
 
         isConfirming = true
@@ -323,15 +324,19 @@ final class SaleDetailViewModel {
                 idempotencyKey: .generate(prefix: "sale-confirm"),
                 request: ConfirmSaleRequest()
             )
-            self.sale = salePreservingKnownElectronicDocument(response.sale)
+            let updated = salePreservingKnownElectronicDocument(response.sale)
+            self.sale = updated
             infoMessage = response.idempotencyReplayed == true
                 ? "Confirmación recuperada de un intento anterior."
                 : "Venta confirmada correctamente."
+            return updated
         } catch let error as APIError {
             handle(apiError: error)
         } catch {
             errorMessage = error.localizedDescription
         }
+
+        return nil
     }
 
     func cancel() async {
@@ -402,10 +407,25 @@ final class SaleDetailViewModel {
     }
 
     private func handle(apiError: APIError) {
+        if isBusinessRevisionConflict(apiError) {
+            errorMessage = "El contexto del negocio está desactualizado. Actualiza la venta o vuelve a cargar el contexto antes de continuar."
+            infoMessage = "Nexo detectó una revisión antigua de catálogo/impuestos. No se registró ningún cambio."
+            return
+        }
+
         errorMessage = apiError.userMessage
 
         if apiError.statusCode == 409 || apiError.statusCode == 428 {
             infoMessage = "Actualiza el contexto del negocio antes de continuar."
         }
+    }
+
+    private func isBusinessRevisionConflict(_ error: APIError) -> Bool {
+        guard error.statusCode == 409 || error.statusCode == 428 else { return false }
+        let message = error.userMessage.lowercased()
+        return message.contains("business_revision_conflict") ||
+        message.contains("catalog revision is stale") ||
+        message.contains("revision is stale") ||
+        message.contains("contexto del negocio")
     }
 }
