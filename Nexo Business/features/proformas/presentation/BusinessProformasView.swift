@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import UIKit
 
 struct BusinessProformasView: View {
     @Bindable private var viewModel: BusinessProformasViewModel
@@ -205,6 +206,9 @@ struct BusinessProformaDetailView: View {
     @State private var isShowingRejectSheet = false
     @State private var isShowingRevisionSheet = false
     @State private var previewDocument: BusinessProformaDownloadedDocument?
+    @State private var shareDocument: BusinessProformaDownloadedDocument?
+    @State private var didCompleteShare = false
+    @State private var isShowingMarkSentAfterShare = false
 
     init(
         viewModel: BusinessProformaDetailViewModel,
@@ -246,7 +250,7 @@ struct BusinessProformaDetailView: View {
                     BusinessProformaBoundaryBanner()
                 }
 
-                Section("Cliente") {
+                Section("Cliente real") {
                     LabeledContent("Nombre", value: proforma.customerDisplayName)
                     if let identification = proforma.customerSnapshot?.identification, !identification.isEmpty {
                         LabeledContent("Identificación", value: identification)
@@ -254,9 +258,15 @@ struct BusinessProformaDetailView: View {
                     if let email = proforma.customerSnapshot?.email, !email.isEmpty {
                         LabeledContent("Correo", value: email)
                     }
+
+                    if !proforma.hasRealCustomer {
+                        Label("Selecciona un cliente real antes de marcar como enviada, aceptar o crear venta. Consumidor final solo aplica en ventas rápidas.", systemImage: "person.crop.circle.badge.exclamationmark")
+                            .font(.footnote)
+                            .foregroundStyle(.orange)
+                    }
                 }
 
-                Section("Líneas") {
+                Section("Líneas agrupadas") {
                     ForEach(proforma.lines) { line in
                         VStack(alignment: .leading, spacing: 6) {
                             Text(line.displayName)
@@ -312,6 +322,18 @@ struct BusinessProformaDetailView: View {
                     }
                     .disabled(viewModel.isMutating)
 
+                    Button {
+                        Task {
+                            await viewModel.downloadDocument()
+                            if viewModel.errorMessage == nil {
+                                shareDocument = viewModel.downloadedDocument
+                            }
+                        }
+                    } label: {
+                        Label("Compartir proforma", systemImage: "square.and.arrow.up")
+                    }
+                    .disabled(viewModel.isMutating)
+
                     if viewModel.canSend {
                         Button {
                             Task {
@@ -319,7 +341,7 @@ struct BusinessProformaDetailView: View {
                                 notifyUpdated()
                             }
                         } label: {
-                            Label("Enviar proforma", systemImage: "paperplane")
+                            Label("Marcar como enviada", systemImage: "paperplane")
                         }
                     }
 
@@ -498,6 +520,30 @@ struct BusinessProformaDetailView: View {
         .sheet(item: $previewDocument) { document in
             BusinessDocumentQuickLookPreview(fileURL: document.localURL)
         }
+        .sheet(
+            item: $shareDocument,
+            onDismiss: {
+                if didCompleteShare && viewModel.canSend {
+                    isShowingMarkSentAfterShare = true
+                }
+                didCompleteShare = false
+            }
+        ) { document in
+            BusinessProformaShareSheet(activityItems: [document.localURL]) { completed in
+                didCompleteShare = completed
+            }
+        }
+        .alert("¿Marcar como enviada?", isPresented: $isShowingMarkSentAfterShare) {
+            Button("No", role: .cancel) {}
+            Button("Marcar enviada") {
+                Task {
+                    await viewModel.send()
+                    notifyUpdated()
+                }
+            }
+        } message: {
+            Text("Compartir por WhatsApp, AirDrop, Archivos o Imprimir no confirma entrega real. Márcala como enviada solo si corresponde.")
+        }
         .task {
             if viewModel.shouldLoadOnAppear {
                 await viewModel.load()
@@ -554,7 +600,7 @@ struct BusinessProformaFormView: View {
                 BusinessProformaBoundaryBanner()
             }
 
-            Section("Cliente") {
+            Section("Cliente real") {
                 if let selectedCustomer = viewModel.selectedCustomer {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(selectedCustomer.displayName)
@@ -564,7 +610,7 @@ struct BusinessProformaFormView: View {
                             .foregroundStyle(.secondary)
                     }
                 } else if !viewModel.manualCustomerName.isEmpty {
-                    LabeledContent("Cliente", value: viewModel.manualCustomerName)
+                    LabeledContent("Cliente guardado", value: viewModel.manualCustomerName)
                 } else {
                     Text("Selecciona un cliente real para que la conversión a venta sea válida.")
                         .font(.footnote)
@@ -631,7 +677,7 @@ struct BusinessProformaFormView: View {
                 }
             }
 
-            Section("Líneas") {
+            Section("Líneas agrupadas") {
                 if viewModel.lines.isEmpty {
                     ContentUnavailableView(
                         "Sin productos",
@@ -640,34 +686,53 @@ struct BusinessProformaFormView: View {
                     )
                 } else {
                     ForEach($viewModel.lines) { $line in
-                        VStack(alignment: .leading, spacing: 10) {
-                            Text(line.displayName.isEmpty ? "Ítem" : line.displayName)
-                                .font(.headline)
+                        VStack(alignment: .leading, spacing: 12) {
+                            HStack(alignment: .top) {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(line.displayName.isEmpty ? "Ítem" : line.displayName)
+                                        .font(.headline)
+                                    Text("Total estimado $\(line.estimatedGrandTotalText)")
+                                        .font(.footnote)
+                                        .foregroundStyle(.secondary)
+                                }
+                                Spacer()
+                                Button(role: .destructive) {
+                                    viewModel.removeLine(line)
+                                } label: {
+                                    Image(systemName: "trash")
+                                }
+                                .buttonStyle(.borderless)
+                            }
 
-                            TextField("Nombre", text: $line.displayName)
+                            TextField("Nombre del producto", text: $line.displayName)
                             HStack {
                                 TextField("Cantidad", text: $line.quantity)
                                     .keyboardType(.decimalPad)
-                                TextField("Precio", text: $line.unitPrice)
+                                TextField("Precio unitario", text: $line.unitPrice)
                                     .keyboardType(.decimalPad)
                             }
                             HStack {
                                 TextField("Descuento", text: $line.discountAmount)
                                     .keyboardType(.decimalPad)
-                                TextField("Impuesto", text: $line.taxAmount)
+                                TextField("Impuesto ref.", text: $line.taxAmount)
                                     .keyboardType(.decimalPad)
                             }
                             TextField("Notas de línea", text: $line.notes)
-
-                            Button(role: .destructive) {
-                                viewModel.removeLine(line)
-                            } label: {
-                                Label("Eliminar línea", systemImage: "trash")
-                            }
-                            .font(.footnote)
                         }
                         .padding(.vertical, 4)
                     }
+                }
+            }
+
+            if !viewModel.lines.isEmpty {
+                Section("Resumen referencial") {
+                    LabeledContent("Subtotal", value: "$\(viewModel.estimatedSubtotalText)")
+                    LabeledContent("Impuestos", value: "$\(viewModel.estimatedTaxText)")
+                    LabeledContent("Total", value: "$\(viewModel.estimatedTotalText)")
+                        .font(.headline)
+                    Text("El backend conserva la fuente de verdad al guardar. No se genera factura, XML, RIDE ni SRI desde proformas.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
                 }
             }
 
@@ -719,6 +784,7 @@ struct BusinessProformaFormView: View {
                         effectivePermissions: viewModel.effectivePermissions,
                         customersRepository: customersRepository
                     ),
+                    allowsFinalConsumer: false,
                     onSelect: { customer in
                         viewModel.selectCustomer(customer)
                         isShowingCustomerPicker = false
@@ -840,4 +906,22 @@ private struct BusinessProformaBoundaryBanner: View {
         }
         .foregroundStyle(.secondary)
     }
+}
+
+
+private struct BusinessProformaShareSheet: UIViewControllerRepresentable {
+    let activityItems: [Any]
+    let completion: (Bool) -> Void
+
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        let controller = UIActivityViewController(activityItems: activityItems, applicationActivities: nil)
+        controller.completionWithItemsHandler = { _, completed, _, _ in
+            DispatchQueue.main.async {
+                completion(completed)
+            }
+        }
+        return controller
+    }
+
+    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
 }

@@ -10,13 +10,16 @@ import SwiftUI
 struct CustomerPickerView: View {
     @Environment(\.dismiss) private var dismiss
     @Bindable private var viewModel: CustomerPickerViewModel
+    private let allowsFinalConsumer: Bool
     private let onSelect: (BusinessCustomer) -> Void
 
     init(
         viewModel: CustomerPickerViewModel,
+        allowsFinalConsumer: Bool = true,
         onSelect: @escaping (BusinessCustomer) -> Void
     ) {
         self.viewModel = viewModel
+        self.allowsFinalConsumer = allowsFinalConsumer
         self.onSelect = onSelect
     }
 
@@ -46,16 +49,31 @@ struct CustomerPickerView: View {
             }
 
             Section("Rápido") {
-                Button {
-                    onSelect(BusinessCustomerPresentation.finalConsumer)
-                    dismiss()
-                } label: {
-                    CustomerRowView(
-                        customer: BusinessCustomerPresentation.finalConsumer,
-                        showsAccessory: true
-                    )
+                if allowsFinalConsumer {
+                    Button {
+                        onSelect(BusinessCustomerPresentation.finalConsumer)
+                        dismiss()
+                    } label: {
+                        CustomerRowView(
+                            customer: BusinessCustomerPresentation.finalConsumer,
+                            showsAccessory: true
+                        )
+                    }
+                    .buttonStyle(.plain)
+                } else {
+                    Label {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Consumidor final no aplica")
+                                .fontWeight(.semibold)
+                            Text("Para proformas selecciona o crea un cliente real.")
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                        }
+                    } icon: {
+                        Image(systemName: "person.crop.circle.badge.exclamationmark")
+                    }
+                    .foregroundStyle(.secondary)
                 }
-                .buttonStyle(.plain)
             }
 
             if viewModel.canCreate {
@@ -85,7 +103,7 @@ struct CustomerPickerView: View {
                     ContentUnavailableView(
                         "Sin clientes",
                         systemImage: "person.text.rectangle",
-                        description: Text("Busca o usa Consumidor final para ventas sin datos del cliente.")
+                        description: Text(allowsFinalConsumer ? "Busca o usa Consumidor final para ventas sin datos del cliente." : "Busca por nombre, cédula, RUC o correo. En proformas necesitas un cliente real.")
                     )
                 } else {
                     ForEach(viewModel.customers) { customer in

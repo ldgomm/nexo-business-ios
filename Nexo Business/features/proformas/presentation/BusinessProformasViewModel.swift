@@ -214,7 +214,12 @@ final class BusinessProformaDetailViewModel {
     }
 
     func send() async {
-        await mutate("Proforma enviada.") {
+        guard proforma?.hasRealCustomer == true else {
+            errorMessage = "Selecciona un cliente real antes de marcar la proforma como enviada."
+            return
+        }
+
+        await mutate("Proforma marcada como enviada.") {
             try await repository.send(
                 organizationId: organizationId,
                 proformaId: proformaId,
@@ -225,6 +230,11 @@ final class BusinessProformaDetailViewModel {
     }
 
     func accept() async {
+        guard proforma?.hasRealCustomer == true else {
+            errorMessage = "Selecciona un cliente real antes de aceptar una proforma."
+            return
+        }
+
         await mutate("Proforma aceptada.") {
             try await repository.accept(
                 organizationId: organizationId,
@@ -290,6 +300,10 @@ final class BusinessProformaDetailViewModel {
 
     func convertToSale() async {
         guard let proforma else { return }
+        guard proforma.hasRealCustomer else {
+            errorMessage = "Selecciona un cliente real antes de convertir. Consumidor final no aplica para proformas comerciales."
+            return
+        }
         guard proforma.canConvertToSale else {
             errorMessage = "Solo una proforma aceptada y no convertida puede crear una venta."
             return
@@ -420,6 +434,34 @@ struct BusinessProformaLineDraft: Identifiable, Equatable {
         )
     }
 
+    var estimatedRawSubtotal: Decimal {
+        Self.decimal(quantity) * Self.decimal(unitPrice)
+    }
+
+    var estimatedNetSubtotal: Decimal {
+        max(Decimal.zero, estimatedRawSubtotal - Self.decimal(discountAmount))
+    }
+
+    var estimatedGrandTotal: Decimal {
+        estimatedNetSubtotal + Self.decimal(taxAmount)
+    }
+
+    var estimatedGrandTotalText: String {
+        Self.money(estimatedGrandTotal)
+    }
+
+    func canMerge(with product: BusinessProduct) -> Bool {
+        productId == product.id &&
+        Self.normalizedMoney(unitPrice) == Self.normalizedMoney(product.price?.amount ?? "0.00") &&
+        Self.normalizedMoney(discountAmount) == "0.00" &&
+        Self.normalizedMoney(taxAmount) == "0.00" &&
+        notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    mutating func incrementQuantity() {
+        quantity = Self.quantity(Self.decimal(quantity) + Decimal(1))
+    }
+
     var input: BusinessProformaLineInput {
         BusinessProformaLineInput(
             productId: productId?.trimmedNilIfBlankForProforma,
@@ -438,6 +480,28 @@ struct BusinessProformaLineDraft: Identifiable, Equatable {
         !displayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
         Decimal(string: quantity.trimmingCharacters(in: .whitespacesAndNewlines)).map { $0 > 0 } == true &&
         Decimal(string: unitPrice.trimmingCharacters(in: .whitespacesAndNewlines)).map { $0 >= 0 } == true
+    }
+
+    private static func decimal(_ value: String) -> Decimal {
+        Decimal(string: value.trimmingCharacters(in: .whitespacesAndNewlines)) ?? .zero
+    }
+
+    private static func normalizedMoney(_ value: String) -> String {
+        money(decimal(value))
+    }
+
+    private static func money(_ value: Decimal) -> String {
+        let number = NSDecimalNumber(decimal: value)
+        return String(format: "%.2f", number.doubleValue)
+    }
+
+    private static func quantity(_ value: Decimal) -> String {
+        let number = NSDecimalNumber(decimal: value)
+        let double = number.doubleValue
+        if double.rounded() == double {
+            return String(format: "%.0f", double)
+        }
+        return String(format: "%.2f", double)
     }
 }
 
@@ -515,16 +579,37 @@ final class BusinessProformaFormViewModel {
     }
 
     private var hasConvertibleCustomer: Bool {
-        if selectedCustomer != nil { return true }
+        if let selectedCustomer {
+            return !Self.isFinalConsumerCandidate(
+                customerId: selectedCustomer.id,
+                displayName: selectedCustomer.displayName,
+                identification: selectedCustomer.identificationNumber
+            )
+        }
         if case let .edit(proforma) = mode {
-            return proforma.customerId?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+            guard let customerId = proforma.customerId?.trimmingCharacters(in: .whitespacesAndNewlines), !customerId.isEmpty else {
+                return false
+            }
+            return !Self.isFinalConsumerIdentifier(customerId)
         }
         return false
     }
 
     func selectCustomer(_ customer: BusinessCustomer) {
+        guard !Self.isFinalConsumerCandidate(
+            customerId: customer.id,
+            displayName: customer.displayName,
+            identification: customer.identificationNumber
+        ) else {
+            selectedCustomer = nil
+            manualCustomerName = ""
+            errorMessage = "Consumidor final no aplica para proformas. Selecciona o crea un cliente real."
+            return
+        }
+
         selectedCustomer = customer
         manualCustomerName = customer.displayName
+        errorMessage = nil
     }
 
     func searchProducts() async {
@@ -552,6 +637,12 @@ final class BusinessProformaFormViewModel {
     }
 
     func addProduct(_ product: BusinessProduct) {
+        if let index = lines.firstIndex(where: { $0.canMerge(with: product) }) {
+            lines[index].incrementQuantity()
+            infoMessage = "Cantidad actualizada para \(product.name)."
+            return
+        }
+
         lines.append(
             BusinessProformaLineDraft(
                 productId: product.id,
@@ -599,7 +690,7 @@ final class BusinessProformaFormViewModel {
                         branchId: branchId,
                         activityId: activityId,
                         customerId: selectedCustomer?.id,
-                        customerSnapshot: resolvedCustomerSnapshot,
+                        customerSnapshot: selectedCustomer?.proformaCustomerSnapshot,
                         issueDate: Self.todayString(),
                         validUntil: validUntil.trimmedNilIfBlankForProforma,
                         currency: "USD",
@@ -619,7 +710,7 @@ final class BusinessProformaFormViewModel {
                     idempotencyKey: Self.key("proforma-update-\(proforma.id)"),
                     request: UpdateDraftBusinessProformaRequest(
                         customerId: selectedCustomer?.id ?? proforma.customerId,
-                        customerSnapshot: resolvedCustomerSnapshot,
+                        customerSnapshot: selectedCustomer?.proformaCustomerSnapshot ?? proforma.customerSnapshot,
                         validUntil: validUntil.trimmedNilIfBlankForProforma,
                         currency: proforma.currency,
                         lines: validLines,
@@ -639,14 +730,45 @@ final class BusinessProformaFormViewModel {
         return nil
     }
 
-    private var resolvedCustomerSnapshot: BusinessProformaCustomerSnapshot? {
-        if let selectedCustomer {
-            return selectedCustomer.proformaCustomerSnapshot
-        }
+    var estimatedSubtotalText: String {
+        Self.money(lines.reduce(Decimal.zero) { $0 + $1.estimatedRawSubtotal })
+    }
 
-        let name = manualCustomerName.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !name.isEmpty else { return nil }
-        return BusinessProformaCustomerSnapshot(displayName: name)
+    var estimatedTaxText: String {
+        Self.money(lines.reduce(Decimal.zero) { $0 + Self.decimal($1.taxAmount) })
+    }
+
+    var estimatedTotalText: String {
+        Self.money(lines.reduce(Decimal.zero) { $0 + $1.estimatedGrandTotal })
+    }
+
+    private static func isFinalConsumerCandidate(customerId: String, displayName: String, identification: String) -> Bool {
+        isFinalConsumerIdentifier(customerId) ||
+        isFinalConsumerIdentifier(displayName) ||
+        isFinalConsumerIdentifier(identification)
+    }
+
+    private static func isFinalConsumerIdentifier(_ value: String) -> Bool {
+        let normalized = value
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+            .folding(options: [.diacriticInsensitive], locale: .current)
+            .replacingOccurrences(of: "-", with: "_")
+            .replacingOccurrences(of: " ", with: "_")
+        return normalized == "cus_final_consumer" ||
+            normalized == "final_consumer" ||
+            normalized == "consumidor_final" ||
+            normalized.contains("final_consumer") ||
+            normalized.contains("consumidor_final")
+    }
+
+    private static func decimal(_ value: String) -> Decimal {
+        Decimal(string: value.trimmingCharacters(in: .whitespacesAndNewlines)) ?? .zero
+    }
+
+    private static func money(_ value: Decimal) -> String {
+        let number = NSDecimalNumber(decimal: value)
+        return String(format: "%.2f", number.doubleValue)
     }
 
     private static func todayString() -> String {

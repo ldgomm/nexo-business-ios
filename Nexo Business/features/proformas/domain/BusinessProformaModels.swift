@@ -305,17 +305,40 @@ extension BusinessProforma {
             ?? "Cliente no definido"
     }
 
+    var hasRealCustomer: Bool {
+        guard let customerId = customerId?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !customerId.isEmpty,
+              !Self.isFinalConsumerIdentifier(customerId)
+        else {
+            return false
+        }
+        return true
+    }
+
     var canEditDraft: Bool { status == .draft }
-    var canSend: Bool { status == .draft }
-    var canAccept: Bool { status == .sent }
+    var canSend: Bool { status == .draft && hasRealCustomer }
+    var canAccept: Bool { status == .sent && hasRealCustomer }
     var canReject: Bool { status == .sent || status == .accepted }
     var canExpire: Bool { status == .sent }
     var canCreateRevision: Bool { status == .sent || status == .accepted || status == .rejected || status == .expired }
-    var canConvertToSale: Bool { status == .accepted && convertedSaleId == nil }
+    var canConvertToSale: Bool { status == .accepted && convertedSaleId == nil && hasRealCustomer }
     var canOpenConvertedSale: Bool { convertedSaleId?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false }
 
     var fiscalBoundarySummary: String {
         "No es factura. No genera XML, RIDE ni autorización SRI. La conversión crea una venta borrador sin cobrar."
+    }
+
+    private static func isFinalConsumerIdentifier(_ value: String) -> Bool {
+        let normalized = value
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+            .replacingOccurrences(of: "-", with: "_")
+            .replacingOccurrences(of: " ", with: "_")
+        return normalized == "cus_final_consumer" ||
+            normalized == "final_consumer" ||
+            normalized == "consumidor_final" ||
+            normalized.contains("final_consumer") ||
+            normalized.contains("consumidor_final")
     }
 }
 
