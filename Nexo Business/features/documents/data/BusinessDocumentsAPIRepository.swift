@@ -70,7 +70,7 @@ enum BusinessDocumentsRoutes {
     }
 }
 
-final class BusinessDocumentsAPIRepository: BusinessDocumentsRepository, BusinessDocumentFileDownloadingRepository, @unchecked Sendable {
+class BusinessDocumentsAPIRepository: BusinessDocumentsRepository, BusinessDocumentFileDownloadingRepository, @unchecked Sendable {
     private let apiClient: APIClient
     private let temporaryFileStore: BusinessDocumentTemporaryFileStore
 

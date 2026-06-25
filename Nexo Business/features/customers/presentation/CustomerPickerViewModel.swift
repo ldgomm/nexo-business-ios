@@ -10,7 +10,7 @@ import Observation
 
 @MainActor
 @Observable
-final class CustomerPickerViewModel {
+class CustomerPickerViewModel {
     private(set) var customers: [BusinessCustomer] = []
     private(set) var isSearching = false
     var query = ""

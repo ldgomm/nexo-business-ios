@@ -46,7 +46,8 @@ extension BusinessAppContainer {
             salesHistoryRepository: PreviewSalesHistoryRepository(),
             customersRepository: PreviewCustomersRepository(),
             inventoryRepository: PreviewInventoryRepository(),
-            teamRepository: PreviewBusinessTeamRepository()
+            teamRepository: PreviewBusinessTeamRepository(),
+            proformasRepository: PreviewBusinessProformasRepository()
         )
     }
 }

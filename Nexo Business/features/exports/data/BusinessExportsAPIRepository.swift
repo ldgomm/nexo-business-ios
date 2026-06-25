@@ -13,6 +13,7 @@ enum BusinessExportsRoutes {
     static let dailyZip = "/api/v1/business/exports/daily.zip"
     static let operationalSummary = "/api/v1/business/exports/operational/summary"
     static let operationalZip = "/api/v1/business/exports/operational.zip"
+    static let accountantPackDraftZip = "/api/v1/business/finance/accountant-pack/draft.zip"
 }
 
 final class BusinessExportsAPIRepository: BusinessExportsRepository, @unchecked Sendable {
@@ -139,6 +140,58 @@ final class BusinessExportsAPIRepository: BusinessExportsRepository, @unchecked 
             response: response,
             fallbackFileName: "nexo_exportacion_operativa_diaria.zip"
         )
+    }
+
+
+    func downloadAccountantPackDraftZip(
+        organizationId: String,
+        branchId: String? = nil,
+        activityId: String? = nil,
+        year: Int,
+        month: Int
+    ) async throws -> BusinessExportDownloadedFile {
+        guard let dataClient = apiClient as? APIDataClient else {
+            throw APIError.transport("El cliente HTTP no soporta descarga de archivos.")
+        }
+
+        let response = try await dataClient.sendData(
+            APIRequest<EmptyResponse>(
+                method: .get,
+                path: BusinessExportsRoutes.accountantPackDraftZip,
+                queryItems: Self.accountantPackQueryItems(
+                    branchId: branchId,
+                    activityId: activityId,
+                    year: year,
+                    month: month
+                ),
+                headers: Self.headers(organizationId: organizationId, branchId: branchId)
+            )
+        )
+
+        return try persistDownloadedFile(
+            response: response,
+            fallbackFileName: "nexo_paquete_contador_\(year)_\(String(format: "%02d", month)).zip"
+        )
+    }
+
+
+    private static func accountantPackQueryItems(
+        branchId: String?,
+        activityId: String?,
+        year: Int,
+        month: Int
+    ) -> [URLQueryItem] {
+        var queryItems: [URLQueryItem] = [
+            URLQueryItem(name: "year", value: String(year)),
+            URLQueryItem(name: "month", value: String(format: "%02d", month))
+        ]
+        if let branchId = branchId?.trimmingCharacters(in: .whitespacesAndNewlines), !branchId.isEmpty {
+            queryItems.append(URLQueryItem(name: "branchId", value: branchId))
+        }
+        if let activityId = activityId?.trimmingCharacters(in: .whitespacesAndNewlines), !activityId.isEmpty {
+            queryItems.append(URLQueryItem(name: "activityId", value: activityId))
+        }
+        return queryItems
     }
 
     private static func periodQueryItems(branchId: String?, from: String, to: String, label: String?) -> [URLQueryItem] {

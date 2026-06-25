@@ -26,6 +26,15 @@ protocol BusinessExportsRepository: Sendable {
         label: String?
     ) async throws -> BusinessExportDownloadedFile
 
+
+    func downloadAccountantPackDraftZip(
+        organizationId: String,
+        branchId: String?,
+        activityId: String?,
+        year: Int,
+        month: Int
+    ) async throws -> BusinessExportDownloadedFile
+
     func dailyMetadata(
         organizationId: String,
         branchId: String?,

@@ -29,6 +29,7 @@ final class BusinessAppContainer: @unchecked Sendable {
     let customersRepository: CustomersRepository
     let inventoryRepository: InventoryRepository
     let teamRepository: BusinessTeamRepository
+    let proformasRepository: BusinessProformasRepository
 
     init(
         tokenStore: AuthTokenStoring,
@@ -51,7 +52,8 @@ final class BusinessAppContainer: @unchecked Sendable {
         salesHistoryRepository: SalesHistoryRepository,
         customersRepository: CustomersRepository,
         inventoryRepository: InventoryRepository,
-        teamRepository: BusinessTeamRepository
+        teamRepository: BusinessTeamRepository,
+        proformasRepository: BusinessProformasRepository
     ) {
         self.tokenStore = tokenStore
         self.selectionStore = selectionStore
@@ -74,6 +76,7 @@ final class BusinessAppContainer: @unchecked Sendable {
         self.customersRepository = customersRepository
         self.inventoryRepository = inventoryRepository
         self.teamRepository = teamRepository
+        self.proformasRepository = proformasRepository
     }
 
     static func live(config: BusinessRuntimeConfig) -> BusinessAppContainer {
@@ -121,7 +124,8 @@ final class BusinessAppContainer: @unchecked Sendable {
             salesHistoryRepository: SalesHistoryAPIRepository(apiClient: apiClient),
             customersRepository: CustomersAPIRepository(apiClient: apiClient),
             inventoryRepository: InventoryAPIRepository(apiClient: apiClient),
-            teamRepository: BusinessTeamAPIRepository(apiClient: apiClient)
+            teamRepository: BusinessTeamAPIRepository(apiClient: apiClient),
+            proformasRepository: BusinessProformasAPIRepository(apiClient: apiClient)
         )
     }
 }

@@ -420,10 +420,32 @@ struct BusinessHomeView: View {
                         isDisabled: true
                     )
                 }
+                
+                if canAccessOperationalExports {
+                    NavigationLink {
+                        BusinessAccountantPackSurfaceView(container: container)
+                    } label: {
+                        BusinessHomeToolTile(
+                            title: "Paquete contador",
+                            subtitle: "ZIP mensual",
+                            systemImage: "doc.zipper",
+                            tint: .purple
+                        )
+                    }
+                    .buttonStyle(.plain)
+                } else {
+                    BusinessHomeToolTile(
+                        title: "Paquete contador",
+                        subtitle: "Sin permiso",
+                        systemImage: "lock",
+                        tint: .secondary,
+                        isDisabled: true
+                    )
+                }
             }
 
             BusinessHomeInlineMessage(
-                message: "Proformas quedan como superficie secundaria cuando exista backend; no se fuerza una pantalla falsa en 21F.",
+                message: "Proformas cotiza primero y convierte a venta solo cuando el cliente acepta. No cobra, no factura y no toca SRI desde esta superficie.",
                 systemImage: "doc.badge.plus",
                 tint: .secondary
             )
@@ -493,13 +515,27 @@ struct BusinessHomeView: View {
                     .buttonStyle(.plain)
                 }
 
-                BusinessHomeToolTile(
-                    title: "Proformas",
-                    subtitle: "Pendiente backend",
-                    systemImage: "doc.badge.plus",
-                    tint: .secondary,
-                    isDisabled: true
-                )
+                if capabilityGate.canAccessSales {
+                    NavigationLink {
+                        makeBusinessProformasView()
+                    } label: {
+                        BusinessHomeToolTile(
+                            title: "Proformas",
+                            subtitle: "Cotizar y convertir",
+                            systemImage: "doc.badge.plus",
+                            tint: .indigo
+                        )
+                    }
+                    .buttonStyle(.plain)
+                } else {
+                    BusinessHomeToolTile(
+                        title: "Proformas",
+                        subtitle: "Sin permiso",
+                        systemImage: "lock",
+                        tint: .secondary,
+                        isDisabled: true
+                    )
+                }
 
                 if capabilityGate.canAccessReceivables {
                     NavigationLink {
@@ -820,6 +856,29 @@ struct BusinessHomeView: View {
                 effectivePermissions: permissions,
                 exportsRepository: container.exportsRepository
             )
+        )
+    }
+
+
+    private func makeBusinessProformasView() -> BusinessProformasView {
+        BusinessProformasView(
+            viewModel: BusinessProformasViewModel(
+                organizationId: organizationId,
+                branchId: branchId,
+                activityId: activityId,
+                revisions: revisions,
+                effectivePermissions: permissions,
+                repository: container.proformasRepository
+            ),
+            proformasRepository: container.proformasRepository,
+            productsRepository: container.productsRepository,
+            customersRepository: container.customersRepository,
+            salesRepository: container.salesRepository,
+            salesHistoryRepository: container.salesHistoryRepository,
+            cashRepository: container.cashRepository,
+            paymentsRepository: container.paymentsRepository,
+            receivablesRepository: container.receivablesRepository,
+            documentsRepository: container.documentsRepository
         )
     }
 
@@ -1352,7 +1411,7 @@ private struct BusinessHomeCard<Content: View>: View {
     }
 }
 
-private struct BusinessHomeToolTile: View {
+struct BusinessHomeToolTile: View {
     let title: String
     let subtitle: String
     let systemImage: String

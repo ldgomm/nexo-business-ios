@@ -11,7 +11,7 @@ enum BusinessDailyReportRoutes {
     static let daily = "/api/v1/business/reports/daily"
 }
 
-final class BusinessDailyReportAPIRepository: BusinessDailyReportRepository, @unchecked Sendable {
+class BusinessDailyReportAPIRepository: BusinessDailyReportRepository, @unchecked Sendable {
     private let apiClient: APIClient
 
     init(apiClient: APIClient) {

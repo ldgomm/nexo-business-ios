@@ -10,7 +10,7 @@ import Observation
 
 @MainActor
 @Observable
-final class BusinessExportsViewModel {
+class BusinessExportsViewModel {
     private(set) var state: AsyncViewState<[BusinessExportDescriptor]> = .idle
     private(set) var exports: [BusinessExportDescriptor] = []
     private(set) var summary: BusinessOperationalSummaryResponse?
@@ -384,7 +384,28 @@ final class BusinessExportsViewModel {
     }()
 }
 
-final class PreviewBusinessExportsRepository: BusinessExportsRepository, @unchecked Sendable {
+class PreviewBusinessExportsRepository: BusinessExportsRepository, @unchecked Sendable {
+    func downloadAccountantPackDraftZip(
+        organizationId: String,
+        branchId: String?,
+        activityId: String?,
+        year: Int,
+        month: Int
+    ) async throws -> BusinessExportDownloadedFile {
+        let safeMonth = String(format: "%02d", month)
+        let fileName = "nexo_paquete_contador_preview_\(year)_\(safeMonth).zip"
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(fileName)
+
+        try Data("preview accountant pack \(year)-\(safeMonth)".utf8).write(to: url)
+
+        return BusinessExportDownloadedFile(
+            localURL: url,
+            fileName: fileName,
+            contentType: "application/zip",
+            sizeBytes: 7
+        )
+    }
+    
     func catalog(organizationId: String) async throws -> BusinessExportsCatalogResponse {
         BusinessExportsCatalogResponse(
             exports: [

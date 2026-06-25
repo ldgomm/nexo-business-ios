@@ -10,7 +10,7 @@ import Observation
 
 @MainActor
 @Observable
-final class BusinessDocumentsViewModel {
+class BusinessDocumentsViewModel {
     private(set) var documents: [BusinessDocument] = []
     private(set) var isLoading = false
     private(set) var isGeneratingInternalTicket = false

@@ -10,7 +10,7 @@ import Observation
 
 @MainActor
 @Observable
-final class CustomerDirectoryViewModel {
+class CustomerDirectoryViewModel {
     private(set) var customers: [BusinessCustomer] = []
     private(set) var isLoading = false
     var query = ""
@@ -98,7 +98,7 @@ final class CustomerDirectoryViewModel {
 
 @MainActor
 @Observable
-final class CustomerDetail360ViewModel {
+class CustomerDetail360ViewModel {
     private(set) var receivables: [ReceivableRecord] = []
     private(set) var sales: [BusinessSale] = []
     private(set) var documents: [BusinessDocument] = []

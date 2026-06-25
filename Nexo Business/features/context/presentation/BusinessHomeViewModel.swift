@@ -10,7 +10,7 @@ import Observation
 
 @MainActor
 @Observable
-final class BusinessHomeViewModel {
+class BusinessHomeViewModel {
     private(set) var state: AsyncViewState<BusinessContextResponse> = .idle
 
     private let organizationId: String

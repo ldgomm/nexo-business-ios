@@ -7,7 +7,7 @@
 
 import Foundation
 
-final class BusinessDocumentTemporaryFileStore: @unchecked Sendable {
+class BusinessDocumentTemporaryFileStore: @unchecked Sendable {
     private let fileManager: FileManager
     private let baseDirectory: URL
 

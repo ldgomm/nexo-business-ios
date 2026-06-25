@@ -26,7 +26,7 @@ struct CustomerDuplicateCandidate: Equatable, Identifiable, Sendable {
 
 @MainActor
 @Observable
-final class CustomerCreateViewModel {
+class CustomerCreateViewModel {
     var identificationType: BusinessCustomerIdentificationType = .cedula {
         didSet { clearDuplicateWarningForEdition() }
     }

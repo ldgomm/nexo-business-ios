@@ -10,7 +10,7 @@ import Observation
 
 @MainActor
 @Observable
-final class DailyClosureViewModel {
+class DailyClosureViewModel {
     private(set) var reportState: AsyncViewState<BusinessDailyReport?> = .idle
     private(set) var cashState: AsyncViewState<CashSession?> = .idle
     private(set) var pendingSales: [BusinessSale] = []
