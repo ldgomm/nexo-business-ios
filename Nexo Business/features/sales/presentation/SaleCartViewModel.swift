@@ -429,6 +429,7 @@ final class SaleCartViewModel {
     private let verticalContext: BusinessVerticalContext
     private let catalogRepository: CatalogRepository
     private let salesRepository: SalesRepository
+    private let customersRepository: CustomersRepository
     private let salesHistoryRepository: SalesHistoryRepository?
     private let contextRepository: BusinessContextRepository?
     private let revisionRegistry: BusinessRevisionRegistry
@@ -445,6 +446,7 @@ final class SaleCartViewModel {
         verticalContext: BusinessVerticalContext = .empty,
         catalogRepository: CatalogRepository,
         salesRepository: SalesRepository,
+        customersRepository: CustomersRepository = UnavailableCustomersRepository(),
         salesHistoryRepository: SalesHistoryRepository? = nil,
         contextRepository: BusinessContextRepository? = nil,
         editingSale: BusinessSale? = nil,
@@ -459,6 +461,7 @@ final class SaleCartViewModel {
         self.verticalContext = verticalContext
         self.catalogRepository = catalogRepository
         self.salesRepository = salesRepository
+        self.customersRepository = customersRepository
         self.salesHistoryRepository = salesHistoryRepository
         self.contextRepository = contextRepository
         self.revisionRegistry = revisionRegistry
@@ -470,6 +473,7 @@ final class SaleCartViewModel {
 
     var verticalContextForSaleEditing: BusinessVerticalContext { verticalContext }
     var catalogRepositoryForSaleEditing: CatalogRepository { catalogRepository }
+    var customersRepositoryForSaleEditing: CustomersRepository { customersRepository }
     var contextRepositoryForSaleEditing: BusinessContextRepository? { contextRepository }
 
     func cancelScheduledPreview() {
@@ -531,7 +535,6 @@ final class SaleCartViewModel {
         canEditRegisteredSaleItems &&
         !cartItems.isEmpty &&
         cartItems.allSatisfy { isValidQuantity($0.quantity) } &&
-        !isPreviewing &&
         !isCreatingSale
     }
 
@@ -905,15 +908,7 @@ final class SaleCartViewModel {
 
         guard validateCart(showErrors: true) else { return }
 
-        let originalSaleItemIds = Set(sale.items.map(\.id))
-        let currentCartIds = Set(cartItems.map(\.id))
-        let originalCartById = Dictionary(uniqueKeysWithValues: originalRegisteredCartItems.map { ($0.id, $0) })
-        let existingCartItems = cartItems.filter { item in
-            originalSaleItemIds.contains(item.id) && originalCartById[item.id] != item
-        }
-        let newCartItems = cartItems.filter { !originalSaleItemIds.contains($0.id) }
-        let removedIds = sale.items.map(\.id).filter { !currentCartIds.contains($0) }
-
+        let desiredCartItems = cartItems
         isCreatingSale = true
         orderState = .creating
         errorMessage = nil
@@ -925,119 +920,180 @@ final class SaleCartViewModel {
         }
 
         do {
-            var latestSale = sale
-            let reason = "Corrección de productos antes de emitir factura electrónica"
-
-            if !existingCartItems.isEmpty {
-                let identity = BusinessMutationIdentity.generate(prefix: "sale-items-update")
-                let response = try await salesRepository.bulkUpdateItems(
-                    organizationId: organizationId,
-                    saleId: latestSale.id,
-                    revisions: revisions,
-                    idempotencyKey: identity.idempotencyKey,
-                    request: BulkUpdateSaleItemsRequest(
-                        requestId: identity.requestId,
-                        reason: reason,
-                        catalogRevision: revisions.catalogRevision,
-                        taxConfigurationRevision: revisions.taxConfigurationRevision,
-                        items: existingCartItems.map { item in
-                            BulkUpdateSaleItemRequest(
-                                saleItemId: item.id,
-                                replacement: saleItemRequest(for: item)
-                            )
-                        }
-                    )
-                )
-                latestSale = response.sale
-            }
-
-            if !newCartItems.isEmpty {
-                let identity = BusinessMutationIdentity.generate(prefix: "sale-items-add")
-                let response = try await salesRepository.bulkAddItems(
-                    organizationId: organizationId,
-                    saleId: latestSale.id,
-                    revisions: revisions,
-                    idempotencyKey: identity.idempotencyKey,
-                    request: BulkAddSaleItemsRequest(
-                        requestId: identity.requestId,
-                        catalogRevision: revisions.catalogRevision,
-                        taxConfigurationRevision: revisions.taxConfigurationRevision,
-                        items: newCartItems.map { saleItemRequest(for: $0) }
-                    )
-                )
-                latestSale = response.sale
-            }
-
-            if !removedIds.isEmpty {
-                let identity = BusinessMutationIdentity.generate(prefix: "sale-items-remove")
-                let response = try await salesRepository.bulkRemoveItems(
-                    organizationId: organizationId,
-                    saleId: latestSale.id,
-                    revisions: revisions,
-                    idempotencyKey: identity.idempotencyKey,
-                    request: BulkRemoveSaleItemsRequest(
-                        requestId: identity.requestId,
-                        reason: reason,
-                        catalogRevision: revisions.catalogRevision,
-                        taxConfigurationRevision: revisions.taxConfigurationRevision,
-                        saleItemIds: removedIds
-                    )
-                )
-                latestSale = response.sale
-            }
-
-            if registeredSaleServiceTypeChanged(from: latestSale) {
-                let identity = BusinessMutationIdentity.generate(prefix: "sale-service-type-update")
-                let response = try await salesRepository.updateServiceType(
-                    organizationId: organizationId,
-                    saleId: latestSale.id,
-                    revisions: revisions,
-                    idempotencyKey: identity.idempotencyKey,
-                    request: UpdateSaleServiceTypeRequest(
-                        requestId: identity.requestId,
-                        serviceType: serviceTypeForRequest,
-                        reason: "Corrección de tipo de servicio antes de cobrar o facturar"
-                    )
-                )
-                latestSale = response.sale
-            }
-
-            if registeredSaleCustomerChanged(from: latestSale) {
-                let identity = BusinessMutationIdentity.generate(prefix: "sale-customer-update")
-                let response = try await salesRepository.updateCustomer(
-                    organizationId: organizationId,
-                    saleId: latestSale.id,
-                    revisions: revisions,
-                    idempotencyKey: identity.idempotencyKey,
-                    request: UpdateSaleCustomerRequest(
-                        requestId: identity.requestId,
-                        customerId: customerIdForRequest,
-                        customerSnapshot: customerSnapshotForRequest(),
-                        reason: "Corrección de cliente antes de emitir factura electrónica"
-                    )
-                )
-                latestSale = response.sale
-            }
-
-            let enrichedSale = latestSale.withLocalCartTaxProfileFallback(from: cartItems)
-            createdSale = enrichedSale
-            persistedServiceType = enrichedSale.serviceType
-            realignCartItemsWithCreatedSale(enrichedSale)
-            preview = nil
-            registeredSaleHasUnsavedChanges = false
-            originalRegisteredCartItems = cartItems
-            isPreviewDirty = false
-            recalculateLocalCalculation()
-            infoMessage = "Cambios guardados. Ahora puedes cobrar o emitir factura con la venta corregida."
+            let latestSale = try await persistRegisteredSaleChanges(
+                baseSale: sale,
+                desiredCartItems: desiredCartItems
+            )
+            applySavedRegisteredSale(latestSale, desiredCartItems: desiredCartItems)
         } catch let error as APIError {
-            orderState = .created
-            handle(apiError: error)
+            guard error.isBusinessRevisionConflict else {
+                orderState = .created
+                handle(apiError: error)
+                return
+            }
+
+            guard await refreshBusinessContextAfterRevisionConflict() else {
+                orderState = .created
+                handle(apiError: error)
+                return
+            }
+
+            do {
+                let freshSale = try await salesRepository.getSale(
+                    organizationId: organizationId,
+                    saleId: sale.id
+                ).sale
+                let enrichedFreshSale = freshSale.withLocalCartTaxProfileFallback(from: desiredCartItems)
+                createdSale = enrichedFreshSale
+
+                let retriedSale = try await persistRegisteredSaleChanges(
+                    baseSale: enrichedFreshSale,
+                    desiredCartItems: desiredCartItems
+                )
+                applySavedRegisteredSale(retriedSale, desiredCartItems: desiredCartItems)
+                infoMessage = "Contexto actualizado y cambios guardados. Ahora puedes cobrar o emitir factura con la venta corregida."
+            } catch let retryError as APIError {
+                orderState = .created
+                handle(apiError: retryError)
+            } catch {
+                orderState = .created
+                errorMessage = error.localizedDescription
+            }
         } catch {
             orderState = .created
             errorMessage = error.localizedDescription
         }
     }
 
+    private func persistRegisteredSaleChanges(
+        baseSale sale: BusinessSale,
+        desiredCartItems: [SaleCartItem]
+    ) async throws -> BusinessSale {
+        let activeSaleItems = sale.items.filter(\.isActiveForCartEditing)
+        let originalSaleItemIds = Set(activeSaleItems.map(\.id))
+        let currentCartIds = Set(desiredCartItems.map(\.id))
+        let latestCartById = Dictionary(uniqueKeysWithValues: activeSaleItems.map { saleItem in
+            (saleItem.id, SaleCartItem(existingSaleItem: saleItem))
+        })
+
+        let existingCartItems = desiredCartItems.filter { item in
+            originalSaleItemIds.contains(item.id) && latestCartById[item.id] != item
+        }
+        let newCartItems = desiredCartItems.filter { !originalSaleItemIds.contains($0.id) }
+        let removedIds = activeSaleItems.map(\.id).filter { !currentCartIds.contains($0) }
+
+        var latestSale = sale
+        let reason = "Corrección de productos antes de emitir factura electrónica"
+
+        if !existingCartItems.isEmpty {
+            let identity = BusinessMutationIdentity.generate(prefix: "sale-items-update")
+            let response = try await salesRepository.bulkUpdateItems(
+                organizationId: organizationId,
+                saleId: latestSale.id,
+                revisions: revisions,
+                idempotencyKey: identity.idempotencyKey,
+                request: BulkUpdateSaleItemsRequest(
+                    requestId: identity.requestId,
+                    reason: reason,
+                    catalogRevision: revisions.catalogRevision,
+                    taxConfigurationRevision: revisions.taxConfigurationRevision,
+                    items: existingCartItems.map { item in
+                        BulkUpdateSaleItemRequest(
+                            saleItemId: item.id,
+                            replacement: saleItemRequest(for: item)
+                        )
+                    }
+                )
+            )
+            latestSale = response.sale
+        }
+
+        if !newCartItems.isEmpty {
+            let identity = BusinessMutationIdentity.generate(prefix: "sale-items-add")
+            let response = try await salesRepository.bulkAddItems(
+                organizationId: organizationId,
+                saleId: latestSale.id,
+                revisions: revisions,
+                idempotencyKey: identity.idempotencyKey,
+                request: BulkAddSaleItemsRequest(
+                    requestId: identity.requestId,
+                    catalogRevision: revisions.catalogRevision,
+                    taxConfigurationRevision: revisions.taxConfigurationRevision,
+                    items: newCartItems.map { saleItemRequest(for: $0) }
+                )
+            )
+            latestSale = response.sale
+        }
+
+        if !removedIds.isEmpty {
+            let identity = BusinessMutationIdentity.generate(prefix: "sale-items-remove")
+            let response = try await salesRepository.bulkRemoveItems(
+                organizationId: organizationId,
+                saleId: latestSale.id,
+                revisions: revisions,
+                idempotencyKey: identity.idempotencyKey,
+                request: BulkRemoveSaleItemsRequest(
+                    requestId: identity.requestId,
+                    reason: reason,
+                    catalogRevision: revisions.catalogRevision,
+                    taxConfigurationRevision: revisions.taxConfigurationRevision,
+                    saleItemIds: removedIds
+                )
+            )
+            latestSale = response.sale
+        }
+
+        if registeredSaleServiceTypeChanged(from: latestSale) {
+            let identity = BusinessMutationIdentity.generate(prefix: "sale-service-type-update")
+            let response = try await salesRepository.updateServiceType(
+                organizationId: organizationId,
+                saleId: latestSale.id,
+                revisions: revisions,
+                idempotencyKey: identity.idempotencyKey,
+                request: UpdateSaleServiceTypeRequest(
+                    requestId: identity.requestId,
+                    serviceType: serviceTypeForRequest,
+                    reason: "Corrección de tipo de servicio antes de cobrar o facturar"
+                )
+            )
+            latestSale = response.sale
+        }
+
+        if registeredSaleCustomerChanged(from: latestSale) {
+            let identity = BusinessMutationIdentity.generate(prefix: "sale-customer-update")
+            let response = try await salesRepository.updateCustomer(
+                organizationId: organizationId,
+                saleId: latestSale.id,
+                revisions: revisions,
+                idempotencyKey: identity.idempotencyKey,
+                request: UpdateSaleCustomerRequest(
+                    requestId: identity.requestId,
+                    customerId: customerIdForRequest,
+                    customerSnapshot: customerSnapshotForRequest(),
+                    reason: "Corrección de cliente antes de emitir factura electrónica"
+                )
+            )
+            latestSale = response.sale
+        }
+
+        return latestSale
+    }
+
+    private func applySavedRegisteredSale(
+        _ latestSale: BusinessSale,
+        desiredCartItems: [SaleCartItem]
+    ) {
+        let enrichedSale = latestSale.withLocalCartTaxProfileFallback(from: desiredCartItems)
+        createdSale = enrichedSale
+        persistedServiceType = enrichedSale.serviceType
+        realignCartItemsWithCreatedSale(enrichedSale)
+        preview = nil
+        registeredSaleHasUnsavedChanges = false
+        originalRegisteredCartItems = cartItems
+        isPreviewDirty = false
+        recalculateLocalCalculation()
+        infoMessage = "Cambios guardados. Ahora puedes cobrar o emitir factura con la venta corregida."
+    }
 
     func recalculateLocalTotalsIfNeeded() {
         recalculateLocalCalculation()
@@ -1057,14 +1113,30 @@ final class SaleCartViewModel {
         guard ensureOrderIsEditable() else { return }
         selectedCustomer = customer
         errorMessage = nil
-        markCalculationDirty(shouldScheduleAutomaticPreview: true)
+        if createdSale != nil {
+            preview = nil
+            isPreviewDirty = false
+            registeredSaleHasUnsavedChanges = true
+            recalculateLocalCalculation()
+            infoMessage = "Cliente actualizado localmente. Guarda los cambios de la venta para persistirlo."
+        } else {
+            markCalculationDirty(shouldScheduleAutomaticPreview: true)
+        }
     }
     
     func clearCustomer() {
         guard ensureOrderIsEditable() else { return }
         selectedCustomer = createdSale == nil ? nil : BusinessCustomerPresentation.finalConsumer
         errorMessage = nil
-        markCalculationDirty(shouldScheduleAutomaticPreview: true)
+        if createdSale != nil {
+            preview = nil
+            isPreviewDirty = false
+            registeredSaleHasUnsavedChanges = true
+            recalculateLocalCalculation()
+            infoMessage = "Cliente marcado como consumidor final localmente. Guarda los cambios de la venta para persistirlo."
+        } else {
+            markCalculationDirty(shouldScheduleAutomaticPreview: true)
+        }
     }
 
     func updateLineNote(cartItemId: String, note: String) {
@@ -1124,6 +1196,13 @@ final class SaleCartViewModel {
             selectedDiscountItemIds.remove(cartItemId)
         } else {
             selectedDiscountItemIds.insert(cartItemId)
+        }
+
+        normalizeDiscountSelectionAfterCartMutation()
+        if discountTarget == .selectedItems, canApplyDiscount {
+            applyDiscountDraft()
+        } else {
+            recalculateLocalCalculation()
         }
     }
 
@@ -1382,7 +1461,10 @@ final class SaleCartViewModel {
     
     func removeFromCart(cartItemId: String) {
         guard ensureOrderIsEditable() else { return }
+        let removedHadDiscount = cartItems.first(where: { $0.id == cartItemId })?.discount != nil
         cartItems.removeAll { $0.id == cartItemId }
+        selectedDiscountItemIds.remove(cartItemId)
+        normalizeDiscountSelectionAfterCartMutation(clearDiscountDraftIfNoDiscountedLines: removedHadDiscount)
         markCalculationDirty(shouldScheduleAutomaticPreview: true)
     }
     
@@ -1594,6 +1676,24 @@ final class SaleCartViewModel {
             infoMessage = nil
         }
         return success
+    }
+
+    private func normalizeDiscountSelectionAfterCartMutation(clearDiscountDraftIfNoDiscountedLines: Bool = false) {
+        let existingCartIds = Set(cartItems.map(\.id))
+        selectedDiscountItemIds = selectedDiscountItemIds.filter { existingCartIds.contains($0) }
+
+        if discountTarget == .selectedItems {
+            let discountedIds = Set(cartItems.filter { $0.discount != nil }.map(\.id))
+            if selectedDiscountItemIds.isEmpty, !discountedIds.isEmpty {
+                selectedDiscountItemIds = discountedIds
+            }
+        }
+
+        if clearDiscountDraftIfNoDiscountedLines, !cartItems.contains(where: { $0.discount != nil }) {
+            discountValue = ""
+            discountReason = ""
+            selectedDiscountItemIds = []
+        }
     }
 
     private func markCalculationDirty(shouldScheduleAutomaticPreview: Bool, showMessage: Bool = false) {

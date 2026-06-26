@@ -10,6 +10,7 @@ import SwiftUI
 struct SalesHistoryView: View {
     @Bindable private var viewModel: SalesHistoryViewModel
     private let salesRepository: SalesRepository
+    private let customersRepository: CustomersRepository
     private let catalogRepository: CatalogRepository?
     private let contextRepository: BusinessContextRepository?
     private let verticalContext: BusinessVerticalContext
@@ -24,6 +25,7 @@ struct SalesHistoryView: View {
     init(
         viewModel: SalesHistoryViewModel,
         salesRepository: SalesRepository,
+        customersRepository: CustomersRepository = UnavailableCustomersRepository(),
         catalogRepository: CatalogRepository? = nil,
         contextRepository: BusinessContextRepository? = nil,
         verticalContext: BusinessVerticalContext = .empty,
@@ -35,6 +37,7 @@ struct SalesHistoryView: View {
     ) {
         self.viewModel = viewModel
         self.salesRepository = salesRepository
+        self.customersRepository = customersRepository
         self.catalogRepository = catalogRepository
         self.contextRepository = contextRepository
         self.verticalContext = verticalContext
@@ -338,6 +341,7 @@ struct SalesHistoryView: View {
                                     for: sale,
                                     salesRepository: salesRepository
                                 ),
+                                customersRepository: customersRepository,
                                 catalogRepository: catalogRepository,
                                 contextRepository: contextRepository,
                                 verticalContext: verticalContext,

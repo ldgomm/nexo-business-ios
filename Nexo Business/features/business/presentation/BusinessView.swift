@@ -215,6 +215,10 @@ struct BusinessView: View {
                                 documentsRepository: container.documentsRepository
                             ),
                             salesRepository: container.salesRepository,
+                            customersRepository: container.customersRepository,
+                            catalogRepository: container.catalogRepository,
+                            contextRepository: container.contextRepository,
+                            verticalContext: context.verticals,
                             salesHistoryRepository: container.salesHistoryRepository,
                             cashRepository: container.cashRepository,
                             paymentsRepository: container.paymentsRepository,
@@ -251,6 +255,10 @@ struct BusinessView: View {
                                 pendingRepository: container.pendingOperationsRepository
                             ),
                             salesRepository: container.salesRepository,
+                            customersRepository: container.customersRepository,
+                            catalogRepository: container.catalogRepository,
+                            contextRepository: container.contextRepository,
+                            verticalContext: context.verticals,
                             salesHistoryRepository: container.salesHistoryRepository,
                             cashRepository: container.cashRepository,
                             paymentsRepository: container.paymentsRepository,
@@ -735,6 +743,7 @@ struct BusinessView: View {
                 verticalContext: context.verticals,
                 catalogRepository: container.catalogRepository,
                 salesRepository: container.salesRepository,
+                customersRepository: container.customersRepository,
                 salesHistoryRepository: container.salesHistoryRepository,
                 contextRepository: container.contextRepository
             ),
@@ -1066,6 +1075,10 @@ struct BusinessView: View {
 private struct UnpaidSalesListView: View {
     @Bindable private var viewModel: UnpaidSalesListViewModel
     private let salesRepository: SalesRepository
+    private let customersRepository: CustomersRepository
+    private let catalogRepository: CatalogRepository?
+    private let contextRepository: BusinessContextRepository?
+    private let verticalContext: BusinessVerticalContext
     private let salesHistoryRepository: SalesHistoryRepository
     private let cashRepository: CashRepository
     private let paymentsRepository: PaymentsRepository
@@ -1075,6 +1088,10 @@ private struct UnpaidSalesListView: View {
     init(
         viewModel: UnpaidSalesListViewModel,
         salesRepository: SalesRepository,
+        customersRepository: CustomersRepository = UnavailableCustomersRepository(),
+        catalogRepository: CatalogRepository? = nil,
+        contextRepository: BusinessContextRepository? = nil,
+        verticalContext: BusinessVerticalContext = .empty,
         salesHistoryRepository: SalesHistoryRepository,
         cashRepository: CashRepository,
         paymentsRepository: PaymentsRepository,
@@ -1083,6 +1100,10 @@ private struct UnpaidSalesListView: View {
     ) {
         self.viewModel = viewModel
         self.salesRepository = salesRepository
+        self.customersRepository = customersRepository
+        self.catalogRepository = catalogRepository
+        self.contextRepository = contextRepository
+        self.verticalContext = verticalContext
         self.salesHistoryRepository = salesHistoryRepository
         self.cashRepository = cashRepository
         self.paymentsRepository = paymentsRepository
@@ -1119,6 +1140,10 @@ private struct UnpaidSalesListView: View {
                                     for: sale,
                                     salesRepository: salesRepository
                                 ),
+                                customersRepository: customersRepository,
+                                catalogRepository: catalogRepository,
+                                contextRepository: contextRepository,
+                                verticalContext: verticalContext,
                                 salesHistoryRepository: salesHistoryRepository,
                                 cashRepository: cashRepository,
                                 paymentsRepository: paymentsRepository,

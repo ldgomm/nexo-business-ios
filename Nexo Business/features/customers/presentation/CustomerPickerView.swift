@@ -9,7 +9,7 @@ import SwiftUI
 
 struct CustomerPickerView: View {
     @Environment(\.dismiss) private var dismiss
-    @Bindable private var viewModel: CustomerPickerViewModel
+    @State private var viewModel: CustomerPickerViewModel
     private let allowsFinalConsumer: Bool
     private let onSelect: (BusinessCustomer) -> Void
 
@@ -18,7 +18,7 @@ struct CustomerPickerView: View {
         allowsFinalConsumer: Bool = true,
         onSelect: @escaping (BusinessCustomer) -> Void
     ) {
-        self.viewModel = viewModel
+        self._viewModel = State(initialValue: viewModel)
         self.allowsFinalConsumer = allowsFinalConsumer
         self.onSelect = onSelect
     }

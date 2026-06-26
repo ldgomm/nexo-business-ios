@@ -8,7 +8,7 @@
 import SwiftUI
 
 struct SaleCartView: View {
-    @Bindable private var viewModel: SaleCartViewModel
+    @State private var viewModel: SaleCartViewModel
     private let customersRepository: CustomersRepository
     private let cashRepository: CashRepository
     private let paymentsRepository: PaymentsRepository
@@ -16,6 +16,10 @@ struct SaleCartView: View {
     private let receivablesRepository: ReceivablesRepository
     private let documentsRepository: BusinessDocumentsRepository
     private let onSaleUpdated: (BusinessSale) -> Void
+
+    private var resolvedCustomersRepository: CustomersRepository {
+        viewModel.customersRepositoryForSaleEditing
+    }
     @State private var showStartNewOrderConfirmation = false
     @State private var isPendingSalesExpanded = false
     @State private var pendingSaleDeletionCandidate: BusinessSale?
@@ -35,7 +39,7 @@ struct SaleCartView: View {
         documentsRepository: BusinessDocumentsRepository,
         onSaleUpdated: @escaping (BusinessSale) -> Void = { _ in }
     ) {
-        self.viewModel = viewModel
+        self._viewModel = State(initialValue: viewModel)
         self.customersRepository = customersRepository
         self.cashRepository = cashRepository
         self.paymentsRepository = paymentsRepository
@@ -72,7 +76,7 @@ struct SaleCartView: View {
                 PaymentRegisterView(
                     viewModel: preparedPaymentViewModel,
                     autoPrepareCashOnAppear: true,
-                    customersRepository: customersRepository,
+                    customersRepository: resolvedCustomersRepository,
                     onSaleUpdated: { updatedSale in
                         viewModel.updateCreatedSale(updatedSale)
                         onSaleUpdated(updatedSale)
@@ -231,7 +235,7 @@ struct SaleCartView: View {
                         viewModel: CustomerPickerViewModel(
                             organizationId: viewModel.organizationId,
                             effectivePermissions: viewModel.effectivePermissions,
-                            customersRepository: customersRepository
+                            customersRepository: resolvedCustomersRepository
                         ),
                         onSelect: { customer in
                             viewModel.selectCustomer(customer)
@@ -972,7 +976,7 @@ struct SaleCartView: View {
                     NavigationLink {
                         SaleDetailView(
                             viewModel: viewModel.makeSaleDetailViewModel(for: sale),
-                            customersRepository: customersRepository,
+                            customersRepository: resolvedCustomersRepository,
                             catalogRepository: viewModel.catalogRepositoryForSaleEditing,
                             contextRepository: viewModel.contextRepositoryForSaleEditing,
                             verticalContext: viewModel.verticalContextForSaleEditing,
@@ -1098,7 +1102,7 @@ struct SaleCartView: View {
                         NavigationLink {
                             SaleDetailView(
                                 viewModel: viewModel.makeSaleDetailViewModel(for: sale),
-                                customersRepository: customersRepository,
+                                customersRepository: resolvedCustomersRepository,
                                 catalogRepository: viewModel.catalogRepositoryForSaleEditing,
                                 contextRepository: viewModel.contextRepositoryForSaleEditing,
                                 verticalContext: viewModel.verticalContextForSaleEditing,

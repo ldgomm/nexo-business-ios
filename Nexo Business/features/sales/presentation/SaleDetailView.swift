@@ -8,7 +8,7 @@
 import SwiftUI
 
 struct SaleDetailView: View {
-    @Bindable private var viewModel: SaleDetailViewModel
+    @State private var viewModel: SaleDetailViewModel
     private let customersRepository: CustomersRepository
     private let catalogRepository: CatalogRepository?
     private let contextRepository: BusinessContextRepository?
@@ -42,7 +42,7 @@ struct SaleDetailView: View {
         documentsRepository: BusinessDocumentsRepository,
         onSaleUpdated: @escaping (BusinessSale) -> Void = { _ in }
     ) {
-        self.viewModel = viewModel
+        self._viewModel = State(initialValue: viewModel)
         self.customersRepository = customersRepository
         self.catalogRepository = catalogRepository
         self.contextRepository = contextRepository
@@ -469,6 +469,7 @@ struct SaleDetailView: View {
                                 verticalContext: verticalContext,
                                 catalogRepository: catalogRepository,
                                 salesRepository: viewModel.salesRepositoryForPaymentReadiness,
+                                customersRepository: customersRepository,
                                 salesHistoryRepository: salesHistoryRepository,
                                 contextRepository: contextRepository,
                                 editingSale: sale
