@@ -114,6 +114,7 @@ final class SalesAPIRepository: SalesRepository, @unchecked Sendable {
             customerId: body.customerId,
             customerSnapshot: body.customerSnapshot,
             cashSessionId: body.cashSessionId,
+            serviceType: body.serviceType,
             autoConfirm: body.autoConfirm,
             catalogRevision: resolvedRevisions.catalogRevision,
             taxConfigurationRevision: resolvedRevisions.taxConfigurationRevision,

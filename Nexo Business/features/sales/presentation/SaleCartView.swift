@@ -15,6 +15,7 @@ struct SaleCartView: View {
     private let salesHistoryRepository: SalesHistoryRepository?
     private let receivablesRepository: ReceivablesRepository
     private let documentsRepository: BusinessDocumentsRepository
+    private let onSaleUpdated: (BusinessSale) -> Void
     @State private var showStartNewOrderConfirmation = false
     @State private var isPendingSalesExpanded = false
     @State private var pendingSaleDeletionCandidate: BusinessSale?
@@ -31,7 +32,8 @@ struct SaleCartView: View {
         paymentsRepository: PaymentsRepository,
         salesHistoryRepository: SalesHistoryRepository? = nil,
         receivablesRepository: ReceivablesRepository,
-        documentsRepository: BusinessDocumentsRepository
+        documentsRepository: BusinessDocumentsRepository,
+        onSaleUpdated: @escaping (BusinessSale) -> Void = { _ in }
     ) {
         self.viewModel = viewModel
         self.customersRepository = customersRepository
@@ -40,6 +42,7 @@ struct SaleCartView: View {
         self.salesHistoryRepository = salesHistoryRepository
         self.receivablesRepository = receivablesRepository
         self.documentsRepository = documentsRepository
+        self.onSaleUpdated = onSaleUpdated
     }
 
     var body: some View {
@@ -72,6 +75,7 @@ struct SaleCartView: View {
                     customersRepository: customersRepository,
                     onSaleUpdated: { updatedSale in
                         viewModel.updateCreatedSale(updatedSale)
+                        onSaleUpdated(updatedSale)
                         Task { await viewModel.refreshPendingSales() }
                     }
                 )
@@ -114,7 +118,13 @@ struct SaleCartView: View {
             viewModel.recalculateLocalTotalsIfNeeded()
         }
         .task {
+            await viewModel.loadEditingSaleDetailIfNeeded()
             await viewModel.loadPendingSalesIfNeeded()
+        }
+        .onChange(of: viewModel.createdSale) { _, sale in
+            if let sale {
+                onSaleUpdated(sale)
+            }
         }
         .onDisappear {
             viewModel.cancelScheduledPreview()
@@ -963,11 +973,18 @@ struct SaleCartView: View {
                         SaleDetailView(
                             viewModel: viewModel.makeSaleDetailViewModel(for: sale),
                             customersRepository: customersRepository,
+                            catalogRepository: viewModel.catalogRepositoryForSaleEditing,
+                            contextRepository: viewModel.contextRepositoryForSaleEditing,
+                            verticalContext: viewModel.verticalContextForSaleEditing,
                             salesHistoryRepository: salesHistoryRepository ?? PreviewSaleCartSalesHistoryRepository(),
                             cashRepository: cashRepository,
                             paymentsRepository: paymentsRepository,
                             receivablesRepository: receivablesRepository,
-                            documentsRepository: documentsRepository
+                            documentsRepository: documentsRepository,
+                            onSaleUpdated: { updatedSale in
+                                viewModel.updateCreatedSale(updatedSale)
+                                Task { await viewModel.refreshPendingSales() }
+                            }
                         )
                     } label: {
                         Label("Detalle", systemImage: "doc.text.magnifyingglass")
@@ -1082,11 +1099,18 @@ struct SaleCartView: View {
                             SaleDetailView(
                                 viewModel: viewModel.makeSaleDetailViewModel(for: sale),
                                 customersRepository: customersRepository,
+                                catalogRepository: viewModel.catalogRepositoryForSaleEditing,
+                                contextRepository: viewModel.contextRepositoryForSaleEditing,
+                                verticalContext: viewModel.verticalContextForSaleEditing,
                                 salesHistoryRepository: salesHistoryRepository ?? PreviewSaleCartSalesHistoryRepository(),
                                 cashRepository: cashRepository,
                                 paymentsRepository: paymentsRepository,
                                 receivablesRepository: receivablesRepository,
-                                documentsRepository: documentsRepository
+                                documentsRepository: documentsRepository,
+                                onSaleUpdated: { updatedSale in
+                                    viewModel.updateCreatedSale(updatedSale)
+                                    Task { await viewModel.refreshPendingSales() }
+                                }
                             )
                         } label: {
                             SaleCartPendingSaleRow(

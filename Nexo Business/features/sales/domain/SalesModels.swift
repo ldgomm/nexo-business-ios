@@ -465,6 +465,46 @@ extension BusinessSaleTotals {
 
 typealias SaleTotals = BusinessSaleTotals
 
+private struct BusinessSaleItemTaxProfileSnapshot: Decodable, Equatable, Sendable {
+    let code: String?
+    let name: String?
+    let treatment: String?
+    let rate: String?
+    let sriTaxCode: String?
+    let sriRateCode: String?
+
+    private enum CodingKeys: String, CodingKey {
+        case code
+        case taxProfileCode
+        case name
+        case displayName
+        case treatment
+        case taxTreatment
+        case rate
+        case taxRate
+        case sriTaxCode
+        case sriRateCode
+        case codigo
+        case codigoPorcentaje
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        code = (try? container.decodeIfPresent(String.self, forKey: .code))
+        ?? (try? container.decodeIfPresent(String.self, forKey: .taxProfileCode))
+        name = (try? container.decodeIfPresent(String.self, forKey: .name))
+        ?? (try? container.decodeIfPresent(String.self, forKey: .displayName))
+        treatment = (try? container.decodeIfPresent(String.self, forKey: .treatment))
+        ?? (try? container.decodeIfPresent(String.self, forKey: .taxTreatment))
+        rate = (try? container.decodeFlexibleStringIfPresent(forKey: .rate))
+        ?? (try? container.decodeFlexibleStringIfPresent(forKey: .taxRate))
+        sriTaxCode = (try? container.decodeFlexibleStringIfPresent(forKey: .sriTaxCode))
+        ?? (try? container.decodeFlexibleStringIfPresent(forKey: .codigo))
+        sriRateCode = (try? container.decodeFlexibleStringIfPresent(forKey: .sriRateCode))
+        ?? (try? container.decodeFlexibleStringIfPresent(forKey: .codigoPorcentaje))
+    }
+}
+
 struct BusinessSaleItem: Decodable, Equatable, Identifiable, Sendable {
     let id: String
     let catalogItemId: String?
@@ -473,6 +513,8 @@ struct BusinessSaleItem: Decodable, Equatable, Identifiable, Sendable {
     let unitPrice: MoneyAmount?
     let subtotal: MoneyAmount?
     let total: MoneyAmount?
+    let discount: MoneyAmount?
+    let status: String?
     let taxProfileCode: String?
     let taxProfileName: String?
     let taxTreatment: String?
@@ -491,6 +533,8 @@ struct BusinessSaleItem: Decodable, Equatable, Identifiable, Sendable {
         unitPrice: MoneyAmount? = nil,
         subtotal: MoneyAmount? = nil,
         total: MoneyAmount? = nil,
+        discount: MoneyAmount? = nil,
+        status: String? = nil,
         taxProfileCode: String? = nil,
         taxProfileName: String? = nil,
         taxTreatment: String? = nil,
@@ -508,6 +552,8 @@ struct BusinessSaleItem: Decodable, Equatable, Identifiable, Sendable {
         self.unitPrice = unitPrice
         self.subtotal = subtotal
         self.total = total
+        self.discount = discount
+        self.status = status
         self.taxProfileCode = taxProfileCode
         self.taxProfileName = taxProfileName
         self.taxTreatment = taxTreatment
@@ -535,7 +581,10 @@ struct BusinessSaleItem: Decodable, Equatable, Identifiable, Sendable {
         case total
         case lineTotal
         case netTotal
+        case discount
+        case status
         case taxProfileCode
+        case taxProfileSnapshot
         case taxProfileName
         case treatment
         case taxTreatment
@@ -547,6 +596,7 @@ struct BusinessSaleItem: Decodable, Equatable, Identifiable, Sendable {
         case codigoPorcentaje
         case taxAmount
         case tax
+        case taxTotal
         case note
         case notes
     }
@@ -580,19 +630,27 @@ struct BusinessSaleItem: Decodable, Equatable, Identifiable, Sendable {
         ?? (try? container.decodeIfPresent(MoneyAmount.self, forKey: .netTotal))
         total = (try? container.decodeIfPresent(MoneyAmount.self, forKey: .total))
         ?? (try? container.decodeIfPresent(MoneyAmount.self, forKey: .lineTotal))
-        taxProfileCode = try? container.decodeIfPresent(String.self, forKey: .taxProfileCode)
-        taxProfileName = try? container.decodeIfPresent(String.self, forKey: .taxProfileName)
+        discount = try? container.decodeIfPresent(MoneyAmount.self, forKey: .discount)
+        status = try? container.decodeIfPresent(String.self, forKey: .status)
+        let taxSnapshot = try? container.decodeIfPresent(BusinessSaleItemTaxProfileSnapshot.self, forKey: .taxProfileSnapshot)
+        taxProfileCode = (try? container.decodeIfPresent(String.self, forKey: .taxProfileCode)) ?? taxSnapshot?.code
+        taxProfileName = (try? container.decodeIfPresent(String.self, forKey: .taxProfileName)) ?? taxSnapshot?.name
         taxTreatment = (try? container.decodeIfPresent(String.self, forKey: .taxTreatment))
         ?? (try? container.decodeIfPresent(String.self, forKey: .treatment))
+        ?? taxSnapshot?.treatment
         taxRate = (try? container.decodeFlexibleStringIfPresent(forKey: .taxRate))
         ?? (try? container.decodeFlexibleStringIfPresent(forKey: .rate))
+        ?? taxSnapshot?.rate
         sriTaxCode = (try? container.decodeFlexibleStringIfPresent(forKey: .sriTaxCode))
         ?? (try? container.decodeFlexibleStringIfPresent(forKey: .codigo))
+        ?? taxSnapshot?.sriTaxCode
         sriRateCode = (try? container.decodeFlexibleStringIfPresent(forKey: .sriRateCode))
         ?? (try? container.decodeFlexibleStringIfPresent(forKey: .codigoPorcentaje))
+        ?? taxSnapshot?.sriRateCode
         taxableBase = try? container.decodeIfPresent(MoneyAmount.self, forKey: .taxableBase)
         taxAmount = (try? container.decodeIfPresent(MoneyAmount.self, forKey: .taxAmount))
         ?? (try? container.decodeIfPresent(MoneyAmount.self, forKey: .tax))
+        ?? (try? container.decodeIfPresent(MoneyAmount.self, forKey: .taxTotal))
         note = (try? container.decodeIfPresent(String.self, forKey: .note))
         ?? (try? container.decodeIfPresent(String.self, forKey: .notes))
     }
@@ -716,6 +774,16 @@ enum ElectronicInvoiceReadinessEvaluator {
         value?
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .lowercased()
+    }
+}
+
+extension BusinessSaleItem {
+    var isActiveForCartEditing: Bool {
+        let normalized = status?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+            .replacingOccurrences(of: "-", with: "_")
+        return normalized.map { !["canceled", "cancelled", "voided", "removed", "deleted"].contains($0) } ?? true
     }
 }
 

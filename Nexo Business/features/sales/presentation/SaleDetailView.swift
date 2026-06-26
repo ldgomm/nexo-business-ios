@@ -478,7 +478,10 @@ struct SaleDetailView: View {
                             paymentsRepository: paymentsRepository,
                             salesHistoryRepository: salesHistoryRepository,
                             receivablesRepository: receivablesRepository,
-                            documentsRepository: documentsRepository
+                            documentsRepository: documentsRepository,
+                            onSaleUpdated: { updatedSale in
+                                viewModel.applySaleUpdate(updatedSale)
+                            }
                         )
                     } label: {
                         SaleDetailNavigationActionLabel(

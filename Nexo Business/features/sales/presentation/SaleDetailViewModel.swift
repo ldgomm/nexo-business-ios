@@ -119,7 +119,9 @@ final class SaleDetailViewModel {
     }
 
     var shouldLoadOnAppear: Bool {
-        sale == nil && !isLoading
+        guard !isLoading else { return false }
+        guard let sale else { return true }
+        return sale.requiresDetailHydrationForEditingOrPayment
     }
 
     private var isBusy: Bool {
@@ -440,5 +442,13 @@ final class SaleDetailViewModel {
         message.contains("catalog revision is stale") ||
         message.contains("revision is stale") ||
         message.contains("contexto del negocio")
+    }
+}
+
+private extension BusinessSale {
+    var requiresDetailHydrationForEditingOrPayment: Bool {
+        // Historial y ventas pendientes pueden entregar solo resumen: total + itemCount,
+        // pero sin líneas. Para editar/cobrar/documentar siempre forzamos GET detalle.
+        items.isEmpty
     }
 }

@@ -762,6 +762,28 @@ final class SaleCartViewModel {
         "La venta fue registrada, pero todavía no se ha cobrado. Si continúas, aparecerá como venta sin cobrar y tendrás que cobrarla después."
     }
 
+    func loadEditingSaleDetailIfNeeded() async {
+        guard let sale = createdSale else { return }
+        guard sale.items.isEmpty else { return }
+        guard !isCreatingSale else { return }
+
+        isCreatingSale = true
+        errorMessage = nil
+        defer { isCreatingSale = false }
+
+        do {
+            let response = try await salesRepository.getSale(
+                organizationId: organizationId,
+                saleId: sale.id
+            )
+            loadExistingSaleForEditing(response.sale)
+        } catch let error as APIError {
+            handle(apiError: error)
+        } catch {
+            errorMessage = "No se pudo cargar el detalle completo de la venta para edición: \(error.localizedDescription)"
+        }
+    }
+
     func loadPendingSalesIfNeeded() async {
         guard salesHistoryRepository != nil else { return }
         if let lastPendingSalesLoadedAt, Date().timeIntervalSince(lastPendingSalesLoadedAt) < 20 {
@@ -1746,7 +1768,8 @@ final class SaleCartViewModel {
         createdSale = sale
         persistedServiceType = sale.serviceType
         selectedServiceType = sale.serviceType ?? .dineIn
-        cartItems = sale.items.map { saleItem in
+        let editableItems = sale.items.filter(\.isActiveForCartEditing)
+        cartItems = editableItems.map { saleItem in
             SaleCartItem(existingSaleItem: saleItem)
         }
         originalRegisteredCartItems = cartItems
@@ -1756,15 +1779,22 @@ final class SaleCartViewModel {
         registeredSaleHasUnsavedChanges = false
         orderState = .created
         recalculateLocalCalculation()
-        infoMessage = "Venta abierta para editar. Puedes ajustar ítems, descuentos, cliente y tipo de servicio mientras no esté cerrada, cancelada o bloqueada por comprobante."
+        if sale.items.isEmpty {
+            infoMessage = "Cargando detalle completo de la venta para editar ítems, descuentos, cliente y tipo de servicio."
+        } else if cartItems.isEmpty {
+            infoMessage = "Esta venta no tiene ítems activos editables. Puedes agregar nuevos ítems si la venta sigue abierta."
+        } else {
+            infoMessage = "Venta abierta para editar. Puedes ajustar ítems, descuentos, cliente y tipo de servicio mientras no esté cerrada, cancelada o bloqueada por comprobante."
+        }
     }
 
     private func realignCartItemsWithCreatedSale(_ sale: BusinessSale) {
-        guard !sale.items.isEmpty, !cartItems.isEmpty else { return }
+        let activeSaleItems = sale.items.filter(\.isActiveForCartEditing)
+        guard !activeSaleItems.isEmpty, !cartItems.isEmpty else { return }
         let previousCart = cartItems
         var usedCartIds: Set<String> = []
 
-        cartItems = sale.items.enumerated().compactMap { index, saleItem in
+        cartItems = activeSaleItems.enumerated().compactMap { index, saleItem in
             let match = matchingCartItem(for: saleItem, at: index, cartItems: previousCart, usedCartIds: usedCartIds)
             guard let match else { return nil }
             usedCartIds.insert(match.id)
@@ -1935,7 +1965,9 @@ private extension SaleCartItem {
     init(existingSaleItem saleItem: BusinessSaleItem) {
         let catalogItemId = saleItem.catalogItemId?.nilIfBlank ?? saleItem.id
         let price = saleItem.unitPrice ?? saleItem.subtotal ?? saleItem.total ?? MoneyAmount(amount: "0.00")
-        let taxTreatment = SaleLineTaxTreatmentOption.fromTaxProfileCode(saleItem.taxProfileCode) ?? .defaultForNewLine()
+        let taxTreatment = SaleLineTaxTreatmentOption.fromTaxProfileCode(saleItem.taxProfileCode)
+        ?? SaleLineTaxTreatmentOption.fromTaxProfileCode(saleItem.taxTreatment)
+        ?? .defaultForNewLine()
         self.init(
             id: saleItem.id,
             catalogItem: BusinessCatalogItem(
@@ -1948,7 +1980,7 @@ private extension SaleCartItem {
             ),
             quantity: saleItem.quantity,
             taxTreatment: taxTreatment,
-            discount: nil,
+            discount: saleItem.discount,
             note: saleItem.note
         )
     }
@@ -1989,6 +2021,8 @@ private extension BusinessSale {
                 unitPrice: item.unitPrice,
                 subtotal: item.subtotal,
                 total: item.total,
+                discount: item.discount,
+                status: item.status,
                 taxProfileCode: cartItem.taxTreatment.taxProfileCode,
                 taxProfileName: item.taxProfileName,
                 taxTreatment: item.taxTreatment,
@@ -2014,6 +2048,10 @@ private extension BusinessSale {
             paymentStatus: paymentStatus,
             documentStatus: documentStatus,
             electronicDocumentSummary: electronicDocumentSummary,
+            receivableId: receivableId,
+            receivableCustomerId: receivableCustomerId,
+            receivableStatus: receivableStatus,
+            receivableBalance: receivableBalance,
             totals: totals,
             items: enrichedItems,
             createdAt: createdAt,
