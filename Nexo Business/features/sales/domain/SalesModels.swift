@@ -1529,6 +1529,22 @@ struct UpdateSaleCustomerRequest: Encodable, Equatable, Sendable {
     }
 }
 
+struct UpdateSaleServiceTypeRequest: Encodable, Equatable, Sendable {
+    let requestId: String
+    let serviceType: BusinessSaleServiceType?
+    let reason: String
+
+    init(
+        requestId: String = "sale-service-type-update-\(UUID().uuidString.lowercased())",
+        serviceType: BusinessSaleServiceType?,
+        reason: String = "Corrección de tipo de servicio antes de cobrar o facturar"
+    ) {
+        self.requestId = requestId
+        self.serviceType = serviceType
+        self.reason = reason
+    }
+}
+
 struct CancelSaleResponse: Decodable, Equatable, Sendable {
     let sale: BusinessSale
     let idempotencyReplayed: Bool?

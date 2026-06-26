@@ -172,6 +172,46 @@ final class PreviewCatalogRepository: CatalogRepository, @unchecked Sendable {
 }
 
 final class PreviewSalesRepository: SalesRepository, @unchecked Sendable {
+    func updateServiceType(
+        organizationId: String,
+        saleId: String,
+        revisions: BusinessRevisions,
+        idempotencyKey: IdempotencyKey,
+        request: UpdateSaleServiceTypeRequest
+    ) async throws -> QuickSaleResponse {
+        let sale = PreviewData.quickSaleResponse.sale
+
+        let updatedSale = BusinessSale(
+            id: sale.id,
+            number: sale.number,
+            organizationId: sale.organizationId ?? organizationId,
+            branchId: sale.branchId,
+            activityId: sale.activityId,
+            customerId: sale.customerId,
+            customerName: sale.customerName,
+            customer: sale.customer,
+            status: sale.status,
+            paymentStatus: sale.paymentStatus,
+            serviceType: request.serviceType,
+            documentStatus: sale.documentStatus,
+            electronicDocumentSummary: sale.electronicDocumentSummary,
+            receivableId: sale.receivableId,
+            receivableCustomerId: sale.receivableCustomerId,
+            receivableStatus: sale.receivableStatus,
+            receivableBalance: sale.receivableBalance,
+            totals: sale.totals,
+            items: sale.items,
+            createdAt: sale.createdAt,
+            confirmedAt: sale.confirmedAt,
+            closedAt: sale.closedAt,
+            updatedAt: Date()
+        )
+
+        return QuickSaleResponse(
+            sale: updatedSale,
+            idempotencyReplayed: false
+        )
+    }
     
     init() {}
 

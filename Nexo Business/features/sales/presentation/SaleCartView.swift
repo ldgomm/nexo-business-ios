@@ -271,7 +271,13 @@ struct SaleCartView: View {
                 Spacer(minLength: 8)
             }
 
-            Picker("Tipo de servicio", selection: $viewModel.selectedServiceType) {
+            Picker(
+                "Tipo de servicio",
+                selection: Binding(
+                    get: { viewModel.selectedServiceType },
+                    set: { viewModel.updateSelectedServiceType($0) }
+                )
+            ) {
                 ForEach(viewModel.availableServiceTypes) { serviceType in
                     Label(serviceType.shortDisplayName, systemImage: serviceType.systemImage)
                         .tag(serviceType)

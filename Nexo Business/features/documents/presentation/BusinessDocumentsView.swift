@@ -21,21 +21,21 @@ struct BusinessDocumentsView: View {
 
     var body: some View {
         ScrollView {
-            LazyVStack(spacing: 14) {
+            LazyVStack(spacing: 12) {
                 messagesSection
                 saleHero
                 electronicInvoiceSection
                 documentsSection
                 actionsSection
             }
-            .padding(.horizontal, 16)
-            .padding(.top, 14)
-            .padding(.bottom, 28)
+            .padding(.horizontal, 11)
+            .padding(.top, 11)
+            .padding(.bottom, 34)
         }
-        .background(Color(.systemGroupedBackground))
+        .background(Color(uiColor: .systemGroupedBackground).ignoresSafeArea())
         .nexoKeyboardDismissable()
         .navigationTitle("Comprobantes")
-        .navigationBarTitleDisplayMode(.inline)
+        .navigationBarTitleDisplayMode(.large)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
@@ -149,7 +149,7 @@ struct BusinessDocumentsView: View {
                         }
                     }
                     .padding(12)
-                    .background(Color(.tertiarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .background(Color(uiColor: .tertiarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
                 }
             }
         }
@@ -202,7 +202,7 @@ struct BusinessDocumentsView: View {
                         .textInputAutocapitalization(.sentences)
                         .lineLimit(1...3)
                         .padding(12)
-                        .background(Color(.tertiarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        .background(Color(uiColor: .tertiarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
 
                     BusinessDocumentsActionButton(
                         title: "Generar ticket interno",
@@ -222,7 +222,7 @@ struct BusinessDocumentsView: View {
                         .textInputAutocapitalization(.characters)
                         .autocorrectionDisabled()
                         .padding(12)
-                        .background(Color(.tertiarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        .background(Color(uiColor: .tertiarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
 
                     BusinessDocumentsActionButton(
                         title: "Registrar nota de venta física",
@@ -305,7 +305,7 @@ private struct BusinessDocumentsHeroCard: View {
                 BusinessDocumentsIconBadge(systemImage: "doc.text.fill", tint: .accentColor)
 
                 VStack(alignment: .leading, spacing: 5) {
-                    Text("Comprobantes de venta")
+                    Text("Control documental")
                         .font(.caption.weight(.bold))
                         .foregroundStyle(.secondary)
                         .textCase(.uppercase)
@@ -316,7 +316,7 @@ private struct BusinessDocumentsHeroCard: View {
                         .lineLimit(1)
                         .minimumScaleFactor(0.75)
 
-                    Text("Total \(total)")
+                    Text("Venta · Total \(total)")
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(.secondary)
                 }
@@ -330,7 +330,7 @@ private struct BusinessDocumentsHeroCard: View {
             }
 
             BusinessDocumentsStatusStrip(
-                title: "Factura electrónica",
+                title: "Estado fiscal",
                 value: invoiceStatus,
                 systemImage: "bolt.horizontal.circle"
             )
@@ -340,7 +340,7 @@ private struct BusinessDocumentsHeroCard: View {
             LinearGradient(
                 colors: [
                     Color.accentColor.opacity(0.16),
-                    Color(.secondarySystemGroupedBackground)
+                    Color(uiColor: .secondarySystemGroupedBackground)
                 ],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
@@ -349,7 +349,7 @@ private struct BusinessDocumentsHeroCard: View {
         )
         .overlay(
             RoundedRectangle(cornerRadius: 26, style: .continuous)
-                .strokeBorder(Color.primary.opacity(0.06))
+                .strokeBorder(Color.primary.opacity(0.06), lineWidth: 1)
         )
     }
 }
@@ -390,11 +390,13 @@ private struct BusinessDocumentsCard<Content: View>: View {
             content
         }
         .padding(16)
-        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .strokeBorder(Color.primary.opacity(0.06))
+                .strokeBorder(Color.primary.opacity(0.06), lineWidth: 1)
         )
+        .shadow(color: Color.black.opacity(0.025), radius: 7, x: 0, y: 3)
     }
 }
 
@@ -465,7 +467,8 @@ private struct BusinessDocumentsHistoryRow: View {
             }
         }
         .padding(14)
-        .background(Color(.tertiarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .background(Color(uiColor: .tertiarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
     }
 
     private var statusTint: Color {
@@ -544,7 +547,7 @@ private struct BusinessDocumentsActionButton: View {
             .foregroundStyle(isDisabled ? Color.secondary : tint)
             .background {
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .fill(isDisabled ? Color(.tertiarySystemGroupedBackground) : tint.opacity(0.10))
+                    .fill(isDisabled ? Color(uiColor: .tertiarySystemGroupedBackground) : tint.opacity(0.10))
             }
         }
         .buttonStyle(.plain)
@@ -578,7 +581,8 @@ private struct BusinessDocumentsInlineNavigationLabel: View {
                 .foregroundStyle(.tertiary)
         }
         .padding(14)
-        .background(Color(.tertiarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .background(Color(uiColor: .tertiarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
     }
 }
 
@@ -606,7 +610,7 @@ private struct BusinessDocumentsStatusStrip: View {
             Spacer(minLength: 0)
         }
         .padding(12)
-        .background(Color(.tertiarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .background(Color(uiColor: .tertiarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 }
 
@@ -622,7 +626,11 @@ private struct BusinessDocumentsPill: View {
             .padding(.horizontal, 10)
             .padding(.vertical, 7)
             .foregroundStyle(tint)
-            .background(tint.opacity(0.10), in: Capsule())
+            .background(tint.opacity(0.10), in: Capsule(style: .continuous))
+            .overlay(
+                Capsule(style: .continuous)
+                    .strokeBorder(tint.opacity(0.12), lineWidth: 1)
+            )
     }
 }
 
@@ -636,6 +644,10 @@ private struct BusinessDocumentsIconBadge: View {
             .foregroundStyle(tint)
             .frame(width: 42, height: 42)
             .background(tint.opacity(0.12), in: RoundedRectangle(cornerRadius: 15, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 15, style: .continuous)
+                    .strokeBorder(tint.opacity(0.14), lineWidth: 1)
+            )
     }
 }
 
@@ -691,6 +703,10 @@ private struct BusinessDocumentsMessageBanner: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(12)
             .background(tint.opacity(0.10), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .strokeBorder(tint.opacity(0.14), lineWidth: 1)
+        )
     }
 }
 

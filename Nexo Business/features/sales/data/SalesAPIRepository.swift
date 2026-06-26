@@ -27,6 +27,10 @@ enum BusinessSalesRoutes {
         "/api/v1/business/sales/\(saleId)/customer"
     }
 
+    static func updateServiceType(saleId: String) -> String {
+        "/api/v1/business/sales/\(saleId)/service-type"
+    }
+
     static func bulkAdd(saleId: String) -> String {
         "/api/v1/business/sales/\(saleId)/items/bulk-add"
     }
@@ -251,6 +255,29 @@ final class SalesAPIRepository: SalesRepository, @unchecked Sendable {
             try APIRequest<QuickSaleResponse>.json(
                 method: .put,
                 path: BusinessSalesRoutes.updateCustomer(saleId: saleId),
+                body: body,
+                headers: mutationHeaders(
+                    organizationId: organizationId,
+                    branchId: nil,
+                    activityId: nil,
+                    revisions: revisions,
+                    idempotencyKey: idempotencyKey
+                )
+            )
+        )
+    }
+
+    func updateServiceType(
+        organizationId: String,
+        saleId: String,
+        revisions: BusinessRevisions,
+        idempotencyKey: IdempotencyKey,
+        request body: UpdateSaleServiceTypeRequest
+    ) async throws -> QuickSaleResponse {
+        try await apiClient.send(
+            try APIRequest<QuickSaleResponse>.json(
+                method: .put,
+                path: BusinessSalesRoutes.updateServiceType(saleId: saleId),
                 body: body,
                 headers: mutationHeaders(
                     organizationId: organizationId,

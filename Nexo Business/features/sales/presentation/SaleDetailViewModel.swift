@@ -47,6 +47,17 @@ final class SaleDetailViewModel {
         self.repository = salesRepository
     }
 
+    var canEditSale: Bool {
+        guard let sale else { return false }
+        let normalizedStatus = sale.status
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+            .replacingOccurrences(of: "-", with: "_")
+        return !isBusy &&
+        hasPermission(["business.sales.create", "sales.create"]) &&
+        !["closed", "closed_day", "canceled", "cancelled", "voided"].contains(normalizedStatus)
+    }
+
     var canConfirm: Bool {
         guard let sale else { return false }
         return !isBusy &&

@@ -182,6 +182,9 @@ struct BusinessHomeView: View {
                         documentsRepository: container.documentsRepository
                     ),
                     salesRepository: container.salesRepository,
+                    catalogRepository: container.catalogRepository,
+                    contextRepository: container.contextRepository,
+                    verticalContext: context.verticals,
                     salesHistoryRepository: container.salesHistoryRepository,
                     cashRepository: container.cashRepository,
                     paymentsRepository: container.paymentsRepository,

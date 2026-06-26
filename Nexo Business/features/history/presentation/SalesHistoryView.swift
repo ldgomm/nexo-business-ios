@@ -10,6 +10,9 @@ import SwiftUI
 struct SalesHistoryView: View {
     @Bindable private var viewModel: SalesHistoryViewModel
     private let salesRepository: SalesRepository
+    private let catalogRepository: CatalogRepository?
+    private let contextRepository: BusinessContextRepository?
+    private let verticalContext: BusinessVerticalContext
     private let salesHistoryRepository: SalesHistoryRepository
     private let cashRepository: CashRepository
     private let paymentsRepository: PaymentsRepository
@@ -21,6 +24,9 @@ struct SalesHistoryView: View {
     init(
         viewModel: SalesHistoryViewModel,
         salesRepository: SalesRepository,
+        catalogRepository: CatalogRepository? = nil,
+        contextRepository: BusinessContextRepository? = nil,
+        verticalContext: BusinessVerticalContext = .empty,
         salesHistoryRepository: SalesHistoryRepository,
         cashRepository: CashRepository,
         paymentsRepository: PaymentsRepository,
@@ -29,6 +35,9 @@ struct SalesHistoryView: View {
     ) {
         self.viewModel = viewModel
         self.salesRepository = salesRepository
+        self.catalogRepository = catalogRepository
+        self.contextRepository = contextRepository
+        self.verticalContext = verticalContext
         self.salesHistoryRepository = salesHistoryRepository
         self.cashRepository = cashRepository
         self.paymentsRepository = paymentsRepository
@@ -329,6 +338,9 @@ struct SalesHistoryView: View {
                                     for: sale,
                                     salesRepository: salesRepository
                                 ),
+                                catalogRepository: catalogRepository,
+                                contextRepository: contextRepository,
+                                verticalContext: verticalContext,
                                 salesHistoryRepository: salesHistoryRepository,
                                 cashRepository: cashRepository,
                                 paymentsRepository: paymentsRepository,

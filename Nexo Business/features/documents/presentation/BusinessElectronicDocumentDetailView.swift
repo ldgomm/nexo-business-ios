@@ -27,7 +27,7 @@ struct BusinessElectronicDocumentDetailView: View {
     
     var body: some View {
         ScrollView {
-            LazyVStack(spacing: 14) {
+            LazyVStack(spacing: 12) {
                 if viewModel.isLoading && viewModel.detail == nil {
                     BusinessDocumentLoadingCard()
                 }
@@ -57,13 +57,14 @@ struct BusinessElectronicDocumentDetailView: View {
                     )
                 }
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 14)
+            .padding(.horizontal, 11)
+            .padding(.top, 11)
+            .padding(.bottom, 34)
         }
-        .background(Color(.systemGroupedBackground))
+        .background(Color(uiColor: .systemGroupedBackground).ignoresSafeArea())
         .scrollDismissesKeyboard(.interactively)
         .navigationTitle("Comprobante")
-        .navigationBarTitleDisplayMode(.inline)
+        .navigationBarTitleDisplayMode(.large)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
@@ -714,14 +715,24 @@ private struct BusinessDocumentHeroCard: View {
                     systemImage: "checkmark.seal"
                 )
                 .padding(12)
-                .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .background(Color(uiColor: .tertiarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
             }
         }
         .padding(18)
         .background(
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .fill(Color(.systemBackground))
-                .shadow(color: .black.opacity(0.06), radius: 16, x: 0, y: 8)
+            LinearGradient(
+                colors: [
+                    Color.accentColor.opacity(0.16),
+                    Color(uiColor: .secondarySystemGroupedBackground)
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            ),
+            in: RoundedRectangle(cornerRadius: 26, style: .continuous)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 26, style: .continuous)
+                .strokeBorder(Color.primary.opacity(0.06), lineWidth: 1)
         )
     }
 }
@@ -749,7 +760,7 @@ private struct BusinessDocumentHeroMetric: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(12)
-        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .background(Color(uiColor: .tertiarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 }
 
@@ -784,11 +795,12 @@ private struct BusinessDocumentCard<Content: View>: View {
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
+        .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .overlay(
             RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .fill(Color(.systemBackground))
-                .shadow(color: .black.opacity(0.035), radius: 12, x: 0, y: 6)
+                .strokeBorder(Color.primary.opacity(0.06), lineWidth: 1)
         )
+        .shadow(color: Color.black.opacity(0.025), radius: 7, x: 0, y: 3)
     }
 }
 
@@ -834,7 +846,7 @@ private struct BusinessDocumentInfoTile: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
         .padding(12)
-        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .background(Color(uiColor: .tertiarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 }
 
@@ -915,7 +927,7 @@ private struct BusinessDocumentCopyBlock: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
         .padding(12)
-        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .background(Color(uiColor: .tertiarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 }
 
@@ -991,7 +1003,7 @@ private struct ArtifactAvailabilityRow: View {
             )
         }
         .padding(12)
-        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .background(Color(uiColor: .tertiarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 }
 
@@ -1011,7 +1023,7 @@ private struct BusinessDocumentPreparedFileSummary: View {
         }
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .background(Color(uiColor: .tertiarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 }
 
@@ -1263,6 +1275,6 @@ private struct BusinessDocumentEmptyCard: View {
         }
         .frame(maxWidth: .infinity)
         .padding(compact ? 14 : 22)
-        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .background(Color(uiColor: .tertiarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
     }
 }

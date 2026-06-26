@@ -41,58 +41,200 @@ struct CustomerDirectoryView: View {
     }
 
     var body: some View {
-        List {
-            Section("Buscar") {
-                TextField("Nombre, cédula, RUC o correo", text: $viewModel.query)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-                    .submitLabel(.search)
-                    .onSubmit {
-                        NexoKeyboard.dismiss()
-                        Task { await viewModel.search() }
-                    }
+        ScrollView {
+            LazyVStack(spacing: 12) {
+                directoryHeroSection
+                messagesSection
+                searchSection
 
+                if viewModel.canCreate {
+                    createSection
+                }
+
+                customersSection
+            }
+            .padding(.horizontal, 11)
+            .padding(.top, 11)
+            .padding(.bottom, 34)
+        }
+        .background(Color(uiColor: .systemGroupedBackground).ignoresSafeArea())
+        .scrollDismissesKeyboard(.interactively)
+        .nexoKeyboardDismissable()
+        .navigationTitle("Clientes")
+        .navigationBarTitleDisplayMode(.large)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
                 Button {
                     NexoKeyboard.dismiss()
                     Task { await viewModel.search() }
                 } label: {
                     if viewModel.isLoading {
                         ProgressView()
+                            .controlSize(.small)
                     } else {
-                        Label("Buscar", systemImage: "magnifyingglass")
+                        Image(systemName: "arrow.clockwise")
                     }
                 }
-                .disabled(viewModel.isLoading || !viewModel.canView)
+                .disabled(viewModel.isLoading)
+                .accessibilityLabel("Actualizar clientes")
             }
+        }
+        .refreshable {
+            await viewModel.search()
+        }
+        .task {
+            if viewModel.customers.isEmpty {
+                await viewModel.load()
+            }
+        }
+    }
 
-            if viewModel.canCreate {
-                Section("Crear") {
-                    NavigationLink {
-                        CustomerCreateView(
-                            viewModel: CustomerCreateViewModel(
-                                organizationId: viewModel.organizationId,
-                                customersRepository: viewModel.customersRepository
-                            ),
-                            onCreated: { customer in
-                                viewModel.addOrReplace(customer)
-                            }
-                        )
+    private var directoryHeroSection: some View {
+        CustomerExecutiveCard(
+            title: "Directorio comercial",
+            subtitle: "Clientes reales para ventas identificadas, proformas, crédito, historial y comprobantes.",
+            systemImage: "person.2.fill",
+            isHero: true,
+            usesGradient: true
+        ) {
+            LazyVGrid(columns: metricColumns, spacing: 10) {
+                CustomerExecutiveMetricCard(
+                    title: "Clientes",
+                    value: String(viewModel.customers.count),
+                    subtitle: "visibles",
+                    systemImage: "person.2"
+                )
+
+                CustomerExecutiveMetricCard(
+                    title: "Filtro",
+                    value: hasActiveQuery ? "Activo" : "Libre",
+                    subtitle: hasActiveQuery ? "búsqueda aplicada" : "sin búsqueda",
+                    systemImage: hasActiveQuery ? "line.3.horizontal.decrease.circle" : "sparkles"
+                )
+            }
+        }
+    }
+
+    private var searchSection: some View {
+        CustomerExecutiveCard(
+            title: "Buscar",
+            subtitle: "Encuentra clientes por nombre, cédula, RUC, teléfono o correo.",
+            systemImage: "magnifyingglass"
+        ) {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(spacing: 10) {
+                    Image(systemName: "magnifyingglass")
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 24)
+
+                    TextField("Nombre, cédula, RUC o correo", text: $viewModel.query)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .submitLabel(.search)
+                        .onSubmit {
+                            NexoKeyboard.dismiss()
+                            Task { await viewModel.search() }
+                        }
+
+                    if hasActiveQuery {
+                        Button {
+                            viewModel.query = ""
+                            NexoKeyboard.dismiss()
+                            Task { await viewModel.search() }
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .font(.body.weight(.semibold))
+                                .foregroundStyle(.tertiary)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Limpiar búsqueda")
+                    }
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 11)
+                .background(Color(uiColor: .tertiarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+
+                HStack(spacing: 10) {
+                    Text("Usa búsqueda antes de crear: reduce duplicados y mantiene limpio el historial 360.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    Spacer(minLength: 8)
+
+                    Button {
+                        NexoKeyboard.dismiss()
+                        Task { await viewModel.search() }
                     } label: {
-                        Label("Nuevo cliente", systemImage: "person.badge.plus")
+                        if viewModel.isLoading {
+                            ProgressView()
+                                .controlSize(.small)
+                        } else {
+                            Label("Buscar", systemImage: "magnifyingglass")
+                                .font(.footnote.weight(.semibold))
+                        }
                     }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                    .disabled(viewModel.isLoading || !viewModel.canView)
                 }
             }
+        }
+    }
 
-            Section("Clientes") {
-                if viewModel.isLoading && viewModel.customers.isEmpty {
-                    ProgressView("Cargando clientes…")
-                } else if viewModel.customers.isEmpty {
-                    ContentUnavailableView(
-                        "Sin clientes",
-                        systemImage: "person.text.rectangle",
-                        description: Text("Crea o busca clientes para ventas identificadas, crédito y comprobantes.")
-                    )
-                } else {
+    private var createSection: some View {
+        CustomerExecutiveCard(
+            title: "Alta de cliente",
+            subtitle: "Registra cliente real para ventas, proformas, crédito y comprobantes.",
+            systemImage: "person.badge.plus"
+        ) {
+            NavigationLink {
+                CustomerCreateView(
+                    viewModel: CustomerCreateViewModel(
+                        organizationId: viewModel.organizationId,
+                        customersRepository: viewModel.customersRepository
+                    ),
+                    onCreated: { customer in
+                        viewModel.addOrReplace(customer)
+                    }
+                )
+            } label: {
+                CustomerExecutiveActionRow(
+                    title: "Nuevo cliente",
+                    subtitle: "Crear ficha comercial y fiscal",
+                    systemImage: "person.badge.plus"
+                )
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    @ViewBuilder
+    private var customersSection: some View {
+        CustomerExecutiveCard(
+            title: "Clientes",
+            subtitle: customersSubtitle,
+            systemImage: "person.text.rectangle"
+        ) {
+            if viewModel.isLoading && viewModel.customers.isEmpty {
+                HStack(spacing: 12) {
+                    ProgressView()
+                    Text("Cargando clientes…")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.vertical, 8)
+            } else if viewModel.customers.isEmpty {
+                ContentUnavailableView(
+                    "Sin clientes",
+                    systemImage: "person.text.rectangle",
+                    description: Text("Crea o busca clientes para ventas identificadas, crédito y comprobantes.")
+                )
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 8)
+            } else {
+                VStack(spacing: 10) {
                     ForEach(viewModel.customers) { customer in
                         if let detailViewModel = makeCustomerDetailViewModel(for: customer),
                            let salesRepository,
@@ -112,47 +254,54 @@ struct CustomerDirectoryView: View {
                             } label: {
                                 CustomerRowView(customer: customer, showsAccessory: true)
                             }
+                            .buttonStyle(.plain)
                         } else {
                             CustomerRowView(customer: customer)
                         }
                     }
                 }
             }
+        }
+    }
 
-            if let message = viewModel.errorMessage {
-                Section {
-                    Label(message, systemImage: "exclamationmark.triangle")
-                        .font(.footnote)
-                        .foregroundStyle(.red)
-                }
-            }
+    @ViewBuilder
+    private var messagesSection: some View {
+        if let message = viewModel.errorMessage {
+            CustomerExecutiveNoticeCard(
+                title: "No se pudo cargar clientes",
+                message: message,
+                systemImage: "exclamationmark.triangle",
+                tint: .red
+            )
+        }
 
-            if let message = viewModel.infoMessage {
-                Section {
-                    Label(message, systemImage: "info.circle")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                }
-            }
+        if let message = viewModel.infoMessage {
+            CustomerExecutiveNoticeCard(
+                title: "Información",
+                message: message,
+                systemImage: "info.circle",
+                tint: .secondary
+            )
         }
-        .nexoKeyboardDismissable()
-        .navigationTitle("Clientes")
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Button {
-                    NexoKeyboard.dismiss()
-                    Task { await viewModel.search() }
-                } label: {
-                    Image(systemName: "arrow.clockwise")
-                }
-                .disabled(viewModel.isLoading)
-            }
+    }
+
+    private var customersSubtitle: String {
+        if viewModel.customers.isEmpty {
+            return "Resultados del directorio."
         }
-        .task {
-            if viewModel.customers.isEmpty {
-                await viewModel.load()
-            }
-        }
+
+        return viewModel.customers.count == 1 ? "1 cliente visible" : "\(viewModel.customers.count) clientes visibles"
+    }
+
+    private var hasActiveQuery: Bool {
+        !viewModel.query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private var metricColumns: [GridItem] {
+        [
+            GridItem(.flexible(), spacing: 10),
+            GridItem(.flexible(), spacing: 10)
+        ]
     }
 
     private func makeCustomerDetailViewModel(for customer: BusinessCustomer) -> CustomerDetail360ViewModel? {
@@ -203,15 +352,21 @@ struct CustomerDetail360View: View {
     }
 
     var body: some View {
-        Form {
-            customerSection
-            summarySection
-            pilotGuidanceSection
-            receivablesSection
-            salesSection
-            documentsSection
-            messagesSection
+        ScrollView {
+            LazyVStack(spacing: 12) {
+                customerHeroSection
+                messagesSection
+                summarySection
+                pilotGuidanceSection
+                receivablesSection
+                salesSection
+                documentsSection
+            }
+            .padding(.horizontal, 11)
+            .padding(.top, 11)
+            .padding(.bottom, 34)
         }
+        .background(Color(uiColor: .systemGroupedBackground).ignoresSafeArea())
         .navigationTitle(viewModel.customer.displayName)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -221,94 +376,171 @@ struct CustomerDetail360View: View {
                 } label: {
                     if viewModel.isLoading {
                         ProgressView()
+                            .controlSize(.small)
                     } else {
                         Image(systemName: "arrow.clockwise")
                     }
                 }
                 .disabled(viewModel.isLoading)
+                .accessibilityLabel("Actualizar cliente")
             }
         }
         .task { await viewModel.loadIfNeeded() }
         .refreshable { await viewModel.refresh() }
     }
 
-    private var customerSection: some View {
-        Section("Datos del cliente") {
-            CustomerRowView(customer: viewModel.customer)
+    private var customerHeroSection: some View {
+        CustomerExecutiveCard(
+            title: viewModel.customer.displayName,
+            subtitle: BusinessCustomerPresentation.subtitle(for: viewModel.customer),
+            systemImage: "person.text.rectangle",
+            isHero: true,
+            usesGradient: true
+        ) {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(spacing: 8) {
+                    CustomerExecutivePill(
+                        title: viewModel.hasOpenReceivables ? "Saldo pendiente" : "Sin deuda abierta",
+                        systemImage: viewModel.hasOpenReceivables ? "person.crop.circle.badge.clock" : "checkmark.circle",
+                        tint: viewModel.hasOpenReceivables ? .orange : .green
+                    )
 
-            if let address = viewModel.customer.address, !address.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                LabeledContent("Dirección", value: address)
+                    CustomerExecutivePill(
+                        title: "360",
+                        systemImage: "scope",
+                        tint: .accentColor
+                    )
+                }
+
+                if let address = viewModel.customer.address?.trimmingCharacters(in: .whitespacesAndNewlines), !address.isEmpty {
+                    CustomerExecutiveInfoRow(
+                        title: "Dirección",
+                        value: address,
+                        systemImage: "mappin.and.ellipse"
+                    )
+                }
             }
         }
     }
 
     private var summarySection: some View {
-        Section("Resumen 360") {
-            LabeledContent("Saldo pendiente", value: viewModel.pendingBalanceDisplay)
-            LabeledContent("Cuentas abiertas", value: String(viewModel.openReceivables.count))
-            LabeledContent("Ventas", value: String(viewModel.sales.count))
-            LabeledContent("Vendido registrado", value: viewModel.salesTotalDisplay)
-            LabeledContent("Última compra", value: viewModel.lastSaleDateText)
-            LabeledContent("Comprobantes", value: String(viewModel.documents.count))
+        CustomerExecutiveCard(
+            title: "Resumen 360",
+            subtitle: "Ventas, deuda, última compra y comprobantes asociados.",
+            systemImage: "chart.bar.doc.horizontal"
+        ) {
+            LazyVGrid(columns: metricColumns, spacing: 10) {
+                CustomerExecutiveMetricCard(
+                    title: "Saldo",
+                    value: viewModel.pendingBalanceDisplay,
+                    subtitle: "pendiente",
+                    systemImage: "person.crop.circle.badge.clock",
+                    tint: viewModel.hasOpenReceivables ? .orange : .green
+                )
+
+                CustomerExecutiveMetricCard(
+                    title: "Cuentas",
+                    value: String(viewModel.openReceivables.count),
+                    subtitle: "abiertas",
+                    systemImage: "creditcard"
+                )
+
+                CustomerExecutiveMetricCard(
+                    title: "Ventas",
+                    value: String(viewModel.sales.count),
+                    subtitle: "registradas",
+                    systemImage: "cart"
+                )
+
+                CustomerExecutiveMetricCard(
+                    title: "Vendido",
+                    value: viewModel.salesTotalDisplay,
+                    subtitle: "histórico",
+                    systemImage: "chart.line.uptrend.xyaxis"
+                )
+
+                CustomerExecutiveMetricCard(
+                    title: "Última compra",
+                    value: viewModel.lastSaleDateText,
+                    subtitle: "actividad",
+                    systemImage: "clock.arrow.circlepath"
+                )
+
+                CustomerExecutiveMetricCard(
+                    title: "Comprobantes",
+                    value: String(viewModel.documents.count),
+                    subtitle: "emitidos/revisados",
+                    systemImage: "doc.text"
+                )
+            }
         }
     }
 
-
     private var pilotGuidanceSection: some View {
-        Section("Guía rápida") {
-            Label(viewModel.customerPilotStatusText, systemImage: viewModel.customerPilotStatusIcon)
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-
-            if viewModel.hasOpenReceivables {
-                Text("Este cliente tiene saldo pendiente real. Puedes registrar abonos desde sus cuentas por cobrar.")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-            } else if viewModel.hasSales {
-                Text("Este cliente ya tiene ventas registradas y no mantiene deuda abierta en este momento.")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-            } else {
-                Text("Cuando el cliente compre con identificación, aquí se agruparán ventas, deudas y comprobantes.")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
+        CustomerExecutiveCard(
+            title: "Guía operativa",
+            subtitle: "Lectura rápida del estado comercial del cliente.",
+            systemImage: viewModel.customerPilotStatusIcon
+        ) {
+            VStack(alignment: .leading, spacing: 12) {
+                CustomerExecutiveNoticeCard(
+                    title: viewModel.customerPilotStatusText,
+                    message: pilotGuidanceMessage,
+                    systemImage: viewModel.customerPilotStatusIcon,
+                    tint: viewModel.hasOpenReceivables ? .orange : .secondary
+                )
             }
         }
     }
 
     @ViewBuilder
     private var receivablesSection: some View {
-        Section("Cuentas por cobrar") {
+        CustomerExecutiveCard(
+            title: "Cuentas por cobrar",
+            subtitle: "Deuda real registrada y abonos disponibles.",
+            systemImage: "person.crop.circle.badge.clock"
+        ) {
             if viewModel.isLoading && viewModel.receivables.isEmpty {
-                ProgressView("Cargando cuentas…")
+                HStack(spacing: 12) {
+                    ProgressView()
+                    Text("Cargando cuentas…")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.vertical, 8)
             } else if viewModel.receivables.isEmpty {
                 ContentUnavailableView(
                     "Sin cuentas por cobrar",
                     systemImage: "checkmark.circle",
                     description: Text("Este cliente no tiene deuda registrada en Nexo.")
                 )
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 8)
             } else {
-                ForEach(viewModel.receivables) { receivable in
-                    if viewModel.canCollectReceivables && !receivable.isSettled && !receivable.isMissingCustomer {
-                        NavigationLink {
-                            ReceivableCollectionView(
-                                viewModel: ReceivableCollectionViewModel(
-                                    organizationId: viewModel.organizationId,
-                                    branchId: viewModel.branchId,
-                                    receivable: receivable,
-                                    effectivePermissions: viewModel.effectivePermissions,
-                                    cashRepository: cashRepository,
-                                    receivablesRepository: receivablesRepository
-                                ),
-                                onCollected: { updated in
-                                    viewModel.applyReceivableUpdate(updated)
-                                }
-                            )
-                        } label: {
-                            CustomerReceivableRow(receivable: receivable, showsAccessory: true)
+                VStack(spacing: 10) {
+                    ForEach(viewModel.receivables) { receivable in
+                        if viewModel.canCollectReceivables && !receivable.isSettled && !receivable.isMissingCustomer {
+                            NavigationLink {
+                                ReceivableCollectionView(
+                                    viewModel: ReceivableCollectionViewModel(
+                                        organizationId: viewModel.organizationId,
+                                        branchId: viewModel.branchId,
+                                        receivable: receivable,
+                                        effectivePermissions: viewModel.effectivePermissions,
+                                        cashRepository: cashRepository,
+                                        receivablesRepository: receivablesRepository
+                                    ),
+                                    onCollected: { updated in
+                                        viewModel.applyReceivableUpdate(updated)
+                                    }
+                                )
+                            } label: {
+                                CustomerReceivableRow(receivable: receivable, showsAccessory: true)
+                            }
+                            .buttonStyle(.plain)
+                        } else {
+                            CustomerReceivableRow(receivable: receivable, showsAccessory: false)
                         }
-                    } else {
-                        CustomerReceivableRow(receivable: receivable, showsAccessory: false)
                     }
                 }
             }
@@ -317,31 +549,46 @@ struct CustomerDetail360View: View {
 
     @ViewBuilder
     private var salesSection: some View {
-        Section("Ventas") {
+        CustomerExecutiveCard(
+            title: "Ventas",
+            subtitle: "Historial comercial identificado del cliente.",
+            systemImage: "cart"
+        ) {
             if viewModel.isLoading && viewModel.sales.isEmpty {
-                ProgressView("Cargando ventas…")
+                HStack(spacing: 12) {
+                    ProgressView()
+                    Text("Cargando ventas…")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.vertical, 8)
             } else if viewModel.sales.isEmpty {
                 ContentUnavailableView(
                     "Sin ventas",
                     systemImage: "cart",
                     description: Text("Cuando este cliente compre con identificación aparecerá aquí.")
                 )
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 8)
             } else {
-                ForEach(viewModel.sales) { sale in
-                    NavigationLink {
-                        SaleDetailView(
-                            viewModel: viewModel.makeSaleDetailViewModel(
-                                for: sale,
-                                salesRepository: salesRepository
-                            ),
-                            salesHistoryRepository: viewModel.salesHistoryRepository,
-                            cashRepository: cashRepository,
-                            paymentsRepository: paymentsRepository,
-                            receivablesRepository: receivablesRepository,
-                            documentsRepository: documentsRepository
-                        )
-                    } label: {
-                        CustomerSaleRow(sale: sale, document: viewModel.primaryDocumentBySaleId[sale.id])
+                VStack(spacing: 10) {
+                    ForEach(viewModel.sales) { sale in
+                        NavigationLink {
+                            SaleDetailView(
+                                viewModel: viewModel.makeSaleDetailViewModel(
+                                    for: sale,
+                                    salesRepository: salesRepository
+                                ),
+                                salesHistoryRepository: viewModel.salesHistoryRepository,
+                                cashRepository: cashRepository,
+                                paymentsRepository: paymentsRepository,
+                                receivablesRepository: receivablesRepository,
+                                documentsRepository: documentsRepository
+                            )
+                        } label: {
+                            CustomerSaleRow(sale: sale, document: viewModel.primaryDocumentBySaleId[sale.id])
+                        }
+                        .buttonStyle(.plain)
                     }
                 }
             }
@@ -350,40 +597,55 @@ struct CustomerDetail360View: View {
 
     @ViewBuilder
     private var documentsSection: some View {
-        Section("Comprobantes") {
+        CustomerExecutiveCard(
+            title: "Comprobantes",
+            subtitle: "RIDE/XML asociados a las ventas del cliente.",
+            systemImage: "doc.text.magnifyingglass"
+        ) {
             if viewModel.isLoading && viewModel.documents.isEmpty {
-                ProgressView("Cargando comprobantes…")
+                HStack(spacing: 12) {
+                    ProgressView()
+                    Text("Cargando comprobantes…")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.vertical, 8)
             } else if viewModel.documents.isEmpty {
                 ContentUnavailableView(
                     "Sin comprobantes",
                     systemImage: "doc.text.magnifyingglass",
                     description: Text("Los RIDE/XML asociados a ventas del cliente aparecerán aquí.")
                 )
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 8)
             } else {
-                ForEach(viewModel.documents) { document in
-                    NavigationLink {
-                        BusinessElectronicDocumentDetailView(
-                            viewModel: BusinessElectronicDocumentDetailViewModel(
-                                organizationId: viewModel.organizationId,
-                                documentId: document.documentId,
-                                effectivePermissions: viewModel.effectivePermissions,
-                                documentsRepository: documentsRepository
-                            ),
-                            customer360Dependencies: Customer360Dependencies(
-                                organizationId: viewModel.organizationId,
-                                branchId: viewModel.branchId,
-                                revisions: viewModel.revisions,
-                                effectivePermissions: viewModel.effectivePermissions,
-                                salesHistoryRepository: viewModel.salesHistoryRepository,
-                                salesRepository: salesRepository,
-                                cashRepository: cashRepository,
-                                paymentsRepository: paymentsRepository,
-                                receivablesRepository: receivablesRepository,
-                                documentsRepository: documentsRepository
+                VStack(spacing: 10) {
+                    ForEach(viewModel.documents) { document in
+                        NavigationLink {
+                            BusinessElectronicDocumentDetailView(
+                                viewModel: BusinessElectronicDocumentDetailViewModel(
+                                    organizationId: viewModel.organizationId,
+                                    documentId: document.documentId,
+                                    effectivePermissions: viewModel.effectivePermissions,
+                                    documentsRepository: documentsRepository
+                                ),
+                                customer360Dependencies: Customer360Dependencies(
+                                    organizationId: viewModel.organizationId,
+                                    branchId: viewModel.branchId,
+                                    revisions: viewModel.revisions,
+                                    effectivePermissions: viewModel.effectivePermissions,
+                                    salesHistoryRepository: viewModel.salesHistoryRepository,
+                                    salesRepository: salesRepository,
+                                    cashRepository: cashRepository,
+                                    paymentsRepository: paymentsRepository,
+                                    receivablesRepository: receivablesRepository,
+                                    documentsRepository: documentsRepository
+                                )
                             )
-                        )
-                    } label: {
-                        CustomerDocumentRow(document: document)
+                        } label: {
+                            CustomerDocumentRow(document: document)
+                        }
+                        .buttonStyle(.plain)
                     }
                 }
             }
@@ -393,20 +655,41 @@ struct CustomerDetail360View: View {
     @ViewBuilder
     private var messagesSection: some View {
         if let message = viewModel.errorMessage {
-            Section {
-                Label(message, systemImage: "exclamationmark.triangle")
-                    .font(.footnote)
-                    .foregroundStyle(.red)
-            }
+            CustomerExecutiveNoticeCard(
+                title: "No se pudo actualizar el cliente",
+                message: message,
+                systemImage: "exclamationmark.triangle",
+                tint: .red
+            )
         }
 
         if let message = viewModel.infoMessage {
-            Section {
-                Label(message, systemImage: "info.circle")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-            }
+            CustomerExecutiveNoticeCard(
+                title: "Información",
+                message: message,
+                systemImage: "info.circle",
+                tint: .secondary
+            )
         }
+    }
+
+    private var pilotGuidanceMessage: String {
+        if viewModel.hasOpenReceivables {
+            return "Este cliente tiene saldo pendiente real. Puedes registrar abonos desde sus cuentas por cobrar."
+        }
+
+        if viewModel.hasSales {
+            return "Este cliente ya tiene ventas registradas y no mantiene deuda abierta en este momento."
+        }
+
+        return "Cuando el cliente compre con identificación, aquí se agruparán ventas, deudas y comprobantes."
+    }
+
+    private var metricColumns: [GridItem] {
+        [
+            GridItem(.flexible(), spacing: 10),
+            GridItem(.flexible(), spacing: 10)
+        ]
     }
 }
 
@@ -416,17 +699,25 @@ private struct CustomerReceivableRow: View {
 
     var body: some View {
         HStack(alignment: .center, spacing: 12) {
-            Image(systemName: receivable.isSettled ? "checkmark.circle.fill" : "person.crop.circle.badge.clock")
-                .foregroundStyle(receivable.isSettled ? .green : .orange)
-                .frame(width: 28)
+            CustomerExecutiveIconBadge(
+                systemImage: receivable.isSettled ? "checkmark.circle.fill" : "person.crop.circle.badge.clock",
+                tint: receivable.isSettled ? .green : .orange,
+                size: 38
+            )
 
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 6) {
                 Text(receivable.displaySaleReference)
                     .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
 
-                Text(ReceivableStatusPresentation.displayName(receivable.status))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                HStack(spacing: 8) {
+                    CustomerExecutivePill(
+                        title: ReceivableStatusPresentation.displayName(receivable.status),
+                        systemImage: "tag",
+                        tint: receivable.isSettled ? .green : .orange
+                    )
+                }
 
                 if let createdAt = receivable.createdAt {
                     Text(CustomerDetail360Formatters.dateAndTime.string(from: createdAt))
@@ -435,19 +726,24 @@ private struct CustomerReceivableRow: View {
                 }
             }
 
-            Spacer()
+            Spacer(minLength: 8)
 
             Text(receivable.effectiveBalance.displayText)
                 .font(.subheadline.weight(.bold))
+                .foregroundStyle(.primary)
                 .monospacedDigit()
 
             if showsAccessory {
                 Image(systemName: "chevron.right")
-                    .font(.caption.weight(.semibold))
+                    .font(.caption.weight(.bold))
                     .foregroundStyle(.tertiary)
+                    .accessibilityHidden(true)
             }
         }
-        .padding(.vertical, 4)
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(uiColor: .tertiarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 }
 
@@ -456,20 +752,24 @@ private struct CustomerSaleRow: View {
     let document: BusinessDocument?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .top) {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .top, spacing: 12) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(sale.displayNumber)
                         .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
+
                     Text(sale.collectionState.displayName)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
 
-                Spacer()
+                Spacer(minLength: 8)
 
                 Text(sale.totals.grandTotal.displayText)
                     .font(.subheadline.weight(.bold))
+                    .foregroundStyle(.primary)
                     .monospacedDigit()
             }
 
@@ -499,7 +799,10 @@ private struct CustomerSaleRow: View {
                     .foregroundStyle(.secondary)
             }
         }
-        .padding(.vertical, 4)
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(uiColor: .tertiarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 }
 
@@ -508,13 +811,17 @@ private struct CustomerDocumentRow: View {
 
     var body: some View {
         HStack(alignment: .center, spacing: 12) {
-            Image(systemName: BusinessDocumentStatusPresentation.systemImage(document.effectiveStatus))
-                .foregroundStyle(statusTint)
-                .frame(width: 28)
+            CustomerExecutiveIconBadge(
+                systemImage: BusinessDocumentStatusPresentation.systemImage(document.effectiveStatus),
+                tint: statusTint,
+                size: 38
+            )
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(document.businessDisplayNumber)
                     .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
 
                 Text(BusinessDocumentStatusPresentation.displayName(document.effectiveStatus))
                     .font(.caption)
@@ -527,19 +834,24 @@ private struct CustomerDocumentRow: View {
                 }
             }
 
-            Spacer()
+            Spacer(minLength: 8)
 
             if let total = document.total, !total.isEmpty {
                 Text("\(document.currency) \(total)")
                     .font(.subheadline.weight(.bold))
+                    .foregroundStyle(.primary)
                     .monospacedDigit()
             }
 
             Image(systemName: "chevron.right")
-                .font(.caption.weight(.semibold))
+                .font(.caption.weight(.bold))
                 .foregroundStyle(.tertiary)
+                .accessibilityHidden(true)
         }
-        .padding(.vertical, 4)
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(uiColor: .tertiarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 
     private var statusTint: Color {
@@ -627,27 +939,11 @@ struct Customer360NavigationLabel: View {
     }
 
     var body: some View {
-        HStack(alignment: .center, spacing: 12) {
-            Image(systemName: systemImage)
-                .font(.title3.weight(.semibold))
-                .foregroundStyle(.secondary)
-                .frame(width: 30)
-
-            VStack(alignment: .leading, spacing: 3) {
-                Text(title)
-                    .font(.subheadline.weight(.semibold))
-                Text(subtitle)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-            Spacer(minLength: 0)
-
-            Image(systemName: "chevron.right")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.tertiary)
-        }
-        .padding(.vertical, 4)
+        CustomerExecutiveActionRow(
+            title: title,
+            subtitle: subtitle,
+            systemImage: systemImage
+        )
     }
 }
 

@@ -4,19 +4,22 @@
 //
 //  Created by José Ruiz on 16/6/26.
 //
- 
+
 import SwiftUI
 
 struct SaleDetailView: View {
     @Bindable private var viewModel: SaleDetailViewModel
     private let customersRepository: CustomersRepository
+    private let catalogRepository: CatalogRepository?
+    private let contextRepository: BusinessContextRepository?
+    private let verticalContext: BusinessVerticalContext
     private let salesHistoryRepository: SalesHistoryRepository?
     private let cashRepository: CashRepository
     private let paymentsRepository: PaymentsRepository
     private let receivablesRepository: ReceivablesRepository
     private let documentsRepository: BusinessDocumentsRepository
     private let onSaleUpdated: (BusinessSale) -> Void
-
+    
     @State private var preparedPaymentViewModel: PaymentRegisterViewModel?
     @State private var shouldShowPaymentRegister = false
     @State private var isPreparingPaymentNavigation = false
@@ -25,10 +28,13 @@ struct SaleDetailView: View {
     @State private var documentShareFile: BusinessDocumentDownloadedFile?
     @State private var documentFileActionInFlight: SaleDetailDocumentFileAction?
     @State private var documentFileMessage: String?
-
+    
     init(
         viewModel: SaleDetailViewModel,
         customersRepository: CustomersRepository = UnavailableCustomersRepository(),
+        catalogRepository: CatalogRepository? = nil,
+        contextRepository: BusinessContextRepository? = nil,
+        verticalContext: BusinessVerticalContext = .empty,
         salesHistoryRepository: SalesHistoryRepository? = nil,
         cashRepository: CashRepository,
         paymentsRepository: PaymentsRepository,
@@ -38,6 +44,9 @@ struct SaleDetailView: View {
     ) {
         self.viewModel = viewModel
         self.customersRepository = customersRepository
+        self.catalogRepository = catalogRepository
+        self.contextRepository = contextRepository
+        self.verticalContext = verticalContext
         self.salesHistoryRepository = salesHistoryRepository
         self.cashRepository = cashRepository
         self.paymentsRepository = paymentsRepository
@@ -45,14 +54,14 @@ struct SaleDetailView: View {
         self.documentsRepository = documentsRepository
         self.onSaleUpdated = onSaleUpdated
     }
-
+    
     var body: some View {
         ScrollView {
             LazyVStack(spacing: 14) {
                 if viewModel.sale == nil, viewModel.isLoading || !viewModel.hasAttemptedLoad {
                     SaleDetailLoadingCard()
                 }
-
+                
                 if let sale = viewModel.sale {
                     messagesSection
                     heroSection(sale)
@@ -123,7 +132,7 @@ struct SaleDetailView: View {
             }
         }
     }
-
+    
     private func heroSection(_ sale: BusinessSale) -> some View {
         SaleDetailHeroCard(
             saleNumber: sale.displayNumber,
@@ -135,7 +144,7 @@ struct SaleDetailView: View {
             confirmedAt: sale.confirmedAt
         )
     }
-
+    
     @ViewBuilder
     private func serviceTypeSection(_ sale: BusinessSale) -> some View {
         if let serviceType = sale.serviceType {
@@ -144,7 +153,7 @@ struct SaleDetailView: View {
             }
         }
     }
-
+    
     @ViewBuilder
     private func customerSection(_ sale: BusinessSale) -> some View {
         if let customer = sale.customer360Seed,
@@ -152,11 +161,11 @@ struct SaleDetailView: View {
             SaleDetailCard(title: "Cliente", subtitle: "Historial 360 de esta relación") {
                 VStack(alignment: .leading, spacing: 10) {
                     SaleDetailMetaRow(title: "Nombre", value: customer.displayName)
-
+                    
                     if !customer.identificationNumber.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                         SaleDetailMetaRow(title: customer.identificationType.displayName, value: customer.identificationNumber)
                     }
-
+                    
                     NavigationLink {
                         Customer360RouteView(customer: customer, dependencies: dependencies)
                     } label: {
@@ -178,7 +187,7 @@ struct SaleDetailView: View {
             }
         }
     }
-
+    
     @ViewBuilder
     private func itemsSection(_ sale: BusinessSale) -> some View {
         if !sale.items.isEmpty {
@@ -198,16 +207,16 @@ struct SaleDetailView: View {
             }
         }
     }
-
+    
     private func totalsSection(_ sale: BusinessSale) -> some View {
         SaleDetailCard(title: "Totales", subtitle: "Desglose calculado de la venta") {
             VStack(spacing: 10) {
                 SaleDetailAmountRow(title: "Subtotal", value: money(sale.totals.subtotalWithoutTaxes))
                 SaleDetailAmountRow(title: "Descuento", value: money(sale.totals.discountTotal))
                 SaleDetailAmountRow(title: "Impuestos", value: money(sale.totals.taxTotal))
-
+                
                 Divider()
-
+                
                 SaleDetailAmountRow(
                     title: "Total",
                     value: money(sale.totals.grandTotal),
@@ -216,7 +225,7 @@ struct SaleDetailView: View {
             }
         }
     }
-
+    
     private func paymentSection(_ sale: BusinessSale) -> some View {
         SaleDetailCard {
             HStack(alignment: .top, spacing: 12) {
@@ -224,58 +233,58 @@ struct SaleDetailView: View {
                     systemImage: sale.collectionState.systemImage,
                     tint: collectionTint(for: sale.collectionState)
                 )
-
+                
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Cobro")
                         .font(.headline)
-
+                    
                     SaleDetailPill(
                         title: sale.collectionState.displayName,
                         systemImage: sale.collectionState.systemImage,
                         tint: collectionTint(for: sale.collectionState)
                     )
-
+                    
                     Text(paymentExplanation(for: sale))
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
-
+                
                 Spacer(minLength: 0)
             }
         }
     }
-
+    
     private func electronicDocumentSection(_ sale: BusinessSale) -> some View {
         let status = sale.effectiveDocumentStatus ?? "not_required"
         let document = sale.primaryElectronicDocument
-
+        
         return SaleDetailCard {
             HStack(alignment: .top, spacing: 12) {
                 SaleDetailIconBadge(
                     systemImage: BusinessDocumentStatusPresentation.systemImage(status),
                     tint: documentTint(status)
                 )
-
+                
                 VStack(alignment: .leading, spacing: 10) {
                     Text("Comprobante electrónico")
                         .font(.headline)
-
+                    
                     SaleDetailPill(
                         title: BusinessDocumentStatusPresentation.displayName(status),
                         systemImage: BusinessDocumentStatusPresentation.systemImage(status),
                         tint: documentTint(status)
                     )
-
+                    
                     if let document {
                         VStack(spacing: 8) {
                             SaleDetailMetaRow(title: "Número", value: document.businessDisplayNumber)
-
+                            
                             if let authorizationNumber = document.shortAuthorizationDisplay {
                                 SaleDetailMetaRow(title: "Autorización SRI", value: authorizationNumber, isMonospaced: true)
                             }
                         }
-
+                        
                         if let error = document.effectiveLastErrorMessage {
                             SaleDetailInlineMessage(message: error, systemImage: "exclamationmark.triangle.fill", tint: .red)
                         } else if BusinessDocumentStatusPresentation.isAuthorized(document.effectiveStatus) {
@@ -291,17 +300,17 @@ struct SaleDetailView: View {
                                 tint: .secondary
                             )
                         }
-
+                        
                         electronicDocumentActions(document)
                     } else if BusinessDocumentStatusPresentation.isMissingElectronicDocument(status) {
                         Text("Sin factura electrónica emitida. Esta venta puede estar cobrada y seguir como registro interno hasta que alguien con permiso emita el comprobante.")
                             .font(.footnote)
                             .foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
-
+                        
                         if let reason = viewModel.electronicInvoiceBlockedReason {
                             SaleDetailInlineMessage(message: reason, systemImage: "lock.fill", tint: .secondary)
-
+                            
                             if let detail = sale.electronicInvoiceReadiness.detailedMessage {
                                 Text(detail)
                                     .font(.footnote)
@@ -322,27 +331,27 @@ struct SaleDetailView: View {
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }
-
+                
                 Spacer(minLength: 0)
             }
         }
     }
-
+    
     @ViewBuilder
     private var messagesSection: some View {
         if let message = BusinessDocumentTextSanitizer.sanitizedMessage(viewModel.errorMessage) {
             SaleDetailMessageBanner(message: message, systemImage: "exclamationmark.triangle.fill", tint: .red)
         }
-
+        
         if let message = BusinessDocumentTextSanitizer.sanitizedMessage(viewModel.infoMessage) {
             SaleDetailMessageBanner(message: message, systemImage: "info.circle.fill", tint: .accentColor)
         }
-
+        
         if let message = BusinessDocumentTextSanitizer.sanitizedMessage(documentFileMessage) {
             SaleDetailMessageBanner(message: message, systemImage: "doc.text.magnifyingglass", tint: .accentColor)
         }
     }
-
+    
     @ViewBuilder
     private func electronicDocumentActions(_ document: BusinessDocument) -> some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -369,7 +378,7 @@ struct SaleDetailView: View {
                 }
                 .buttonStyle(.plain)
             }
-
+            
             let canUseFileRepository = fileDownloadingRepository != nil
             if viewModel.canDownloadElectronicDocumentRide(document), canUseFileRepository {
                 SaleDetailActionButton(
@@ -382,7 +391,7 @@ struct SaleDetailView: View {
                 ) {
                     prepareElectronicDocumentFile(document, action: .previewRide)
                 }
-
+                
                 if viewModel.canShareElectronicDocumentRide(document) {
                     SaleDetailActionButton(
                         title: "Compartir RIDE",
@@ -396,7 +405,7 @@ struct SaleDetailView: View {
                     }
                 }
             }
-
+            
             if viewModel.canDownloadElectronicDocumentXml(document), canUseFileRepository {
                 SaleDetailActionButton(
                     title: "Abrir XML",
@@ -411,7 +420,7 @@ struct SaleDetailView: View {
             }
         }
     }
-
+    
     private var actionsSection: some View {
         SaleDetailCard(title: "Acciones", subtitle: "Continúa con el siguiente paso operativo de la venta") {
             VStack(alignment: .leading, spacing: 12) {
@@ -442,7 +451,55 @@ struct SaleDetailView: View {
                         tint: sale.hasRealReceivable ? .orange : .red
                     )
                 }
-
+                
+                
+                if let sale = viewModel.sale,
+                   viewModel.canEditSale,
+                   let catalogRepository,
+                   let activityId = sale.activityId {
+                    NavigationLink {
+                        SaleCartView(
+                            viewModel: SaleCartViewModel(
+                                organizationId: viewModel.organizationId,
+                                branchId: sale.branchId,
+                                activityId: activityId,
+                                revisions: viewModel.revisions,
+                                effectivePermissions: viewModel.effectivePermissions,
+                                cashSessionId: nil,
+                                verticalContext: verticalContext,
+                                catalogRepository: catalogRepository,
+                                salesRepository: viewModel.salesRepositoryForPaymentReadiness,
+                                salesHistoryRepository: salesHistoryRepository,
+                                contextRepository: contextRepository,
+                                editingSale: sale
+                            ),
+                            customersRepository: customersRepository,
+                            cashRepository: cashRepository,
+                            paymentsRepository: paymentsRepository,
+                            salesHistoryRepository: salesHistoryRepository,
+                            receivablesRepository: receivablesRepository,
+                            documentsRepository: documentsRepository
+                        )
+                    } label: {
+                        SaleDetailNavigationActionLabel(
+                            title: "Editar venta",
+                            subtitle: "Ajusta ítems, cantidades, descuentos, cliente y tipo de servicio antes de cobrar o facturar",
+                            systemImage: "square.and.pencil",
+                            tint: .accentColor
+                        )
+                    }
+                    .buttonStyle(.plain)
+                } else if let sale = viewModel.sale,
+                          viewModel.canEditSale,
+                          sale.activityId == nil {
+                    SaleDetailNavigationActionLabel(
+                        title: "Editar venta no disponible",
+                        subtitle: "La venta no tiene actividad asociada. Actualiza el detalle o revisa el contrato de venta.",
+                        systemImage: "exclamationmark.triangle",
+                        tint: .orange
+                    )
+                }
+                
                 if let paymentPreparationMessage {
                     SaleDetailInlineMessage(
                         message: paymentPreparationMessage,
@@ -450,7 +507,7 @@ struct SaleDetailView: View {
                         tint: .red
                     )
                 }
-
+                
                 if let sale = viewModel.sale,
                    SaleStatusPresentation.requiresConfirmationBeforeCollection(status: sale.status),
                    viewModel.canConfirm {
@@ -465,7 +522,7 @@ struct SaleDetailView: View {
                         confirmAndPreparePaymentNavigation(for: sale)
                     }
                 }
-
+                
                 if let sale = viewModel.sale, viewModel.canViewDocuments {
                     if SaleStatusPresentation.requiresConfirmationBeforeCollection(status: sale.status) {
                         SaleDetailInlineMessage(
@@ -498,7 +555,7 @@ struct SaleDetailView: View {
                         .buttonStyle(.plain)
                     }
                 }
-
+                
                 if let sale = viewModel.sale,
                    !SaleStatusPresentation.requiresConfirmationBeforeCollection(status: sale.status),
                    viewModel.canConfirm {
@@ -514,16 +571,16 @@ struct SaleDetailView: View {
                         Task { await viewModel.confirm() }
                     }
                 }
-
+                
                 Divider()
                     .padding(.vertical, 2)
-
+                
                 TextField("Motivo de cancelación opcional", text: $viewModel.cancelReason, axis: .vertical)
                     .textInputAutocapitalization(.sentences)
                     .lineLimit(1...3)
                     .padding(12)
                     .background(Color(.tertiarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-
+                
                 SaleDetailActionButton(
                     title: "Cancelar venta",
                     subtitle: "Anula la venta si todavía está permitido",
@@ -538,11 +595,11 @@ struct SaleDetailView: View {
             }
         }
     }
-
+    
     private func customer360Dependencies(for sale: BusinessSale) -> Customer360Dependencies? {
         guard let salesHistoryRepository else { return nil }
         guard !sale.branchId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
-
+        
         return Customer360Dependencies(
             organizationId: viewModel.organizationId,
             branchId: sale.branchId,
@@ -556,21 +613,21 @@ struct SaleDetailView: View {
             documentsRepository: documentsRepository
         )
     }
-
+    
     private func lineTotal(for item: BusinessSaleItem) -> MoneyAmount {
         item.total ?? item.subtotal ?? MoneyAmount(amount: "0.00")
     }
-
+    
     private func prepareElectronicDocumentFile(_ document: BusinessDocument, action: SaleDetailDocumentFileAction) {
         guard documentFileActionInFlight == nil else { return }
         guard let repository = fileDownloadingRepository else {
             documentFileMessage = "La descarga de archivos no está disponible en esta versión. Abre el detalle del comprobante para revisar su estado."
             return
         }
-
+        
         documentFileActionInFlight = action
         documentFileMessage = nil
-
+        
         Task {
             do {
                 let file: BusinessDocumentDownloadedFile
@@ -587,7 +644,7 @@ struct SaleDetailView: View {
                         authorizedOnly: viewModel.electronicDocumentXmlAuthorizedOnly(document)
                     )
                 }
-
+                
                 await MainActor.run {
                     documentFileActionInFlight = nil
                     switch action {
@@ -611,41 +668,41 @@ struct SaleDetailView: View {
             }
         }
     }
-
+    
     private func confirmAndPreparePaymentNavigation(for sale: BusinessSale) {
         guard !isPreparingPaymentNavigation else { return }
         NexoKeyboard.dismiss()
-
+        
         Task {
             guard let confirmedSale = await viewModel.confirm() else { return }
             preparePaymentNavigation(for: confirmedSale)
         }
     }
-
+    
     private func preparePaymentNavigation(for sale: BusinessSale) {
         guard !isPreparingPaymentNavigation else { return }
-
+        
         guard SaleStatusPresentation.canCollect(status: sale.status) else {
             paymentPreparationMessage = SaleStatusPresentation.requiresConfirmationBeforeCollection(status: sale.status)
-                ? "Primero confirma la venta. Luego podrás registrar el cobro."
-                : "No se puede cobrar esta venta con el estado actual."
+            ? "Primero confirma la venta. Luego podrás registrar el cobro."
+            : "No se puede cobrar esta venta con el estado actual."
             return
         }
-
+        
         guard PaymentStatusPresentation.canCollect(status: sale.paymentStatus) else {
             paymentPreparationMessage = "Esta venta ya no está pendiente de cobro. Actualiza el detalle antes de continuar."
             return
         }
-
+        
         let branchId = sale.branchId.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !branchId.isEmpty else {
             paymentPreparationMessage = "No se puede cobrar esta venta porque no tiene sucursal asociada. Actualiza el detalle de venta y vuelve a intentar."
             return
         }
-
+        
         isPreparingPaymentNavigation = true
         paymentPreparationMessage = nil
-
+        
         preparedPaymentViewModel = PaymentRegisterViewModel(
             organizationId: viewModel.organizationId,
             branchId: branchId,
@@ -659,11 +716,11 @@ struct SaleDetailView: View {
             activityId: sale.activityId,
             revisions: viewModel.revisions
         )
-
+        
         isPreparingPaymentNavigation = false
         shouldShowPaymentRegister = true
     }
-
+    
     private func paymentExplanation(for sale: BusinessSale) -> String {
         switch sale.collectionState {
         case .paid:
@@ -685,7 +742,7 @@ struct SaleDetailView: View {
             return "Estado de cobro no reconocido. Revisa la venta antes de continuar."
         }
     }
-
+    
     private func collectionActionTitle(for sale: BusinessSale) -> String {
         switch sale.collectionState {
         case .partialWithoutReceivable:
@@ -694,7 +751,7 @@ struct SaleDetailView: View {
             return "Registrar cobro"
         }
     }
-
+    
     private func collectionActionSubtitle(for sale: BusinessSale) -> String {
         switch sale.collectionState {
         case .partialWithoutReceivable:
@@ -705,7 +762,7 @@ struct SaleDetailView: View {
             return "Registra el pago y actualiza el estado de cobro"
         }
     }
-
+    
     private func collectionTint(for state: SaleCollectionState) -> Color {
         switch state {
         case .paid:
@@ -718,27 +775,27 @@ struct SaleDetailView: View {
             return .secondary
         }
     }
-
+    
     private func documentTint(_ status: String) -> Color {
         if BusinessDocumentStatusPresentation.isError(status) {
             return .red
         }
-
+        
         if BusinessDocumentStatusPresentation.isAuthorized(status) {
             return .green
         }
-
+        
         if BusinessDocumentStatusPresentation.isMissingElectronicDocument(status) {
             return .secondary
         }
-
+        
         return .accentColor
     }
-
+    
     private var fileDownloadingRepository: BusinessDocumentFileDownloadingRepository? {
         documentsRepository as? BusinessDocumentFileDownloadingRepository
     }
-
+    
     private func money(_ value: MoneyAmount) -> String {
         value.displayText
     }
@@ -759,48 +816,48 @@ private struct SaleDetailHeroCard: View {
     let total: String
     let createdAt: Date?
     let confirmedAt: Date?
-
+    
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
             HStack(alignment: .top, spacing: 14) {
                 SaleDetailIconBadge(systemImage: "receipt.fill", tint: .accentColor)
-
+                
                 VStack(alignment: .leading, spacing: 5) {
                     Text("Venta")
                         .font(.caption.weight(.bold))
                         .foregroundStyle(.secondary)
                         .textCase(.uppercase)
                         .tracking(0.6)
-
+                    
                     Text(saleNumber)
                         .font(.title2.weight(.bold))
                         .lineLimit(1)
                         .minimumScaleFactor(0.75)
-
+                    
                     Text(customerName)
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(.secondary)
                         .lineLimit(2)
                 }
-
+                
                 Spacer(minLength: 0)
-
+                
                 VStack(alignment: .trailing, spacing: 4) {
                     Text("Total")
                         .font(.caption)
                         .foregroundStyle(.secondary)
-
+                    
                     Text(total)
                         .font(.title3.weight(.bold))
                         .multilineTextAlignment(.trailing)
                 }
             }
-
+            
             HStack(spacing: 8) {
                 SaleDetailPill(title: saleStatus, systemImage: "checkmark.seal", tint: .accentColor)
                 SaleDetailPill(title: paymentStatus, systemImage: "creditcard", tint: .green)
             }
-
+            
             VStack(spacing: 8) {
                 if let createdAt {
                     SaleDetailDateStrip(
@@ -809,7 +866,7 @@ private struct SaleDetailHeroCard: View {
                         systemImage: "calendar"
                     )
                 }
-
+                
                 if let confirmedAt {
                     SaleDetailDateStrip(
                         title: "Confirmada",
@@ -842,7 +899,7 @@ private struct SaleDetailCard<Content: View>: View {
     private let title: String?
     private let subtitle: String?
     private let content: Content
-
+    
     init(
         title: String? = nil,
         subtitle: String? = nil,
@@ -852,7 +909,7 @@ private struct SaleDetailCard<Content: View>: View {
         self.subtitle = subtitle
         self.content = content()
     }
-
+    
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             if title != nil || subtitle != nil {
@@ -861,7 +918,7 @@ private struct SaleDetailCard<Content: View>: View {
                         Text(title)
                             .font(.headline)
                     }
-
+                    
                     if let subtitle {
                         Text(subtitle)
                             .font(.footnote)
@@ -870,7 +927,7 @@ private struct SaleDetailCard<Content: View>: View {
                     }
                 }
             }
-
+            
             content
         }
         .padding(16)
@@ -886,23 +943,23 @@ private struct SaleDetailItemRow: View {
     let name: String
     let quantity: String
     let lineTotal: String
-
+    
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
             SaleDetailIconBadge(systemImage: "takeoutbag.and.cup.and.straw", tint: .accentColor)
-
+            
             VStack(alignment: .leading, spacing: 5) {
                 Text(name)
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.primary)
-
+                
                 Text("Cantidad: \(quantity)")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
-
+            
             Spacer(minLength: 0)
-
+            
             Text(lineTotal)
                 .font(.subheadline.weight(.semibold))
                 .multilineTextAlignment(.trailing)
@@ -916,15 +973,15 @@ private struct SaleDetailAmountRow: View {
     let title: String
     let value: String
     var isHighlighted: Bool = false
-
+    
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 12) {
             Text(title)
                 .font(isHighlighted ? .headline : .subheadline)
                 .foregroundStyle(isHighlighted ? .primary : .secondary)
-
+            
             Spacer(minLength: 12)
-
+            
             Text(value)
                 .font(isHighlighted ? .title3.weight(.bold) : .subheadline.weight(.semibold))
                 .foregroundStyle(.primary)
@@ -945,24 +1002,24 @@ private struct SaleDetailNavigationActionLabel: View {
     let subtitle: String
     let systemImage: String
     let tint: Color
-
+    
     var body: some View {
         HStack(spacing: 12) {
             SaleDetailIconBadge(systemImage: systemImage, tint: tint)
-
+            
             VStack(alignment: .leading, spacing: 3) {
                 Text(title)
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.primary)
-
+                
                 Text(subtitle)
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
-
+            
             Spacer(minLength: 0)
-
+            
             Image(systemName: "chevron.right")
                 .font(.caption.weight(.bold))
                 .foregroundStyle(.tertiary)
@@ -980,7 +1037,7 @@ private struct SaleDetailActionButton: View {
     let isLoading: Bool
     let isDisabled: Bool
     let action: () -> Void
-
+    
     var body: some View {
         Button(action: action) {
             HStack(spacing: 12) {
@@ -992,7 +1049,7 @@ private struct SaleDetailActionButton: View {
                         .font(.headline.weight(.semibold))
                         .frame(width: 28, height: 28)
                 }
-
+                
                 VStack(alignment: .leading, spacing: 3) {
                     Text(title)
                         .font(.subheadline.weight(.semibold))
@@ -1001,7 +1058,7 @@ private struct SaleDetailActionButton: View {
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
-
+                
                 Spacer(minLength: 0)
             }
             .padding(14)
@@ -1020,15 +1077,15 @@ private struct SaleDetailMetaRow: View {
     let title: String
     let value: String
     var isMonospaced: Bool = false
-
+    
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 12) {
             Text(title)
                 .font(.caption)
                 .foregroundStyle(.secondary)
-
+            
             Spacer(minLength: 12)
-
+            
             Text(value)
                 .font(isMonospaced ? .caption.monospaced() : .caption)
                 .foregroundStyle(.primary)
@@ -1043,7 +1100,7 @@ private struct SaleDetailInlineMessage: View {
     let message: String
     let systemImage: String
     let tint: Color
-
+    
     var body: some View {
         Label(message, systemImage: systemImage)
             .font(.footnote)
@@ -1056,7 +1113,7 @@ private struct SaleDetailMessageBanner: View {
     let message: String
     let systemImage: String
     let tint: Color
-
+    
     var body: some View {
         Label(message, systemImage: systemImage)
             .font(.footnote.weight(.semibold))
@@ -1071,18 +1128,18 @@ private struct SaleDetailDateStrip: View {
     let title: String
     let value: String
     let systemImage: String
-
+    
     var body: some View {
         HStack(spacing: 10) {
             Image(systemName: systemImage)
                 .foregroundStyle(Color.accentColor)
-
+            
             Text(title)
                 .font(.caption)
                 .foregroundStyle(.secondary)
-
+            
             Spacer(minLength: 12)
-
+            
             Text(value)
                 .font(.caption.weight(.semibold))
                 .multilineTextAlignment(.trailing)
@@ -1096,7 +1153,7 @@ private struct SaleDetailPill: View {
     let title: String
     let systemImage: String
     let tint: Color
-
+    
     var body: some View {
         Label(title, systemImage: systemImage)
             .font(.caption.weight(.semibold))
@@ -1111,7 +1168,7 @@ private struct SaleDetailPill: View {
 private struct SaleDetailIconBadge: View {
     let systemImage: String
     let tint: Color
-
+    
     var body: some View {
         Image(systemName: systemImage)
             .font(.headline.weight(.semibold))
@@ -1142,10 +1199,10 @@ private struct SaleDetailEmptyState: View {
             Image(systemName: "doc.text.magnifyingglass")
                 .font(.largeTitle)
                 .foregroundStyle(.secondary)
-
+            
             Text("Venta no disponible")
                 .font(.headline)
-
+            
             Text("Actualiza para volver a consultar el estado de la venta.")
                 .font(.footnote)
                 .foregroundStyle(.secondary)

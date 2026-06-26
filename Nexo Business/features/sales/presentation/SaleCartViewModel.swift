@@ -398,6 +398,7 @@ final class SaleCartViewModel {
     private(set) var isPreviewDirty = false
     private(set) var createdSale: BusinessSale?
     private(set) var registeredSaleHasUnsavedChanges = false
+    private var originalRegisteredCartItems: [SaleCartItem] = []
     private(set) var pendingSales: [BusinessSale] = []
     private(set) var isLoadingPendingSales = false
     private(set) var deletingPendingSaleId: String?
@@ -410,6 +411,7 @@ final class SaleCartViewModel {
     private(set) var isCreatingSale = false
     private(set) var selectedCustomer: BusinessCustomer?
     var selectedServiceType: BusinessSaleServiceType = .dineIn
+    private var persistedServiceType: BusinessSaleServiceType?
     var errorMessage: String?
     var infoMessage: String?
     var discountTarget: SaleDiscountTarget = .wholeSale
@@ -445,6 +447,7 @@ final class SaleCartViewModel {
         salesRepository: SalesRepository,
         salesHistoryRepository: SalesHistoryRepository? = nil,
         contextRepository: BusinessContextRepository? = nil,
+        editingSale: BusinessSale? = nil,
         revisionRegistry: BusinessRevisionRegistry = .shared
     ) {
         self.organizationId = organizationId
@@ -459,7 +462,15 @@ final class SaleCartViewModel {
         self.salesHistoryRepository = salesHistoryRepository
         self.contextRepository = contextRepository
         self.revisionRegistry = revisionRegistry
+
+        if let editingSale {
+            loadExistingSaleForEditing(editingSale)
+        }
     }
+
+    var verticalContextForSaleEditing: BusinessVerticalContext { verticalContext }
+    var catalogRepositoryForSaleEditing: CatalogRepository { catalogRepository }
+    var contextRepositoryForSaleEditing: BusinessContextRepository? { contextRepository }
 
     func cancelScheduledPreview() {
         scheduledPreviewTask?.cancel()
@@ -874,7 +885,10 @@ final class SaleCartViewModel {
 
         let originalSaleItemIds = Set(sale.items.map(\.id))
         let currentCartIds = Set(cartItems.map(\.id))
-        let existingCartItems = cartItems.filter { originalSaleItemIds.contains($0.id) }
+        let originalCartById = Dictionary(uniqueKeysWithValues: originalRegisteredCartItems.map { ($0.id, $0) })
+        let existingCartItems = cartItems.filter { item in
+            originalSaleItemIds.contains(item.id) && originalCartById[item.id] != item
+        }
         let newCartItems = cartItems.filter { !originalSaleItemIds.contains($0.id) }
         let removedIds = sale.items.map(\.id).filter { !currentCartIds.contains($0) }
 
@@ -950,6 +964,22 @@ final class SaleCartViewModel {
                 latestSale = response.sale
             }
 
+            if registeredSaleServiceTypeChanged(from: latestSale) {
+                let identity = BusinessMutationIdentity.generate(prefix: "sale-service-type-update")
+                let response = try await salesRepository.updateServiceType(
+                    organizationId: organizationId,
+                    saleId: latestSale.id,
+                    revisions: revisions,
+                    idempotencyKey: identity.idempotencyKey,
+                    request: UpdateSaleServiceTypeRequest(
+                        requestId: identity.requestId,
+                        serviceType: serviceTypeForRequest,
+                        reason: "Corrección de tipo de servicio antes de cobrar o facturar"
+                    )
+                )
+                latestSale = response.sale
+            }
+
             if registeredSaleCustomerChanged(from: latestSale) {
                 let identity = BusinessMutationIdentity.generate(prefix: "sale-customer-update")
                 let response = try await salesRepository.updateCustomer(
@@ -969,9 +999,11 @@ final class SaleCartViewModel {
 
             let enrichedSale = latestSale.withLocalCartTaxProfileFallback(from: cartItems)
             createdSale = enrichedSale
+            persistedServiceType = enrichedSale.serviceType
             realignCartItemsWithCreatedSale(enrichedSale)
             preview = nil
             registeredSaleHasUnsavedChanges = false
+            originalRegisteredCartItems = cartItems
             isPreviewDirty = false
             recalculateLocalCalculation()
             infoMessage = "Cambios guardados. Ahora puedes cobrar o emitir factura con la venta corregida."
@@ -989,6 +1021,16 @@ final class SaleCartViewModel {
         recalculateLocalCalculation()
     }
     
+    func updateSelectedServiceType(_ serviceType: BusinessSaleServiceType) {
+        guard ensureOrderIsEditable() else { return }
+        selectedServiceType = serviceType
+        errorMessage = nil
+        if createdSale != nil {
+            registeredSaleHasUnsavedChanges = registeredSaleServiceTypeChanged(from: createdSale) || registeredSaleHasUnsavedChanges
+            infoMessage = nil
+        }
+    }
+
     func selectCustomer(_ customer: BusinessCustomer) {
         guard ensureOrderIsEditable() else { return }
         selectedCustomer = customer
@@ -1457,7 +1499,9 @@ final class SaleCartViewModel {
 
             let saleWithLocalTaxFallback = response.sale.withLocalCartTaxProfileFallback(from: cartItems)
             createdSale = saleWithLocalTaxFallback
+            persistedServiceType = saleWithLocalTaxFallback.serviceType
             realignCartItemsWithCreatedSale(saleWithLocalTaxFallback)
+            originalRegisteredCartItems = cartItems
             registeredSaleHasUnsavedChanges = false
             preview = nil
             isPreviewDirty = false
@@ -1667,6 +1711,12 @@ final class SaleCartViewModel {
         )
     }
 
+    private func registeredSaleServiceTypeChanged(from sale: BusinessSale?) -> Bool {
+        guard supportsRestaurantServiceType else { return false }
+        let persisted = sale?.serviceType ?? persistedServiceType
+        return persisted != serviceTypeForRequest
+    }
+
     private func registeredSaleCustomerChanged(from sale: BusinessSale) -> Bool {
         let persistedCustomerId = sale.customerId?.nilIfBlank
         let selectedCustomerId = customerIdForRequest?.nilIfBlank
@@ -1689,6 +1739,24 @@ final class SaleCartViewModel {
             identificationNumber: selectedCustomer.identificationNumber,
             email: selectedCustomer.email
         )
+    }
+
+    private func loadExistingSaleForEditing(_ sale: BusinessSale) {
+        scheduledPreviewTask?.cancel()
+        createdSale = sale
+        persistedServiceType = sale.serviceType
+        selectedServiceType = sale.serviceType ?? .dineIn
+        cartItems = sale.items.map { saleItem in
+            SaleCartItem(existingSaleItem: saleItem)
+        }
+        originalRegisteredCartItems = cartItems
+        selectedCustomer = sale.customerForCartEditing
+        preview = nil
+        isPreviewDirty = false
+        registeredSaleHasUnsavedChanges = false
+        orderState = .created
+        recalculateLocalCalculation()
+        infoMessage = "Venta abierta para editar. Puedes ajustar ítems, descuentos, cliente y tipo de servicio mientras no esté cerrada, cancelada o bloqueada por comprobante."
     }
 
     private func realignCartItemsWithCreatedSale(_ sale: BusinessSale) {
@@ -1862,6 +1930,48 @@ final class SaleCartViewModel {
     }
 }
 
+
+private extension SaleCartItem {
+    init(existingSaleItem saleItem: BusinessSaleItem) {
+        let catalogItemId = saleItem.catalogItemId?.nilIfBlank ?? saleItem.id
+        let price = saleItem.unitPrice ?? saleItem.subtotal ?? saleItem.total ?? MoneyAmount(amount: "0.00")
+        let taxTreatment = SaleLineTaxTreatmentOption.fromTaxProfileCode(saleItem.taxProfileCode) ?? .defaultForNewLine()
+        self.init(
+            id: saleItem.id,
+            catalogItem: BusinessCatalogItem(
+                id: catalogItemId,
+                name: saleItem.name,
+                type: "product",
+                price: price,
+                taxProfileCode: saleItem.taxProfileCode ?? taxTreatment.taxProfileCode,
+                taxProfileName: saleItem.taxProfileName
+            ),
+            quantity: saleItem.quantity,
+            taxTreatment: taxTreatment,
+            discount: nil,
+            note: saleItem.note
+        )
+    }
+}
+
+private extension BusinessSale {
+    var customerForCartEditing: BusinessCustomer? {
+        if BusinessElectronicInvoiceCustomerPolicy.isFinalConsumer(sale: self) {
+            return BusinessCustomerPresentation.finalConsumer
+        }
+
+        guard let customerId = customerId?.nilIfBlank ?? customer?.id?.nilIfBlank else { return nil }
+        let displayName = customer?.displayName.nilIfBlank ?? customerName?.nilIfBlank ?? "Cliente"
+        let identification = customer?.identification?.nilIfBlank ?? ""
+
+        return BusinessCustomer(
+            id: customerId,
+            displayName: displayName,
+            identificationType: .unknown,
+            identificationNumber: identification
+        )
+    }
+}
 
 private extension BusinessSale {
     func withLocalCartTaxProfileFallback(from cartItems: [SaleCartItem]) -> BusinessSale {
