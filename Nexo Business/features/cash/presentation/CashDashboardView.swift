@@ -126,7 +126,7 @@ struct CashDashboardView: View {
         .background(
             LinearGradient(
                 colors: [
-                    Color.accentColor.opacity(0.16),
+                    Color.green.opacity(0.16),
                     Color(uiColor: .secondarySystemGroupedBackground)
                 ],
                 startPoint: .topLeading,

@@ -539,7 +539,7 @@ struct BusinessView: View {
                             title: "Paquete contador",
                             subtitle: "ZIP mensual",
                             systemImage: "doc.zipper",
-                            tint: .indigo
+                            tint: .teal
                         )
                     }
                     .buttonStyle(.plain)
@@ -1331,7 +1331,7 @@ private struct BusinessHeroCard: View {
         .background(
             LinearGradient(
                 colors: [
-                    Color.accentColor.opacity(0.16),
+                    Color.black.opacity(0.36),
                     Color(.secondarySystemGroupedBackground)
                 ],
                 startPoint: .topLeading,

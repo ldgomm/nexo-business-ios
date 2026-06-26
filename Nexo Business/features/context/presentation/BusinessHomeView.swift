@@ -76,6 +76,7 @@ struct BusinessHomeView: View {
                         verticalContext: context.verticals,
                         catalogRepository: container.catalogRepository,
                         salesRepository: container.salesRepository,
+                        customersRepository: container.customersRepository,
                         salesHistoryRepository: container.salesHistoryRepository,
                         contextRepository: container.contextRepository
                     ),
@@ -182,6 +183,7 @@ struct BusinessHomeView: View {
                         documentsRepository: container.documentsRepository
                     ),
                     salesRepository: container.salesRepository,
+                    customersRepository: container.customersRepository,
                     catalogRepository: container.catalogRepository,
                     contextRepository: container.contextRepository,
                     verticalContext: context.verticals,

@@ -18,7 +18,10 @@ struct SaleCartView: View {
     private let onSaleUpdated: (BusinessSale) -> Void
 
     private var resolvedCustomersRepository: CustomersRepository {
-        viewModel.customersRepositoryForSaleEditing
+        if viewModel.customersRepositoryForSaleEditing is UnavailableCustomersRepository {
+            return customersRepository
+        }
+        return viewModel.customersRepositoryForSaleEditing
     }
     @State private var showStartNewOrderConfirmation = false
     @State private var isPendingSalesExpanded = false

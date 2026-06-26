@@ -171,7 +171,7 @@ struct BusinessExportsView: View {
         .background(
             LinearGradient(
                 colors: [
-                    Color.accentColor.opacity(0.16),
+                    Color.purple.opacity(0.16),
                     Color(uiColor: .secondarySystemGroupedBackground)
                 ],
                 startPoint: .topLeading,
