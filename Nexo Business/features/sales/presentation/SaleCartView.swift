@@ -44,7 +44,7 @@ struct SaleCartView: View {
 
     var body: some View {
         ScrollView {
-            LazyVStack(spacing: 14) {
+            LazyVStack(spacing: 11) {
                 operationGroup
 
                 saleBuilderGroup
@@ -57,8 +57,8 @@ struct SaleCartView: View {
                     pendingSalesGroup
                 }
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 14)
+            .padding(.horizontal, 11)
+            .padding(.vertical, 11)
         }
         .background(Color(uiColor: .systemGroupedBackground).ignoresSafeArea())
         .scrollDismissesKeyboard(.interactively)
@@ -130,41 +130,67 @@ struct SaleCartView: View {
     }
 
     private var operationGroup: some View {
-        SaleCartGroupedCard(
-            title: "Operación",
-            subtitle: selectedCustomerSummary,
-            systemImage: "sparkles.rectangle.stack",
-            isHero: true
-        ) {
-            VStack(alignment: .leading, spacing: 14) {
-                HStack(alignment: .top, spacing: 12) {
-                    VStack(alignment: .leading, spacing: 5) {
-                        Text(orderStateTitle)
-                            .font(.title3.weight(.bold))
+        VStack(alignment: .leading, spacing: 18) {
+            HStack(alignment: .top, spacing: 14) {
+                SaleCartHeroIconBadge(systemImage: "sparkles.rectangle.stack.fill", tint: .accentColor)
 
-                        Text(orderStateDescription)
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
+                VStack(alignment: .leading, spacing: 5) {
+                    Text("Nexo Sales")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(.secondary)
+                        .textCase(.uppercase)
+                        .tracking(0.6)
 
-                    Spacer(minLength: 12)
+                    Text(orderStateTitle)
+                        .font(.title2.weight(.bold))
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.78)
 
-                    NexoStatusBadge(
-                        viewModel.orderState.displayName,
-                        systemImage: orderStateIcon,
-                        style: orderStateStyle
-                    )
+                    Text(orderStateDescription)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
 
-                Divider()
+                Spacer(minLength: 0)
+            }
 
-                VStack(spacing: 12) {
-                    operationalCustomerBlock
-                    operationalCashBlock
-                }
+            HStack(spacing: 8) {
+                SaleCartHeroPill(
+                    title: viewModel.orderState.displayName,
+                    systemImage: orderStateIcon,
+                    tint: operationStateTint
+                )
+
+                SaleCartHeroPill(
+                    title: viewModel.selectedCustomer == nil ? "Consumidor final" : "Cliente identificado",
+                    systemImage: viewModel.selectedCustomer == nil ? "person.crop.circle" : "person.crop.circle.fill",
+                    tint: viewModel.selectedCustomer == nil ? .orange : .accentColor
+                )
+            }
+
+            VStack(spacing: 12) {
+                operationalCustomerBlock
+                operationalCashBlock
             }
         }
+        .padding(18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            LinearGradient(
+                colors: [
+                    Color.accentColor.opacity(0.16),
+                    Color(uiColor: .secondarySystemGroupedBackground)
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            ),
+            in: RoundedRectangle(cornerRadius: 26, style: .continuous)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 26, style: .continuous)
+                .strokeBorder(Color.primary.opacity(0.06), lineWidth: 1)
+        )
     }
 
     private var operationalCustomerBlock: some View {
@@ -969,6 +995,17 @@ struct SaleCartView: View {
         return "Consumidor final"
     }
 
+    private var operationStateTint: Color {
+        switch viewModel.orderState {
+        case .editing:
+            return .accentColor
+        case .previewing, .creating:
+            return .orange
+        case .created:
+            return viewModel.createdSaleNeedsCollection ? .orange : .green
+        }
+    }
+
     private var pendingSalesGroup: some View {
         SaleCartPendingSalesSummaryCard(
             subtitle: viewModel.pendingSalesSubtitle,
@@ -1566,6 +1603,43 @@ private final class PreviewSaleCartSalesHistoryRepository: SalesHistoryRepositor
         request: SalesHistorySearchRequest
     ) async throws -> BusinessSalesHistoryResponse {
         BusinessSalesHistoryResponse(sales: [])
+    }
+}
+
+private struct SaleCartHeroIconBadge: View {
+    let systemImage: String
+    let tint: Color
+
+    var body: some View {
+        Image(systemName: systemImage)
+            .font(.title3.weight(.semibold))
+            .foregroundStyle(tint)
+            .frame(width: 38, height: 38)
+            .background(tint.opacity(0.13), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .strokeBorder(tint.opacity(0.16), lineWidth: 1)
+            }
+    }
+}
+
+private struct SaleCartHeroPill: View {
+    let title: String
+    let systemImage: String
+    let tint: Color
+
+    var body: some View {
+        Label(title, systemImage: systemImage)
+            .font(.caption.weight(.bold))
+            .lineLimit(1)
+            .foregroundStyle(tint)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 7)
+            .background(tint.opacity(0.11), in: Capsule(style: .continuous))
+            .overlay {
+                Capsule(style: .continuous)
+                    .strokeBorder(tint.opacity(0.14), lineWidth: 1)
+            }
     }
 }
 

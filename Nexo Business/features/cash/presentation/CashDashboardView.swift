@@ -21,9 +21,8 @@ struct CashDashboardView: View {
 
     var body: some View {
         ScrollView {
-            LazyVStack(spacing: 16) {
+            LazyVStack(spacing: 12) {
                 statusSection
-                    .cashDashboardHeroSurface()
 
                 if (viewModel.errorMessage?.isEmpty == false) || (viewModel.successMessage?.isEmpty == false) {
                     messagesSection
@@ -41,8 +40,8 @@ struct CashDashboardView: View {
                         .cashDashboardSurface()
                 }
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 14)
+            .padding(.horizontal, 11)
+            .padding(.vertical, 11)
         }
         .background(Color(uiColor: .systemGroupedBackground).ignoresSafeArea())
         .nexoKeyboardDismissable()
@@ -103,20 +102,15 @@ struct CashDashboardView: View {
 
     @ViewBuilder
     private var statusSection: some View {
-        Section {
+        Group {
             switch viewModel.state {
             case .idle, .loading:
                 CashLoadingCard()
 
             case let .failed(message):
-                ContentUnavailableView {
-                    Label("No se pudo consultar caja", systemImage: "tray")
-                } description: {
-                    Text(message)
-                } actions: {
-                    Button("Reintentar") {
-                        Task { await viewModel.load() }
-                    }
+                CashFailureStateCard(message: message) {
+                    NexoKeyboard.dismiss()
+                    Task { await viewModel.load() }
                 }
 
             case let .loaded(session):
@@ -127,151 +121,161 @@ struct CashDashboardView: View {
                 }
             }
         }
-        .listRowInsets(EdgeInsets(top: 10, leading: 16, bottom: 10, trailing: 16))
+        .padding(18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            LinearGradient(
+                colors: [
+                    Color.accentColor.opacity(0.16),
+                    Color(uiColor: .secondarySystemGroupedBackground)
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            ),
+            in: RoundedRectangle(cornerRadius: 26, style: .continuous)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 26, style: .continuous)
+                .strokeBorder(Color.primary.opacity(0.06), lineWidth: 1)
+        )
+        .shadow(color: Color.black.opacity(0.07), radius: 14, x: 0, y: 8)
     }
 
     @ViewBuilder
     private var messagesSection: some View {
-        if let message = viewModel.errorMessage, !message.isEmpty {
-            Section {
+        VStack(alignment: .leading, spacing: 10) {
+            if let message = viewModel.errorMessage, !message.isEmpty {
                 NexoMessageBanner(message, style: .error)
             }
-        }
 
-        if let message = viewModel.successMessage, !message.isEmpty {
-            Section {
+            if let message = viewModel.successMessage, !message.isEmpty {
                 NexoMessageBanner(message, style: .success)
             }
         }
     }
 
     private var openingGuideSection: some View {
-        Section {
-            VStack(alignment: .leading, spacing: 14) {
-                CashSectionHeader(
-                    icon: "lock.open",
-                    title: "Abrir caja",
-                    subtitle: "Registra el efectivo inicial antes de comenzar a cobrar."
+        VStack(alignment: .leading, spacing: 16) {
+            CashSectionHeader(
+                icon: "lock.open",
+                title: "Apertura de caja",
+                subtitle: "Registra el efectivo inicial antes de empezar a cobrar."
+            )
+
+            VStack(spacing: 10) {
+                CashInputRow(
+                    title: "Monto inicial",
+                    placeholder: "0.00",
+                    text: $viewModel.openingAmount,
+                    keyboardType: .decimalPad,
+                    systemImage: "dollarsign.circle"
                 )
 
-                VStack(spacing: 10) {
-                    CashInputRow(
-                        title: "Monto inicial",
-                        placeholder: "0.00",
-                        text: $viewModel.openingAmount,
-                        keyboardType: .decimalPad,
-                        systemImage: "dollarsign.circle"
-                    )
-
-                    CashMultilineInputRow(
-                        title: "Nota",
-                        placeholder: "Opcional",
-                        text: $viewModel.openingNote,
-                        systemImage: "note.text"
-                    )
-                }
-
-                CashHintCard(
-                    icon: "info.circle",
-                    text: "Este monto será la base del efectivo esperado. Los cobros en efectivo aumentarán la caja automáticamente."
+                CashMultilineInputRow(
+                    title: "Nota de apertura",
+                    placeholder: "Opcional",
+                    text: $viewModel.openingNote,
+                    systemImage: "note.text"
                 )
-
-                Button {
-                    NexoKeyboard.dismiss()
-                    Task { await viewModel.openCash() }
-                } label: {
-                    CashActionLabel(
-                        title: "Abrir caja",
-                        systemImage: "lock.open",
-                        isLoading: viewModel.isMutating && !viewModel.isOpen
-                    )
-                }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
-                .frame(maxWidth: .infinity, alignment: .trailing)
-                .disabled(!viewModel.canOpen || viewModel.isMutating)
             }
-            .padding(.vertical, 6)
+
+            CashHintCard(
+                icon: "info.circle",
+                text: "Este monto será la base del efectivo esperado. Los cobros en efectivo aumentarán la caja automáticamente."
+            )
+
+            Button {
+                NexoKeyboard.dismiss()
+                Task { await viewModel.openCash() }
+            } label: {
+                CashActionLabel(
+                    title: "Abrir caja",
+                    systemImage: "lock.open",
+                    isLoading: viewModel.isMutating && !viewModel.isOpen
+                )
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.large)
+            .disabled(!viewModel.canOpen || viewModel.isMutating)
         }
     }
 
     private var closingGuideSection: some View {
-        Section {
-            VStack(alignment: .leading, spacing: 16) {
-                CashSectionHeader(
-                    icon: "checklist",
-                    title: "Cierre guiado",
-                    subtitle: "Cuenta el efectivo físico y confirma la diferencia antes de cerrar."
+        VStack(alignment: .leading, spacing: 16) {
+            CashSectionHeader(
+                icon: "checklist",
+                title: "Cierre de caja",
+                subtitle: "Cuenta el efectivo físico, revisa la diferencia y confirma el cierre."
+            )
+
+            VStack(spacing: 10) {
+                CashMetricRow(
+                    title: "Efectivo esperado",
+                    value: viewModel.currentExpectedDisplay,
+                    systemImage: "banknote",
+                    isProminent: true,
+                    tint: .accentColor
                 )
 
-                VStack(spacing: 10) {
-                    CashMetricRow(
-                        title: "Efectivo esperado",
-                        value: viewModel.currentExpectedDisplay,
-                        systemImage: "banknote",
-                        isProminent: true
-                    )
-
-                    CashInputRow(
-                        title: "Monto contado",
-                        placeholder: "0.00",
-                        text: $viewModel.countedAmount,
-                        keyboardType: .decimalPad,
-                        systemImage: "number.circle"
-                    )
-
-                    Button {
-                        viewModel.useExpectedAmountForClosing()
-                        NexoKeyboard.dismiss()
-                    } label: {
-                        Label("Usar efectivo esperado", systemImage: "equal.circle")
-                            .font(.footnote.weight(.medium))
-                    }
-                    .buttonStyle(.borderless)
-                    .foregroundStyle(.secondary)
-                    .disabled(viewModel.isMutating)
-
-                    CashMetricRow(
-                        title: "Diferencia estimada",
-                        value: viewModel.closingDifferencePreview.displayText,
-                        systemImage: "plus.forwardslash.minus",
-                        isProminent: false
-                    )
-
-                    CashMultilineInputRow(
-                        title: "Nota",
-                        placeholder: "Opcional",
-                        text: $viewModel.closingNote,
-                        systemImage: "note.text"
-                    )
-                }
-
-                CashHintCard(
-                    icon: "lightbulb",
-                    text: "El monto contado viene prellenado con el efectivo esperado. Cámbialo solo si al contar físicamente el dinero hay diferencia."
+                CashInputRow(
+                    title: "Monto contado",
+                    placeholder: "0.00",
+                    text: $viewModel.countedAmount,
+                    keyboardType: .decimalPad,
+                    systemImage: "number.circle"
                 )
 
-                Button(role: .destructive) {
+                Button {
+                    viewModel.useExpectedAmountForClosing()
                     NexoKeyboard.dismiss()
-                    viewModel.prepareCloseConfirmation()
                 } label: {
-                    CashActionLabel(
-                        title: "Cerrar caja",
-                        systemImage: "lock",
-                        isLoading: viewModel.isMutating
-                    )
+                    Label("Usar efectivo esperado", systemImage: "equal.circle")
+                        .font(.footnote.weight(.semibold))
+                        .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
-                .frame(maxWidth: .infinity, alignment: .trailing)
-                .disabled(!viewModel.canPrepareClose)
+                .buttonStyle(.plain)
+                .foregroundStyle(Color.accentColor)
+                .disabled(viewModel.isMutating)
+
+                CashMetricRow(
+                    title: "Diferencia estimada",
+                    value: viewModel.closingDifferencePreview.displayText,
+                    systemImage: "plus.forwardslash.minus",
+                    isProminent: false,
+                    tint: .orange
+                )
+
+                CashMultilineInputRow(
+                    title: "Nota de cierre",
+                    placeholder: "Opcional",
+                    text: $viewModel.closingNote,
+                    systemImage: "note.text"
+                )
             }
-            .padding(.vertical, 6)
+
+            CashHintCard(
+                icon: "lightbulb",
+                text: "El monto contado viene prellenado con el efectivo esperado. Cámbialo solo si al contar físicamente hay una diferencia real."
+            )
+
+            Button(role: .destructive) {
+                NexoKeyboard.dismiss()
+                viewModel.prepareCloseConfirmation()
+            } label: {
+                CashActionLabel(
+                    title: "Cerrar caja",
+                    systemImage: "lock",
+                    isLoading: viewModel.isMutating
+                )
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.large)
+            .disabled(!viewModel.canPrepareClose)
         }
     }
 
     private var manualAdjustmentsSection: some View {
-        Section {
+        VStack(alignment: .leading, spacing: 14) {
             DisclosureGroup {
                 VStack(alignment: .leading, spacing: 14) {
                     CashHintCard(
@@ -305,8 +309,11 @@ struct CashDashboardView: View {
                         NexoKeyboard.dismiss()
                         viewModel.prepareMovementConfirmation()
                     } label: {
-                        Label("Registrar ajuste manual", systemImage: "plus.forwardslash.minus")
-                            .frame(maxWidth: .infinity)
+                        CashActionLabel(
+                            title: "Registrar ajuste manual",
+                            systemImage: "plus.forwardslash.minus",
+                            isLoading: viewModel.isMutating
+                        )
                     }
                     .buttonStyle(.bordered)
                     .controlSize(.large)
@@ -318,25 +325,31 @@ struct CashDashboardView: View {
 
                         VStack(alignment: .leading, spacing: 8) {
                             Text("Último ajuste")
-                                .font(.caption)
+                                .font(.caption.weight(.semibold))
                                 .foregroundStyle(.secondary)
 
                             CashMetricRow(
                                 title: movement.type.displayName,
                                 value: moneyText(movement.amount),
                                 systemImage: "clock.arrow.circlepath",
-                                isProminent: false
+                                isProminent: false,
+                                tint: .secondary
                             )
                         }
                     }
                 }
-                .padding(.vertical, 10)
+                .padding(.top, 12)
             } label: {
-                Label("Ajustes manuales", systemImage: "slider.horizontal.3")
-                    .font(.body.weight(.medium))
+                CashSectionHeader(
+                    icon: "slider.horizontal.3",
+                    title: "Ajustes manuales",
+                    subtitle: "Ingresos, egresos o correcciones fuera de venta."
+                )
             }
-        } footer: {
-            Text("Los ajustes manuales afectan la caja y deben tener un motivo claro.")
+
+            CashSectionFooter(
+                text: "Los ajustes manuales afectan la caja y deben tener un motivo claro. Para cobros de ventas, usa el flujo normal de venta o historial."
+            )
         }
     }
 
@@ -347,21 +360,19 @@ struct CashDashboardView: View {
 
 
 private struct CashDashboardSurfaceModifier: ViewModifier {
-    var isHero: Bool = false
-
     func body(content: Content) -> some View {
         content
-            .padding(isHero ? 18 : 14)
+            .padding(16)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background {
-                RoundedRectangle(cornerRadius: isHero ? 24 : 20, style: .continuous)
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
                     .fill(Color(uiColor: .secondarySystemGroupedBackground))
             }
             .overlay {
-                RoundedRectangle(cornerRadius: isHero ? 24 : 20, style: .continuous)
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
                     .strokeBorder(Color.primary.opacity(0.06), lineWidth: 1)
             }
-            .shadow(color: Color.black.opacity(isHero ? 0.07 : 0.035), radius: isHero ? 14 : 8, x: 0, y: isHero ? 8 : 4)
+            .shadow(color: Color.black.opacity(0.035), radius: 8, x: 0, y: 4)
     }
 }
 
@@ -369,12 +380,7 @@ private extension View {
     func cashDashboardSurface() -> some View {
         modifier(CashDashboardSurfaceModifier())
     }
-
-    func cashDashboardHeroSurface() -> some View {
-        modifier(CashDashboardSurfaceModifier(isHero: true))
-    }
 }
-
 
 
 private struct CashLoadingCard: View {
@@ -382,7 +388,7 @@ private struct CashLoadingCard: View {
         HStack(spacing: 12) {
             ProgressView()
 
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: .leading, spacing: 4) {
                 Text("Consultando caja…")
                     .font(.headline)
 
@@ -391,42 +397,123 @@ private struct CashLoadingCard: View {
                     .foregroundStyle(.secondary)
             }
         }
-        .padding(.vertical, 8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.vertical, 6)
+    }
+}
+
+private struct CashFailureStateCard: View {
+    let message: String
+    let retry: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .top, spacing: 12) {
+                CashIconBadge(systemImage: "exclamationmark.triangle", tint: .red)
+
+                VStack(alignment: .leading, spacing: 5) {
+                    Text("Caja no disponible")
+                        .font(.headline)
+
+                    Text(message)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+
+            Button(action: retry) {
+                Label("Reintentar consulta", systemImage: "arrow.clockwise")
+                    .font(.footnote.weight(.semibold))
+            }
+            .buttonStyle(.bordered)
+        }
     }
 }
 
 private struct CashEmptyStateCard: View {
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 16) {
             HStack(alignment: .top, spacing: 12) {
-                Image(systemName: "lock.fill")
-                    .font(.title3)
-                    .foregroundStyle(.orange)
+                CashIconBadge(systemImage: "lock.fill", tint: .orange)
 
                 VStack(alignment: .leading, spacing: 5) {
                     Text("Caja cerrada")
-                        .font(.headline)
+                        .font(.title3.weight(.bold))
 
                     Text("Abre caja al iniciar operación para cobrar en efectivo y controlar el cierre del día.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
+
+                Spacer(minLength: 0)
+
+                CashStatusPill(
+                    title: "Inactiva",
+                    systemImage: "lock",
+                    tint: .orange
+                )
             }
+
+            CashHintCard(
+                icon: "info.circle",
+                text: "La apertura debe hacerse al inicio del turno con el efectivo físico disponible."
+            )
         }
-        .padding(.vertical, 8)
     }
 }
 
 private struct CashSessionHeroView: View {
     let session: CashSession
 
+    private let columns = [
+        GridItem(.flexible(), spacing: 10),
+        GridItem(.flexible(), spacing: 10)
+    ]
+
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             header
 
-            Divider()
+            LazyVGrid(columns: columns, spacing: 10) {
+                CashHeroMetricCard(
+                    title: "Efectivo esperado",
+                    value: expectedAmountText,
+                    subtitle: session.isOpen ? "actual" : "final",
+                    systemImage: "banknote"
+                )
 
-            metrics
+                CashHeroMetricCard(
+                    title: "Monto inicial",
+                    value: openingAmountText,
+                    subtitle: "apertura",
+                    systemImage: "tray.and.arrow.down"
+                )
+
+                if session.isOpen {
+                    CashHeroMetricCard(
+                        title: "Conteo",
+                        value: "Pendiente",
+                        subtitle: "al cierre",
+                        systemImage: "hourglass"
+                    )
+                } else {
+                    CashHeroMetricCard(
+                        title: "Contado",
+                        value: countedAmountText,
+                        subtitle: "físico",
+                        systemImage: "checkmark.circle"
+                    )
+                }
+
+                CashHeroMetricCard(
+                    title: "Diferencia",
+                    value: differenceAmountText,
+                    subtitle: session.isOpen ? "por calcular" : "cierre",
+                    systemImage: "plus.forwardslash.minus"
+                )
+            }
 
             if session.isOpen {
                 CashHintCard(
@@ -435,78 +522,57 @@ private struct CashSessionHeroView: View {
                 )
             }
         }
-        .padding(.vertical, 8)
     }
 
     private var header: some View {
         HStack(alignment: .top, spacing: 12) {
-            Image(systemName: session.isOpen ? "checkmark.circle.fill" : "lock.fill")
-                .font(.title2)
-                .foregroundStyle(session.isOpen ? .green : .secondary)
+            CashIconBadge(
+                systemImage: session.isOpen ? "checkmark.circle.fill" : "lock.fill",
+                tint: session.isOpen ? .green : .secondary
+            )
 
-            VStack(alignment: .leading, spacing: 5) {
-                Text(session.isOpen ? "Caja abierta" : "Caja cerrada")
-                    .font(.headline)
+            VStack(alignment: .leading, spacing: 6) {
+                Text(session.isOpen ? "Caja operativa" : "Caja cerrada")
+                    .font(.title3.weight(.bold))
 
-                if let openedAt = session.openedAt {
-                    Text("Apertura: \(openedAt.formatted(date: .abbreviated, time: .shortened))")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                }
+                Text(openedAtText)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
-            Spacer()
+            Spacer(minLength: 0)
 
-            if let expectedAmount = session.expectedAmount {
-                VStack(alignment: .trailing, spacing: 3) {
-                    Text(session.isOpen ? "Esperado" : "Esperado final")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-
-                    Text(expectedAmount.displayText)
-                        .font(.title3.weight(.bold))
-                        .monospacedDigit()
-                }
-            }
+            CashStatusPill(
+                title: session.isOpen ? "Abierta" : "Cerrada",
+                systemImage: session.isOpen ? "checkmark.seal" : "lock",
+                tint: session.isOpen ? .green : .secondary
+            )
         }
     }
 
-    private var metrics: some View {
-        VStack(spacing: 10) {
-            CashMetricRow(
-                title: "Monto inicial",
-                value: (session.openingAmount ?? MoneyAmount(amount: "0.00")).displayText,
-                systemImage: "tray.and.arrow.down",
-                isProminent: false
-            )
-
-            if session.isOpen {
-                CashMetricRow(
-                    title: "Conteo",
-                    value: "Pendiente al cierre",
-                    systemImage: "hourglass",
-                    isProminent: false
-                )
-            } else {
-                if let countedAmount = session.countedAmount {
-                    CashMetricRow(
-                        title: "Contado",
-                        value: countedAmount.displayText,
-                        systemImage: "checkmark.circle",
-                        isProminent: false
-                    )
-                }
-
-                if let differenceAmount = session.differenceAmount {
-                    CashMetricRow(
-                        title: "Diferencia",
-                        value: differenceAmount.displayText,
-                        systemImage: "plus.forwardslash.minus",
-                        isProminent: true
-                    )
-                }
-            }
+    private var openedAtText: String {
+        guard let openedAt = session.openedAt else {
+            return session.isOpen ? "Lista para registrar cobros." : "Sin hora de apertura disponible."
         }
+
+        return "Apertura: \(openedAt.formatted(date: .abbreviated, time: .shortened))"
+    }
+
+    private var expectedAmountText: String {
+        session.expectedAmount?.displayText ?? "—"
+    }
+
+    private var openingAmountText: String {
+        (session.openingAmount ?? MoneyAmount(amount: "0.00")).displayText
+    }
+
+    private var countedAmountText: String {
+        session.countedAmount?.displayText ?? "—"
+    }
+
+    private var differenceAmountText: String {
+        session.differenceAmount?.displayText ?? (session.isOpen ? "—" : "0.00")
     }
 }
 
@@ -517,9 +583,7 @@ private struct CashSectionHeader: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
-            Image(systemName: icon)
-                .font(.title3)
-                .foregroundStyle(.primary)
+            CashIconBadge(systemImage: icon, tint: .accentColor)
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(title)
@@ -528,8 +592,54 @@ private struct CashSectionHeader: View {
                 Text(subtitle)
                     .font(.footnote)
                     .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
+
+            Spacer(minLength: 0)
         }
+    }
+}
+
+private struct CashHeroMetricCard: View {
+    let title: String
+    let value: String
+    let subtitle: String
+    let systemImage: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 9) {
+            HStack(spacing: 6) {
+                Image(systemName: systemImage)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+
+                Text(title)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+
+            Text(value)
+                .font(.headline.weight(.bold))
+                .monospacedDigit()
+                .lineLimit(1)
+                .minimumScaleFactor(0.65)
+
+            Text(subtitle)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+        }
+        .frame(maxWidth: .infinity, minHeight: 86, alignment: .topLeading)
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 15, style: .continuous)
+                .fill(Color(uiColor: .secondarySystemBackground).opacity(0.82))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 15, style: .continuous)
+                .strokeBorder(Color.primary.opacity(0.04), lineWidth: 1)
+        )
     }
 }
 
@@ -538,29 +648,37 @@ private struct CashMetricRow: View {
     let value: String
     let systemImage: String
     let isProminent: Bool
+    var tint: Color = .secondary
 
     var body: some View {
         HStack(spacing: 12) {
             Image(systemName: systemImage)
                 .font(.body)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(tint)
                 .frame(width: 24)
 
             Text(title)
                 .foregroundStyle(.secondary)
+                .lineLimit(1)
 
-            Spacer()
+            Spacer(minLength: 10)
 
             Text(value)
                 .font(isProminent ? .body.weight(.bold) : .body.weight(.semibold))
                 .monospacedDigit()
                 .multilineTextAlignment(.trailing)
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
         }
         .padding(.horizontal, 12)
-        .padding(.vertical, 10)
+        .padding(.vertical, 11)
         .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(Color(.secondarySystemBackground))
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(Color(uiColor: .secondarySystemBackground))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .strokeBorder(Color.primary.opacity(0.04), lineWidth: 1)
         )
     }
 }
@@ -581,17 +699,23 @@ private struct CashInputRow: View {
 
             Text(title)
                 .foregroundStyle(.secondary)
+                .lineLimit(1)
 
             TextField(placeholder, text: $text)
                 .keyboardType(keyboardType)
                 .multilineTextAlignment(.trailing)
                 .monospacedDigit()
+                .font(.body.weight(.semibold))
         }
         .padding(.horizontal, 12)
-        .padding(.vertical, 10)
+        .padding(.vertical, 11)
         .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(Color(.secondarySystemBackground))
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(Color(uiColor: .secondarySystemBackground))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .strokeBorder(Color.primary.opacity(0.04), lineWidth: 1)
         )
     }
 }
@@ -616,10 +740,14 @@ private struct CashMultilineInputRow: View {
                 .lineLimit(1...3)
         }
         .padding(.horizontal, 12)
-        .padding(.vertical, 10)
+        .padding(.vertical, 11)
         .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(Color(.secondarySystemBackground))
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(Color(uiColor: .secondarySystemBackground))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .strokeBorder(Color.primary.opacity(0.04), lineWidth: 1)
         )
     }
 }
@@ -643,9 +771,20 @@ private struct CashHintCard: View {
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(Color(.tertiarySystemGroupedBackground))
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(Color(uiColor: .tertiarySystemGroupedBackground))
         )
+    }
+}
+
+private struct CashSectionFooter: View {
+    let text: String
+
+    var body: some View {
+        Text(text)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
     }
 }
 
@@ -655,28 +794,44 @@ private struct CashActionLabel: View {
     let isLoading: Bool
 
     var body: some View {
-        HStack {
+        HStack(spacing: 8) {
             if isLoading {
                 ProgressView()
                     .controlSize(.small)
             } else {
                 Label(title, systemImage: systemImage)
+                    .font(.body.weight(.semibold))
             }
         }
         .frame(maxWidth: .infinity)
     }
 }
 
-#Preview {
-    NavigationStack {
-        CashDashboardView(
-            viewModel: CashDashboardViewModel(
-                organizationId: PreviewData.businessContext.organization.id,
-                branchId: PreviewData.businessContext.branches[0].id,
-                permissions: PreviewData.businessContext.effectivePermissions,
-                cashCapabilities: PreviewData.businessContext.capabilities.cash,
-                cashRepository: PreviewCashRepository()
-            )
-        )
+private struct CashIconBadge: View {
+    let systemImage: String
+    let tint: Color
+
+    var body: some View {
+        Image(systemName: systemImage)
+            .font(.headline.weight(.semibold))
+            .foregroundStyle(tint)
+            .frame(width: 42, height: 42)
+            .background(tint.opacity(0.12), in: RoundedRectangle(cornerRadius: 15, style: .continuous))
+    }
+}
+
+private struct CashStatusPill: View {
+    let title: String
+    let systemImage: String
+    let tint: Color
+
+    var body: some View {
+        Label(title, systemImage: systemImage)
+            .font(.caption.weight(.semibold))
+            .lineLimit(1)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 7)
+            .foregroundStyle(tint)
+            .background(tint.opacity(0.10), in: Capsule())
     }
 }

@@ -31,10 +31,9 @@ struct DailyClosureView: View {
         self.documentsRepository = documentsRepository
     }
 
-
     var body: some View {
         ScrollView {
-            LazyVStack(spacing: 16) {
+            LazyVStack(spacing: 12) {
                 businessDaySection
                     .dailyClosureHeroSurface()
 
@@ -67,11 +66,13 @@ struct DailyClosureView: View {
                         .dailyClosureSurface()
                 }
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 14)
+            .padding(.horizontal, 11)
+            .padding(.top, 11)
+            .padding(.bottom, 34)
         }
         .background(Color(uiColor: .systemGroupedBackground).ignoresSafeArea())
         .navigationTitle("Hoy")
+        .navigationBarTitleDisplayMode(.large)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 refreshButton
@@ -100,42 +101,89 @@ struct DailyClosureView: View {
     }
 
     private var businessDaySection: some View {
-        Section {
-            VStack(alignment: .leading, spacing: 14) {
-                DailySectionHeader(
-                    icon: "calendar",
-                    title: "Día operativo",
-                    subtitle: "Revisa ventas, caja y pendientes del día seleccionado."
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(alignment: .top, spacing: 12) {
+                DailyIconBadge(systemImage: "calendar", tint: .accentColor)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Día operativo")
+                        .font(.title3.weight(.bold))
+
+                    Text("Resumen ejecutivo de ventas, caja y pendientes.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Spacer(minLength: 0)
+
+                DailyStatusPill(
+                    title: businessDayStatusTitle,
+                    systemImage: businessDayStatusIcon,
+                    tint: businessDayStatusTint
                 )
+            }
+
+            HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Fecha")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+
+                    Text(viewModel.selectedBusinessDateString)
+                        .font(.headline.weight(.semibold))
+                        .monospacedDigit()
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.76)
+                }
+
+                Spacer(minLength: 8)
 
                 DatePicker(
                     "Fecha",
                     selection: $viewModel.businessDate,
                     displayedComponents: [.date]
                 )
+                .labelsHidden()
+                .datePickerStyle(.compact)
                 .onChange(of: viewModel.businessDate) { _, newValue in
                     viewModel.updateBusinessDate(newValue)
                     Task { await viewModel.load() }
                 }
+            }
+            .padding(12)
+            .background(Color(uiColor: .tertiarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
 
-                DailyInfoRow(
-                    title: "Consulta",
-                    value: viewModel.selectedBusinessDateString,
-                    systemImage: "clock"
+            HStack(spacing: 10) {
+                DailyCompactFact(
+                    title: "Ventas",
+                    value: String(viewModel.todaySales.count),
+                    systemImage: "cart"
+                )
+
+                DailyCompactFact(
+                    title: "Pendientes",
+                    value: String(totalPendingCount),
+                    systemImage: viewModel.hasPendingWork ? "exclamationmark.circle" : "checkmark.circle"
                 )
             }
-            .padding(.vertical, 6)
         }
     }
 
     @ViewBuilder
     private var dailyStatsSection: some View {
-        Section {
+        VStack(alignment: .leading, spacing: 14) {
+            DailySectionHeader(
+                icon: "chart.bar.xaxis",
+                title: "Resumen ejecutivo",
+                subtitle: "Movimiento, cobros, caja esperada y alertas del día."
+            )
+
             switch viewModel.reportState {
             case .idle, .loading:
                 DailyLoadingCard(
-                    title: "Cargando estadísticas…",
-                    subtitle: "Estamos preparando el resumen del día."
+                    title: "Cargando resumen…",
+                    subtitle: "Preparando los indicadores operativos."
                 )
 
             case let .failed(message):
@@ -151,7 +199,7 @@ struct DailyClosureView: View {
                 } else {
                     DailyNoticeCard(
                         icon: "exclamationmark.triangle",
-                        title: "No pudimos cargar esta información",
+                        title: "No pudimos cargar el resumen",
                         message: message,
                         style: .error
                     )
@@ -161,26 +209,30 @@ struct DailyClosureView: View {
                 if report != nil || !viewModel.todaySales.isEmpty {
                     TodayStatsView(report: report, sales: viewModel.todaySales)
                 } else {
-                    ContentUnavailableView(
-                        "Sin ventas para este día",
-                        systemImage: "chart.bar.doc.horizontal",
-                        description: Text("Cuando registres ventas, aquí verás el resumen diario.")
+                    DailyEmptyState(
+                        title: "Sin movimiento para este día",
+                        message: "Cuando registres ventas, aquí aparecerá el resumen de operación.",
+                        systemImage: "chart.bar.doc.horizontal"
                     )
                 }
             }
-        } header: {
-            Text("Resumen")
         }
     }
 
     @ViewBuilder
     private var cashSection: some View {
-        Section {
+        VStack(alignment: .leading, spacing: 14) {
+            DailySectionHeader(
+                icon: "banknote",
+                title: "Caja operativa",
+                subtitle: "Estado de caja, efectivo esperado y acceso al cierre."
+            )
+
             if !viewModel.canAccessCash {
                 DailyNoticeCard(
                     icon: "lock",
                     title: "Caja no habilitada",
-                    message: "Puedes revisar ventas y pendientes según tus permisos, pero la apertura, consulta y cierre de caja están reservados para cajeros o administradores.",
+                    message: "Puedes revisar ventas y pendientes según tus permisos, pero apertura, consulta y cierre están reservados para cajeros o administradores.",
                     style: .info
                 )
             } else {
@@ -188,7 +240,7 @@ struct DailyClosureView: View {
                 case .idle, .loading:
                     DailyLoadingCard(
                         title: "Consultando caja…",
-                        subtitle: "Estamos revisando el estado actual de caja."
+                        subtitle: "Revisando el estado actual de caja."
                     )
 
                 case let .failed(message):
@@ -207,11 +259,13 @@ struct DailyClosureView: View {
                             makeCashDashboardView()
                         } label: {
                             DailyNavigationActionRow(
-                                title: viewModel.canCloseCash ? "Ver caja o cerrar caja" : "Ver caja operativa",
-                                subtitle: viewModel.canCloseCash ? "Revisar efectivo esperado, contado y cierre." : "Consultar el estado actual de caja.",
-                                systemImage: viewModel.canCloseCash ? "lock" : "tray"
+                                title: viewModel.canCloseCash ? "Gestionar cierre de caja" : "Ver caja operativa",
+                                subtitle: viewModel.canCloseCash ? "Conteo, diferencia y cierre del turno." : "Consultar el estado actual de caja.",
+                                systemImage: viewModel.canCloseCash ? "lock" : "tray",
+                                tint: .accentColor
                             )
                         }
+                        .buttonStyle(.plain)
                     } else {
                         DailyNoticeCard(
                             icon: "lock.open",
@@ -224,32 +278,38 @@ struct DailyClosureView: View {
                             makeCashDashboardView()
                         } label: {
                             DailyNavigationActionRow(
-                                title: viewModel.canOpenCash ? "Abrir caja" : "Revisar caja",
+                                title: viewModel.canOpenCash ? "Abrir caja operativa" : "Revisar caja",
                                 subtitle: viewModel.canOpenCash ? "Registrar efectivo inicial para operar." : "Consultar información disponible según permisos.",
-                                systemImage: "tray"
+                                systemImage: "tray",
+                                tint: .accentColor
                             )
                         }
+                        .buttonStyle(.plain)
                     }
                 }
             }
-        } header: {
-            Text("Caja operativa")
         }
     }
 
     private var pendingSummarySection: some View {
-        Section {
+        VStack(alignment: .leading, spacing: 14) {
+            DailySectionHeader(
+                icon: viewModel.hasPendingWork ? "exclamationmark.circle" : "checkmark.seal",
+                title: "Control de cierre",
+                subtitle: "Elementos que conviene resolver antes de cerrar el día."
+            )
+
             DailyPendingSummaryView(
                 pendingSalesCount: viewModel.pendingSales.count,
                 pendingReceivablesCount: viewModel.pendingReceivables.count,
                 pendingDocumentsCount: viewModel.pendingDocuments.count,
                 hasPendingWork: viewModel.hasPendingWork
             )
-        } header: {
-            Text("Pendientes")
-        } footer: {
+
             if viewModel.hasPendingWork {
-                Text("Resuelve ventas sin cobrar, cuentas por cobrar reales y comprobantes antes de considerar cerrado el día operativo.")
+                DailyInlineFootnote(
+                    text: "Primero revisa ventas pendientes, cuentas por cobrar reales y comprobantes. Así el cierre queda limpio y defendible."
+                )
             }
         }
     }
@@ -257,26 +317,33 @@ struct DailyClosureView: View {
     @ViewBuilder
     private var pendingSalesSection: some View {
         if !viewModel.pendingSales.isEmpty {
-            Section {
-                ForEach(viewModel.pendingSales) { sale in
-                    NavigationLink {
-                        SaleDetailView(
-                            viewModel: viewModel.makeSaleDetailViewModel(
-                                saleId: sale.id,
-                                initialSale: sale,
-                                salesRepository: salesRepository
-                            ),
-                            cashRepository: cashRepository,
-                            paymentsRepository: paymentsRepository,
-                            receivablesRepository: receivablesRepository,
-                            documentsRepository: documentsRepository
-                        )
-                    } label: {
-                        PendingSaleRow(sale: sale)
+            VStack(alignment: .leading, spacing: 12) {
+                DailySectionHeader(
+                    icon: "cart.badge.clock",
+                    title: "Ventas pendientes",
+                    subtitle: "Ventas guardadas o confirmadas que aún requieren cobro final."
+                )
+
+                VStack(spacing: 10) {
+                    ForEach(viewModel.pendingSales) { sale in
+                        NavigationLink {
+                            SaleDetailView(
+                                viewModel: viewModel.makeSaleDetailViewModel(
+                                    saleId: sale.id,
+                                    initialSale: sale,
+                                    salesRepository: salesRepository
+                                ),
+                                cashRepository: cashRepository,
+                                paymentsRepository: paymentsRepository,
+                                receivablesRepository: receivablesRepository,
+                                documentsRepository: documentsRepository
+                            )
+                        } label: {
+                            PendingSaleRow(sale: sale)
+                        }
+                        .buttonStyle(.plain)
                     }
                 }
-            } header: {
-                Text("Ventas sin cobrar")
             }
         }
     }
@@ -284,22 +351,29 @@ struct DailyClosureView: View {
     @ViewBuilder
     private var pendingReceivablesSection: some View {
         if !viewModel.pendingReceivables.isEmpty {
-            Section {
-                ForEach(viewModel.pendingReceivables) { receivable in
-                    NavigationLink {
-                        ReceivableCollectionView(
-                            viewModel: viewModel.makeReceivableCollectionViewModel(
-                                receivable: receivable,
-                                cashRepository: cashRepository,
-                                receivablesRepository: receivablesRepository
+            VStack(alignment: .leading, spacing: 12) {
+                DailySectionHeader(
+                    icon: "person.crop.circle.badge.clock",
+                    title: "Cuentas por cobrar",
+                    subtitle: "Deudas reales que siguen abiertas para gestión de cobro."
+                )
+
+                VStack(spacing: 10) {
+                    ForEach(viewModel.pendingReceivables) { receivable in
+                        NavigationLink {
+                            ReceivableCollectionView(
+                                viewModel: viewModel.makeReceivableCollectionViewModel(
+                                    receivable: receivable,
+                                    cashRepository: cashRepository,
+                                    receivablesRepository: receivablesRepository
+                                )
                             )
-                        )
-                    } label: {
-                        PendingReceivableRow(receivable: receivable)
+                        } label: {
+                            PendingReceivableRow(receivable: receivable)
+                        }
+                        .buttonStyle(.plain)
                     }
                 }
-            } header: {
-                Text("Cuentas por cobrar")
             }
         }
     }
@@ -307,33 +381,40 @@ struct DailyClosureView: View {
     @ViewBuilder
     private var pendingDocumentsSection: some View {
         if !viewModel.pendingDocuments.isEmpty {
-            Section {
-                ForEach(viewModel.pendingDocuments) { document in
-                    NavigationLink {
-                        SaleDetailView(
-                            viewModel: viewModel.makeSaleDetailViewModel(
-                                saleId: document.saleId,
-                                salesRepository: salesRepository
-                            ),
-                            cashRepository: cashRepository,
-                            paymentsRepository: paymentsRepository,
-                            receivablesRepository: receivablesRepository,
-                            documentsRepository: documentsRepository
-                        )
-                    } label: {
-                        PendingDocumentRow(document: document)
+            VStack(alignment: .leading, spacing: 12) {
+                DailySectionHeader(
+                    icon: "doc.text.magnifyingglass",
+                    title: "Comprobantes pendientes",
+                    subtitle: "Documentos que requieren revisión o seguimiento."
+                )
+
+                VStack(spacing: 10) {
+                    ForEach(viewModel.pendingDocuments) { document in
+                        NavigationLink {
+                            SaleDetailView(
+                                viewModel: viewModel.makeSaleDetailViewModel(
+                                    saleId: document.saleId,
+                                    salesRepository: salesRepository
+                                ),
+                                cashRepository: cashRepository,
+                                paymentsRepository: paymentsRepository,
+                                receivablesRepository: receivablesRepository,
+                                documentsRepository: documentsRepository
+                            )
+                        } label: {
+                            PendingDocumentRow(document: document)
+                        }
+                        .buttonStyle(.plain)
                     }
                 }
-            } header: {
-                Text("Comprobantes por revisar")
             }
         }
     }
 
     @ViewBuilder
     private var messagesSection: some View {
-        if let message = viewModel.errorMessage, !message.isEmpty {
-            Section {
+        VStack(alignment: .leading, spacing: 12) {
+            if let message = viewModel.errorMessage, !message.isEmpty {
                 DailyNoticeCard(
                     icon: "exclamationmark.triangle",
                     title: "Atención",
@@ -341,10 +422,8 @@ struct DailyClosureView: View {
                     style: .error
                 )
             }
-        }
 
-        if let message = viewModel.infoMessage, !message.isEmpty {
-            Section {
+            if let message = viewModel.infoMessage, !message.isEmpty {
                 DailyNoticeCard(
                     icon: viewModel.hasPendingWork ? "exclamationmark.circle" : "checkmark.circle",
                     title: viewModel.hasPendingWork ? "Pendientes detectados" : "Todo en orden",
@@ -366,25 +445,57 @@ struct DailyClosureView: View {
             )
         )
     }
-}
 
+    private var totalPendingCount: Int {
+        viewModel.pendingSales.count + viewModel.pendingReceivables.count + viewModel.pendingDocuments.count
+    }
+
+    private var businessDayStatusTitle: String {
+        if viewModel.isLoading { return "Actualizando" }
+        return viewModel.hasPendingWork ? "Con pendientes" : "Al día"
+    }
+
+    private var businessDayStatusIcon: String {
+        if viewModel.isLoading { return "arrow.clockwise" }
+        return viewModel.hasPendingWork ? "exclamationmark.circle" : "checkmark.circle"
+    }
+
+    private var businessDayStatusTint: Color {
+        if viewModel.isLoading { return .secondary }
+        return viewModel.hasPendingWork ? .orange : .green
+    }
+}
 
 private struct DailyClosureSurfaceModifier: ViewModifier {
     var isHero: Bool = false
 
     func body(content: Content) -> some View {
+        let cornerRadius: CGFloat = isHero ? 26 : 22
+
         content
-            .padding(isHero ? 18 : 14)
+            .padding(isHero ? 18 : 16)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background {
-                RoundedRectangle(cornerRadius: isHero ? 24 : 20, style: .continuous)
-                    .fill(Color(uiColor: .secondarySystemGroupedBackground))
+                if isHero {
+                    LinearGradient(
+                        colors: [
+                            Color.accentColor.opacity(0.16),
+                            Color(uiColor: .secondarySystemGroupedBackground)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                    .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+                } else {
+                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                        .fill(Color(uiColor: .secondarySystemGroupedBackground))
+                }
             }
             .overlay {
-                RoundedRectangle(cornerRadius: isHero ? 24 : 20, style: .continuous)
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                     .strokeBorder(Color.primary.opacity(0.06), lineWidth: 1)
             }
-            .shadow(color: Color.black.opacity(isHero ? 0.07 : 0.035), radius: isHero ? 14 : 8, x: 0, y: isHero ? 8 : 4)
+            .shadow(color: Color.black.opacity(isHero ? 0.055 : 0.03), radius: isHero ? 14 : 8, x: 0, y: isHero ? 8 : 4)
     }
 }
 
@@ -398,82 +509,82 @@ private extension View {
     }
 }
 
-
-
 private struct TodayStatsView: View {
     let report: BusinessDailyReport?
     let sales: [BusinessSale]
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            DailySectionHeader(
-                icon: "chart.bar.fill",
-                title: "Movimiento del día",
-                subtitle: "Ventas, cobros y efectivo esperado."
-            )
-
-            VStack(spacing: 12) {
-                HStack(spacing: 12) {
+            VStack(spacing: 10) {
+                HStack(spacing: 10) {
                     TodayMetricCard(
                         title: "Ventas",
                         value: String(salesCount),
                         subtitle: "registradas",
-                        systemImage: "cart.fill"
+                        systemImage: "cart.fill",
+                        prominence: .standard
                     )
 
                     TodayMetricCard(
                         title: "Total vendido",
                         value: salesTotal.displayText,
                         subtitle: "ventas activas",
-                        systemImage: "chart.line.uptrend.xyaxis"
+                        systemImage: "chart.line.uptrend.xyaxis",
+                        prominence: .highlight
                     )
                 }
 
-                HStack(spacing: 12) {
+                HStack(spacing: 10) {
                     TodayMetricCard(
                         title: "Cobrado",
                         value: paymentsTotal.displayText,
                         subtitle: "pagos recibidos",
-                        systemImage: "dollarsign.circle.fill"
+                        systemImage: "dollarsign.circle.fill",
+                        prominence: .highlight
                     )
 
                     TodayMetricCard(
                         title: "Caja",
                         value: cashExpectedAmount.displayText,
                         subtitle: "efectivo esperado",
-                        systemImage: "banknote.fill"
+                        systemImage: "banknote.fill",
+                        prominence: .standard
                     )
                 }
 
-                HStack(spacing: 12) {
+                HStack(spacing: 10) {
                     TodayMetricCard(
                         title: "Pagos",
                         value: String(paymentsCount),
                         subtitle: "registrados",
-                        systemImage: "creditcard.fill"
+                        systemImage: "creditcard.fill",
+                        prominence: .quiet
                     )
 
                     TodayMetricCard(
                         title: "Productos",
                         value: productSummaryText,
                         subtitle: productSummarySubtitle,
-                        systemImage: "shippingbox.fill"
+                        systemImage: "shippingbox.fill",
+                        prominence: .quiet
                     )
                 }
 
-                HStack(spacing: 12) {
+                HStack(spacing: 10) {
                     TodayMetricCard(
                         title: "Documentos",
                         value: String(documentsPendingCount),
                         subtitle: "pendientes",
-                        systemImage: "doc.text.fill"
+                        systemImage: "doc.text.fill",
+                        prominence: documentsPendingCount > 0 ? .warning : .quiet
                     )
 
                     TodayMetricCard(
                         title: "Alertas",
                         value: String(alertsCount),
                         subtitle: alertsSubtitle,
-                        systemImage: "bell.badge.fill"
+                        systemImage: "bell.badge.fill",
+                        prominence: alertsCount > 0 ? .warning : .quiet
                     )
                 }
             }
@@ -486,7 +597,6 @@ private struct TodayStatsView: View {
                 )
             }
         }
-        .padding(.vertical, 6)
     }
 
     private var salesCount: Int {
@@ -585,41 +695,81 @@ private struct TodayStatsView: View {
     }
 }
 
+private enum TodayMetricProminence {
+    case highlight
+    case standard
+    case quiet
+    case warning
+
+    var tint: Color {
+        switch self {
+        case .highlight:
+            return .accentColor
+        case .standard:
+            return .secondary
+        case .quiet:
+            return .secondary
+        case .warning:
+            return .orange
+        }
+    }
+
+    var backgroundOpacity: Double {
+        switch self {
+        case .highlight:
+            return 0.10
+        case .standard:
+            return 0.055
+        case .quiet:
+            return 0.035
+        case .warning:
+            return 0.10
+        }
+    }
+}
+
 private struct TodayMetricCard: View {
     let title: String
     let value: String
     let subtitle: String
     let systemImage: String
+    let prominence: TodayMetricProminence
 
     var body: some View {
         VStack(alignment: .leading, spacing: 9) {
             HStack(spacing: 6) {
                 Image(systemName: systemImage)
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(prominence.tint)
 
                 Text(title)
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
+                    .minimumScaleFactor(0.78)
             }
 
             Text(value)
                 .font(.headline.weight(.bold))
                 .monospacedDigit()
                 .lineLimit(1)
-                .minimumScaleFactor(0.65)
+                .minimumScaleFactor(0.60)
 
             Text(subtitle)
                 .font(.caption2)
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
+                .minimumScaleFactor(0.78)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxWidth: .infinity, minHeight: 96, alignment: .topLeading)
         .padding(12)
         .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(Color(.secondarySystemBackground))
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(prominence.tint.opacity(prominence.backgroundOpacity))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .strokeBorder(Color.primary.opacity(0.045), lineWidth: 1)
         )
     }
 }
@@ -630,20 +780,24 @@ private struct CashTodaySummaryView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .top, spacing: 12) {
-                Image(systemName: session.isOpen ? "checkmark.circle.fill" : "lock.fill")
-                    .font(.title3)
-                    .foregroundStyle(session.isOpen ? .green : .secondary)
+                DailyIconBadge(systemImage: session.isOpen ? "checkmark.circle.fill" : "lock.fill", tint: session.isOpen ? .green : .secondary)
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text(session.isOpen ? "Caja abierta" : "Caja cerrada")
                         .font(.headline)
 
-                    Text(session.isOpen ? "La caja está lista para operar." : "La caja ya fue cerrada.")
+                    Text(session.isOpen ? "Lista para operar y registrar cobros." : "El turno de caja ya fue cerrado.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
 
-                Spacer()
+                Spacer(minLength: 0)
+
+                DailyStatusPill(
+                    title: session.isOpen ? "Abierta" : "Cerrada",
+                    systemImage: session.isOpen ? "checkmark" : "lock",
+                    tint: session.isOpen ? .green : .secondary
+                )
             }
 
             VStack(spacing: 10) {
@@ -688,7 +842,6 @@ private struct CashTodaySummaryView: View {
                 }
             }
         }
-        .padding(.vertical, 6)
     }
 
     private func money(_ amount: MoneyAmount) -> String {
@@ -705,43 +858,49 @@ private struct DailyPendingSummaryView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .top, spacing: 12) {
-                Image(systemName: hasPendingWork ? "exclamationmark.circle.fill" : "checkmark.circle.fill")
-                    .font(.title3)
-                    .foregroundStyle(hasPendingWork ? .orange : .green)
+                DailyIconBadge(
+                    systemImage: hasPendingWork ? "exclamationmark.circle.fill" : "checkmark.circle.fill",
+                    tint: hasPendingWork ? .orange : .green
+                )
 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(hasPendingWork ? "Hay pendientes antes de cerrar" : "Sin pendientes operativos")
+                    Text(hasPendingWork ? "Pendientes antes de cerrar" : "Día listo para cierre")
                         .font(.headline)
 
-                    Text(hasPendingWork ? "Revisa ventas sin cobrar, cuentas por cobrar reales y comprobantes." : "El día no tiene pendientes visibles.")
+                    Text(hasPendingWork ? "Hay trabajo operativo que conviene revisar." : "No hay pendientes visibles para este día.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
 
-                Spacer()
+                Spacer(minLength: 0)
+
+                DailyStatusPill(
+                    title: hasPendingWork ? "Revisar" : "Listo",
+                    systemImage: hasPendingWork ? "exclamationmark" : "checkmark",
+                    tint: hasPendingWork ? .orange : .green
+                )
             }
 
             VStack(spacing: 10) {
                 DailyInfoRow(
-                    title: "Ventas sin cobrar",
+                    title: "Ventas pendientes",
                     value: String(pendingSalesCount),
                     systemImage: "cart.badge.clock"
                 )
 
                 DailyInfoRow(
-                    title: "Cuentas por cobrar",
+                    title: "Por cobrar",
                     value: String(pendingReceivablesCount),
                     systemImage: "person.crop.circle.badge.exclamationmark"
                 )
 
                 DailyInfoRow(
-                    title: "Comprobantes por revisar",
+                    title: "Comprobantes",
                     value: String(pendingDocumentsCount),
                     systemImage: "doc.text.magnifyingglass"
                 )
             }
         }
-        .padding(.vertical, 6)
     }
 }
 
@@ -749,31 +908,54 @@ private struct PendingSaleRow: View {
     let sale: BusinessSale
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 7) {
-            HStack(alignment: .firstTextBaseline) {
-                Text("Venta \(sale.displayNumber)")
-                    .font(.subheadline.weight(.semibold))
+        HStack(alignment: .center, spacing: 12) {
+            DailyIconBadge(systemImage: "cart.badge.clock", tint: .accentColor)
 
-                Spacer()
+            VStack(alignment: .leading, spacing: 7) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text("Venta \(sale.displayNumber)")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.74)
 
-                Text(money(sale.totals.grandTotal))
-                    .font(.subheadline.weight(.semibold))
-                    .monospacedDigit()
+                    Spacer(minLength: 8)
+
+                    Text(money(sale.totals.grandTotal))
+                        .font(.subheadline.weight(.bold))
+                        .foregroundStyle(.primary)
+                        .monospacedDigit()
+                        .lineLimit(1)
+                }
+
+                Text(sale.displayCustomerName)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+
+                HStack(spacing: 8) {
+                    DailySmallBadge(
+                        text: SaleStatusPresentation.title(for: sale.status),
+                        systemImage: "tag"
+                    )
+
+                    DailySmallBadge(
+                        text: sale.collectionState.shortName,
+                        systemImage: sale.collectionState.systemImage
+                    )
+                }
             }
 
-            HStack(spacing: 8) {
-                DailySmallBadge(
-                    text: SaleStatusPresentation.title(for: sale.status),
-                    systemImage: "tag"
-                )
-
-                DailySmallBadge(
-                    text: sale.collectionState.shortName,
-                    systemImage: sale.collectionState.systemImage
-                )
-            }
+            Image(systemName: "chevron.right")
+                .font(.caption.weight(.bold))
+                .foregroundStyle(.tertiary)
         }
-        .padding(.vertical, 6)
+        .padding(12)
+        .background(Color(uiColor: .tertiarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .strokeBorder(Color.primary.opacity(0.04), lineWidth: 1)
+        )
     }
 
     private func money(_ amount: MoneyAmount) -> String {
@@ -785,34 +967,51 @@ private struct PendingReceivableRow: View {
     let receivable: ReceivableRecord
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 7) {
-            HStack(alignment: .firstTextBaseline) {
-                Text("Cuenta \(receivable.id)")
-                    .font(.subheadline.weight(.semibold))
-                    .lineLimit(1)
+        HStack(alignment: .center, spacing: 12) {
+            DailyIconBadge(systemImage: "person.crop.circle.badge.clock", tint: .orange)
 
-                Spacer()
+            VStack(alignment: .leading, spacing: 7) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text("Cuenta \(receivable.id)")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.72)
 
-                Text(money(receivable.balance ?? receivable.amount))
-                    .font(.subheadline.weight(.semibold))
-                    .monospacedDigit()
-            }
+                    Spacer(minLength: 8)
 
-            HStack(spacing: 8) {
-                DailySmallBadge(
-                    text: ReceivableStatusPresentation.displayName(receivable.status),
-                    systemImage: "tag"
-                )
+                    Text(money(receivable.balance ?? receivable.amount))
+                        .font(.subheadline.weight(.bold))
+                        .foregroundStyle(.primary)
+                        .monospacedDigit()
+                        .lineLimit(1)
+                }
 
-                if let dueDate = receivable.dueDate {
+                HStack(spacing: 8) {
                     DailySmallBadge(
-                        text: "Vence \(dueDate.formatted(date: .abbreviated, time: .omitted))",
-                        systemImage: "calendar"
+                        text: ReceivableStatusPresentation.displayName(receivable.status),
+                        systemImage: "tag"
                     )
+
+                    if let dueDate = receivable.dueDate {
+                        DailySmallBadge(
+                            text: "Vence \(dueDate.formatted(date: .abbreviated, time: .omitted))",
+                            systemImage: "calendar"
+                        )
+                    }
                 }
             }
+
+            Image(systemName: "chevron.right")
+                .font(.caption.weight(.bold))
+                .foregroundStyle(.tertiary)
         }
-        .padding(.vertical, 6)
+        .padding(12)
+        .background(Color(uiColor: .tertiarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .strokeBorder(Color.primary.opacity(0.04), lineWidth: 1)
+        )
     }
 
     private func money(_ amount: MoneyAmount) -> String {
@@ -824,30 +1023,48 @@ private struct PendingDocumentRow: View {
     let document: BusinessDocument
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 7) {
-            HStack(alignment: .top, spacing: 8) {
-                Image(systemName: BusinessDocumentTypePresentation.systemImage(document.type))
-                    .foregroundStyle(.secondary)
+        HStack(alignment: .center, spacing: 12) {
+            DailyIconBadge(systemImage: BusinessDocumentTypePresentation.systemImage(document.type), tint: .green)
 
-                VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 7) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
                     Text(BusinessDocumentTypePresentation.displayName(document.type))
                         .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
 
-                    Text(BusinessDocumentStatusPresentation.displayName(document.status))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    Spacer(minLength: 8)
 
-                    if let number = document.number, !number.isEmpty {
-                        Text(number)
-                            .font(.caption2.monospaced())
-                            .foregroundStyle(.secondary)
-                    }
+                    DailyStatusPill(
+                        title: BusinessDocumentStatusPresentation.displayName(document.status),
+                        systemImage: "doc.text",
+                        tint: .secondary
+                    )
                 }
 
-                Spacer()
+                if let number = document.number, !number.isEmpty {
+                    Text(number)
+                        .font(.caption.monospaced())
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                } else {
+                    Text("Venta \(document.saleId)")
+                        .font(.caption.monospaced())
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
             }
+
+            Image(systemName: "chevron.right")
+                .font(.caption.weight(.bold))
+                .foregroundStyle(.tertiary)
         }
-        .padding(.vertical, 6)
+        .padding(12)
+        .background(Color(uiColor: .tertiarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .strokeBorder(Color.primary.opacity(0.04), lineWidth: 1)
+        )
     }
 }
 
@@ -858,9 +1075,7 @@ private struct DailySectionHeader: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
-            Image(systemName: icon)
-                .font(.title3)
-                .foregroundStyle(Color.accentColor)
+            DailyIconBadge(systemImage: icon, tint: .accentColor)
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(title)
@@ -869,7 +1084,10 @@ private struct DailySectionHeader: View {
                 Text(subtitle)
                     .font(.footnote)
                     .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
+
+            Spacer(minLength: 0)
         }
     }
 }
@@ -882,25 +1100,29 @@ private struct DailyInfoRow: View {
     var body: some View {
         HStack(spacing: 12) {
             Image(systemName: systemImage)
+                .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.secondary)
                 .frame(width: 24)
 
             Text(title)
+                .font(.subheadline)
                 .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.78)
 
-            Spacer()
+            Spacer(minLength: 8)
 
             Text(value)
-                .font(.body.weight(.semibold))
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.primary)
                 .monospacedDigit()
                 .multilineTextAlignment(.trailing)
+                .lineLimit(1)
+                .minimumScaleFactor(0.72)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
-        .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(Color(.secondarySystemBackground))
-        )
+        .background(Color(uiColor: .tertiarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
 }
 
@@ -908,24 +1130,35 @@ private struct DailyNavigationActionRow: View {
     let title: String
     let subtitle: String
     let systemImage: String
+    let tint: Color
 
     var body: some View {
         HStack(spacing: 12) {
-            Image(systemName: systemImage)
-                .font(.body.weight(.semibold))
-                .foregroundStyle(Color.accentColor)
-                .frame(width: 24)
+            DailyIconBadge(systemImage: systemImage, tint: tint)
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(title)
-                    .font(.body.weight(.semibold))
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.primary)
 
                 Text(subtitle)
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
+
+            Spacer(minLength: 0)
+
+            Image(systemName: "chevron.right")
+                .font(.caption.weight(.bold))
+                .foregroundStyle(.tertiary)
         }
-        .padding(.vertical, 4)
+        .padding(12)
+        .background(tint.opacity(0.10), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .strokeBorder(Color.primary.opacity(0.04), lineWidth: 1)
+        )
     }
 }
 
@@ -958,11 +1191,22 @@ private enum DailyNoticeStyle {
     var color: Color {
         switch self {
         case .info:
-            return .secondary
+            return .accentColor
         case .warning:
             return .orange
         case .error:
             return .red
+        }
+    }
+
+    var backgroundOpacity: Double {
+        switch self {
+        case .info:
+            return 0.08
+        case .warning:
+            return 0.10
+        case .error:
+            return 0.09
         }
     }
 }
@@ -975,10 +1219,7 @@ private struct DailyNoticeCard: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
-            Image(systemName: icon)
-                .font(.body.weight(.semibold))
-                .foregroundStyle(style.color)
-                .padding(.top, 1)
+            DailyIconBadge(systemImage: icon, tint: style.color)
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(title)
@@ -992,7 +1233,8 @@ private struct DailyNoticeCard: View {
 
             Spacer(minLength: 0)
         }
-        .padding(.vertical, 6)
+        .padding(12)
+        .background(style.color.opacity(style.backgroundOpacity), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
     }
 }
 
@@ -1004,12 +1246,107 @@ private struct DailySmallBadge: View {
         Label(text, systemImage: systemImage)
             .font(.caption2.weight(.medium))
             .foregroundStyle(.secondary)
+            .lineLimit(1)
             .padding(.horizontal, 8)
             .padding(.vertical, 5)
-            .background(
-                Capsule(style: .continuous)
-                    .fill(Color(.secondarySystemBackground))
-            )
+            .background(Color(uiColor: .secondarySystemGroupedBackground), in: Capsule(style: .continuous))
+    }
+}
+
+private struct DailyStatusPill: View {
+    let title: String
+    let systemImage: String
+    let tint: Color
+
+    var body: some View {
+        Label(title, systemImage: systemImage)
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(tint)
+            .lineLimit(1)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 7)
+            .background(tint.opacity(0.11), in: Capsule(style: .continuous))
+    }
+}
+
+private struct DailyIconBadge: View {
+    let systemImage: String
+    let tint: Color
+
+    var body: some View {
+        Image(systemName: systemImage)
+            .font(.headline.weight(.semibold))
+            .foregroundStyle(tint)
+            .frame(width: 42, height: 42)
+            .background(tint.opacity(0.12), in: RoundedRectangle(cornerRadius: 15, style: .continuous))
+    }
+}
+
+private struct DailyCompactFact: View {
+    let title: String
+    let value: String
+    let systemImage: String
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: systemImage)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.secondary)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                Text(value)
+                    .font(.headline.weight(.bold))
+                    .monospacedDigit()
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(uiColor: .tertiarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+    }
+}
+
+private struct DailyInlineFootnote: View {
+    let text: String
+
+    var body: some View {
+        Label(text, systemImage: "info.circle")
+            .font(.footnote)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+            .padding(12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color(uiColor: .tertiarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+}
+
+private struct DailyEmptyState: View {
+    let title: String
+    let message: String
+    let systemImage: String
+
+    var body: some View {
+        VStack(spacing: 8) {
+            Image(systemName: systemImage)
+                .font(.title2.weight(.semibold))
+                .foregroundStyle(.secondary)
+
+            Text(title)
+                .font(.headline)
+
+            Text(message)
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 18)
     }
 }
 

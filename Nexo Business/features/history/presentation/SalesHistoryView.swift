@@ -17,7 +17,7 @@ struct SalesHistoryView: View {
     private let documentsRepository: BusinessDocumentsRepository
 
     @State private var pendingSearchTask: Task<Void, Never>?
-    
+
     init(
         viewModel: SalesHistoryViewModel,
         salesRepository: SalesRepository,
@@ -37,23 +37,31 @@ struct SalesHistoryView: View {
     }
 
     var body: some View {
-        Form {
-            filtersSection
-            summarySection
-            resultsSection
-            messagesSection
+        ScrollView {
+            LazyVStack(spacing: 12) {
+                filtersSection
+                    .salesHistoryHeroSurface()
+
+                if hasMessages {
+                    messagesSection
+                        .salesHistorySurface()
+                }
+
+                summarySection
+                    .salesHistorySurface()
+
+                resultsSection
+                    .salesHistorySurface()
+            }
+            .padding(.horizontal, 11)
+            .padding(.vertical, 11)
         }
+        .background(Color(uiColor: .systemGroupedBackground).ignoresSafeArea())
         .nexoKeyboardDismissable()
         .navigationTitle("Historial")
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                Button {
-                    NexoKeyboard.dismiss()
-                    Task { await viewModel.searchNow() }
-                } label: {
-                    Image(systemName: "arrow.clockwise")
-                }
-                .disabled(!viewModel.canSearch)
+                refreshButton
             }
         }
         .task {
@@ -65,30 +73,40 @@ struct SalesHistoryView: View {
         .refreshable {
             await viewModel.searchNow()
         }
-        .onChange(of: viewModel.query) { _, _ in
-            viewModel.scheduleSearch()
+    }
+
+    private var refreshButton: some View {
+        Button {
+            NexoKeyboard.dismiss()
+            Task { await viewModel.searchNow() }
+        } label: {
+            if viewModel.isLoading {
+                ProgressView()
+                    .controlSize(.small)
+            } else {
+                Image(systemName: "arrow.clockwise")
+            }
         }
-        .onChange(of: viewModel.selectedStatus) { _, _ in
-            viewModel.scheduleSearch()
-        }
-        .onChange(of: viewModel.useDateFilter) { _, _ in
-            viewModel.scheduleSearch()
-        }
-        .onChange(of: viewModel.selectedDate) { _, _ in
-            viewModel.scheduleSearch()
-        }
+        .disabled(!viewModel.canSearch)
+        .accessibilityLabel("Actualizar historial")
     }
 
     private var filtersSection: some View {
-        Section {
-            searchField
-            statusFilter
-            dateFilter
-        } header: {
-            HStack {
-                Text("Filtros")
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .top, spacing: 12) {
+                SalesHistoryIconBadge(systemImage: "clock.arrow.circlepath", tint: .accentColor)
 
-                Spacer()
+                VStack(alignment: .leading, spacing: 5) {
+                    Text("Historial comercial")
+                        .font(.headline)
+
+                    Text("Busca ventas, clientes, comprobantes o valores registrados.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Spacer(minLength: 0)
 
                 if hasActiveFilters {
                     Button {
@@ -97,15 +115,21 @@ struct SalesHistoryView: View {
                         runSearchNow()
                     } label: {
                         Text("Limpiar")
-                            .font(.caption)
-                            .fontWeight(.medium)
-                            .foregroundStyle(.secondary)
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(Color.accentColor)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 7)
+                            .background(Color.accentColor.opacity(0.10), in: Capsule(style: .continuous))
                     }
                     .buttonStyle(.plain)
                     .disabled(viewModel.isLoading)
                     .accessibilityLabel("Limpiar filtros")
                 }
             }
+
+            searchField
+            statusFilter
+            dateFilter
         }
         .onChange(of: viewModel.query) { _, _ in
             scheduleSearch()
@@ -121,12 +145,13 @@ struct SalesHistoryView: View {
             runSearchNow()
         }
     }
-    
+
     private var searchField: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 10) {
             Image(systemName: "magnifyingglass")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(Color.accentColor)
+                .frame(width: 24)
 
             TextField("Venta, cliente, factura o valor", text: $viewModel.query)
                 .textInputAutocapitalization(.never)
@@ -151,18 +176,25 @@ struct SalesHistoryView: View {
             }
         }
         .padding(.horizontal, 12)
-        .padding(.vertical, 10)
-        .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(Color(.secondarySystemBackground))
+        .padding(.vertical, 11)
+        .background(Color(uiColor: .secondarySystemBackground).opacity(0.78), in: RoundedRectangle(cornerRadius: 15, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 15, style: .continuous)
+                .strokeBorder(Color.primary.opacity(0.05), lineWidth: 1)
         )
     }
-    
+
     private var statusFilter: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Estado")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: 9) {
+            HStack(spacing: 8) {
+                Image(systemName: "line.3.horizontal.decrease.circle")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+
+                Text("Estado")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+            }
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
@@ -173,9 +205,8 @@ struct SalesHistoryView: View {
                 .padding(.vertical, 2)
             }
         }
-        .padding(.vertical, 4)
     }
-    
+
     private func statusChip(_ status: SalesHistoryStatusFilter) -> some View {
         let isSelected = viewModel.selectedStatus == status
 
@@ -183,24 +214,24 @@ struct SalesHistoryView: View {
             viewModel.selectedStatus = status
         } label: {
             Text(status.displayName)
-                .font(.footnote.weight(isSelected ? .semibold : .regular))
-                .foregroundStyle(isSelected ? .primary : .secondary)
+                .font(.footnote.weight(isSelected ? .semibold : .medium))
+                .foregroundStyle(isSelected ? Color.accentColor : Color.secondary)
                 .padding(.horizontal, 12)
-                .padding(.vertical, 7)
+                .padding(.vertical, 8)
                 .background(
                     Capsule(style: .continuous)
                         .fill(
                             isSelected
-                            ? Color.accentColor.opacity(0.12)
-                            : Color(.secondarySystemBackground)
+                            ? Color.accentColor.opacity(0.13)
+                            : Color(uiColor: .secondarySystemBackground).opacity(0.75)
                         )
                 )
                 .overlay(
                     Capsule(style: .continuous)
                         .strokeBorder(
                             isSelected
-                            ? Color.accentColor.opacity(0.45)
-                            : Color(.separator),
+                            ? Color.accentColor.opacity(0.38)
+                            : Color.primary.opacity(0.05),
                             lineWidth: 1
                         )
                 )
@@ -208,11 +239,13 @@ struct SalesHistoryView: View {
         .buttonStyle(.plain)
         .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
-    
+
     private var dateFilter: some View {
         VStack(alignment: .leading, spacing: 10) {
             Toggle(isOn: $viewModel.useDateFilter) {
                 Label("Filtrar por fecha", systemImage: "calendar")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(.primary)
             }
 
             if viewModel.useDateFilter {
@@ -224,22 +257,42 @@ struct SalesHistoryView: View {
                 .datePickerStyle(.compact)
             }
         }
+        .padding(12)
+        .background(Color(uiColor: .secondarySystemBackground).opacity(0.72), in: RoundedRectangle(cornerRadius: 15, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 15, style: .continuous)
+                .strokeBorder(Color.primary.opacity(0.05), lineWidth: 1)
+        )
     }
 
     private var summarySection: some View {
-        Section("Resumen") {
-            LabeledContent("Filtros", value: viewModel.activeFiltersDescription)
+        VStack(alignment: .leading, spacing: 14) {
+            SalesHistorySectionHeader(
+                icon: "chart.bar.doc.horizontal",
+                title: "Resumen del historial",
+                subtitle: "Vista rápida de la búsqueda actual."
+            )
 
-            if let total = viewModel.total {
-                LabeledContent("Ventas encontradas", value: String(total))
-            } else {
-                LabeledContent("Ventas", value: String(viewModel.sales.count))
+            VStack(spacing: 10) {
+                SalesHistoryInfoRow(
+                    title: "Filtros activos",
+                    value: viewModel.activeFiltersDescription,
+                    systemImage: "slider.horizontal.3"
+                )
+
+                SalesHistoryInfoRow(
+                    title: totalTitle,
+                    value: String(totalValue),
+                    systemImage: "receipt"
+                )
             }
 
             if viewModel.hasMore == true {
-                NexoMessageBanner(
-                    "Hay más ventas disponibles. Refina la búsqueda para ver menos resultados.",
-                    style: .info
+                SalesHistoryNoticeCard(
+                    icon: "info.circle",
+                    title: "Hay más resultados",
+                    message: "Refina la búsqueda por texto, estado o fecha para trabajar con una lista más precisa.",
+                    tint: .accentColor
                 )
             }
         }
@@ -247,34 +300,48 @@ struct SalesHistoryView: View {
 
     @ViewBuilder
     private var resultsSection: some View {
-        Section("Ventas") {
+        VStack(alignment: .leading, spacing: 14) {
+            SalesHistorySectionHeader(
+                icon: "list.bullet.rectangle.portrait",
+                title: "Ventas",
+                subtitle: resultsSubtitle
+            )
+
             if viewModel.isLoading && viewModel.sales.isEmpty {
-                ProgressView("Buscando ventas…")
+                SalesHistoryLoadingCard(
+                    title: "Buscando ventas…",
+                    subtitle: "Estamos aplicando los filtros seleccionados."
+                )
             } else if viewModel.sales.isEmpty {
                 ContentUnavailableView(
                     "Sin ventas",
                     systemImage: "doc.text.magnifyingglass",
                     description: Text("Prueba con otro texto, estado o fecha.")
                 )
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 10)
             } else {
-                ForEach(viewModel.sales) { sale in
-                    NavigationLink {
-                        SaleDetailView(
-                            viewModel: viewModel.makeSaleDetailViewModel(
-                                for: sale,
-                                salesRepository: salesRepository
-                            ),
-                            salesHistoryRepository: salesHistoryRepository,
-                            cashRepository: cashRepository,
-                            paymentsRepository: paymentsRepository,
-                            receivablesRepository: receivablesRepository,
-                            documentsRepository: documentsRepository,
-                            onSaleUpdated: { updatedSale in
-                                viewModel.applySaleUpdate(updatedSale)
-                            }
-                        )
-                    } label: {
-                        SalesHistoryRow(sale: sale, document: viewModel.primaryDocument(for: sale))
+                LazyVStack(spacing: 10) {
+                    ForEach(viewModel.sales) { sale in
+                        NavigationLink {
+                            SaleDetailView(
+                                viewModel: viewModel.makeSaleDetailViewModel(
+                                    for: sale,
+                                    salesRepository: salesRepository
+                                ),
+                                salesHistoryRepository: salesHistoryRepository,
+                                cashRepository: cashRepository,
+                                paymentsRepository: paymentsRepository,
+                                receivablesRepository: receivablesRepository,
+                                documentsRepository: documentsRepository,
+                                onSaleUpdated: { updatedSale in
+                                    viewModel.applySaleUpdate(updatedSale)
+                                }
+                            )
+                        } label: {
+                            SalesHistoryRow(sale: sale, document: viewModel.primaryDocument(for: sale))
+                        }
+                        .buttonStyle(.plain)
                     }
                 }
             }
@@ -283,19 +350,48 @@ struct SalesHistoryView: View {
 
     @ViewBuilder
     private var messagesSection: some View {
-        if let message = viewModel.errorMessage {
-            Section {
-                NexoMessageBanner(message, style: .error)
+        VStack(alignment: .leading, spacing: 10) {
+            if let message = viewModel.errorMessage, !message.isEmpty {
+                SalesHistoryNoticeCard(
+                    icon: "exclamationmark.triangle",
+                    title: "Atención",
+                    message: message,
+                    tint: .red
+                )
             }
-        }
 
-        if let message = viewModel.infoMessage {
-            Section {
-                NexoMessageBanner(message, style: .info)
+            if let message = viewModel.infoMessage, !message.isEmpty {
+                SalesHistoryNoticeCard(
+                    icon: "info.circle",
+                    title: "Información",
+                    message: message,
+                    tint: .accentColor
+                )
             }
         }
     }
-    
+
+    private var hasMessages: Bool {
+        (viewModel.errorMessage?.isEmpty == false) ||
+        (viewModel.infoMessage?.isEmpty == false)
+    }
+
+    private var totalTitle: String {
+        viewModel.total == nil ? "Ventas visibles" : "Ventas encontradas"
+    }
+
+    private var totalValue: Int {
+        viewModel.total ?? viewModel.sales.count
+    }
+
+    private var resultsSubtitle: String {
+        if hasActiveFilters {
+            return "Resultados según la búsqueda actual."
+        }
+
+        return "Últimas ventas registradas en el negocio."
+    }
+
     private var hasActiveFilters: Bool {
         !viewModel.query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
         viewModel.selectedStatus != .all ||
@@ -327,13 +423,61 @@ struct SalesHistoryView: View {
     }
 }
 
+private struct SalesHistorySurfaceModifier: ViewModifier {
+    var isHero: Bool = false
+
+    func body(content: Content) -> some View {
+        content
+            .padding(isHero ? 18 : 14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background {
+                if isHero {
+                    LinearGradient(
+                        colors: [
+                            Color.accentColor.opacity(0.16),
+                            Color(uiColor: .secondarySystemGroupedBackground)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                    .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
+                } else {
+                    RoundedRectangle(cornerRadius: 22, style: .continuous)
+                        .fill(Color(uiColor: .secondarySystemGroupedBackground))
+                }
+            }
+            .overlay {
+                RoundedRectangle(cornerRadius: isHero ? 26 : 22, style: .continuous)
+                    .strokeBorder(Color.primary.opacity(0.06), lineWidth: 1)
+            }
+            .shadow(
+                color: Color.black.opacity(isHero ? 0.07 : 0.035),
+                radius: isHero ? 14 : 8,
+                x: 0,
+                y: isHero ? 8 : 4
+            )
+    }
+}
+
+private extension View {
+    func salesHistorySurface() -> some View {
+        modifier(SalesHistorySurfaceModifier())
+    }
+
+    func salesHistoryHeroSurface() -> some View {
+        modifier(SalesHistorySurfaceModifier(isHero: true))
+    }
+}
+
 private struct SalesHistoryRow: View {
     let sale: BusinessSale
     let document: BusinessDocument?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .top) {
+        VStack(alignment: .leading, spacing: 11) {
+            HStack(alignment: .top, spacing: 12) {
+                SalesHistoryIconBadge(systemImage: "receipt", tint: .accentColor)
+
                 VStack(alignment: .leading, spacing: 5) {
                     Text(sale.displayNumber)
                         .font(.subheadline.weight(.semibold))
@@ -342,13 +486,28 @@ private struct SalesHistoryRow: View {
                     Text(sale.displayCustomerName)
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                        .lineLimit(1)
                 }
 
-                Spacer()
+                Spacer(minLength: 12)
 
-                Text(sale.totals.grandTotal.displayText)
-                    .font(.subheadline.weight(.bold))
-                    .monospacedDigit()
+                VStack(alignment: .trailing, spacing: 4) {
+                    Text(sale.totals.grandTotal.displayText)
+                        .font(.subheadline.weight(.bold))
+                        .monospacedDigit()
+
+                    if let createdAt = sale.createdAt {
+                        Text(createdAt.formatted(date: .abbreviated, time: .shortened))
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.trailing)
+                    }
+                }
+
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(.tertiary)
+                    .padding(.top, 3)
             }
 
             if !sale.displayItemsSummary.isEmpty {
@@ -356,25 +515,14 @@ private struct SalesHistoryRow: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             if let document {
-                HStack(spacing: 8) {
-                    Image(systemName: "doc.text.magnifyingglass")
-                        .foregroundStyle(.secondary)
-                    Text(document.businessDisplayNumber)
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                    if let error = BusinessDocumentTextSanitizer.sanitizedMessage(document.lastErrorMessage) {
-                        Text("· \(error)")
-                            .font(.caption)
-                            .foregroundStyle(.red)
-                            .lineLimit(1)
-                    }
-                }
+                SalesHistoryDocumentLine(document: document)
             }
 
-            HStack(spacing: 10) {
+            HStack(spacing: 8) {
                 SaleStatusLabel(status: sale.status)
 
                 SalesHistoryCollectionStatusBadge(state: sale.collectionState)
@@ -385,15 +533,158 @@ private struct SalesHistoryRow: View {
                 )
             }
             .font(.caption)
-            .foregroundStyle(.secondary)
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(uiColor: .tertiarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .strokeBorder(Color.primary.opacity(0.05), lineWidth: 1)
+        )
+    }
+}
 
-            if let createdAt = sale.createdAt {
-                Text(createdAt.formatted(date: .abbreviated, time: .shortened))
+private struct SalesHistoryDocumentLine: View {
+    let document: BusinessDocument
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Image(systemName: "doc.text.magnifyingglass")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+
+            Text(document.businessDisplayNumber)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+
+            if let error = BusinessDocumentTextSanitizer.sanitizedMessage(document.lastErrorMessage) {
+                Text("· \(error)")
                     .font(.caption)
+                    .foregroundStyle(.red)
+                    .lineLimit(1)
+            }
+        }
+    }
+}
+
+private struct SalesHistorySectionHeader: View {
+    let icon: String
+    let title: String
+    let subtitle: String
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            SalesHistoryIconBadge(systemImage: icon, tint: .accentColor)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.headline)
+
+                Text(subtitle)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+}
+
+private struct SalesHistoryInfoRow: View {
+    let title: String
+    let value: String
+    let systemImage: String
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 12) {
+            Image(systemName: systemImage)
+                .font(.body.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .frame(width: 24)
+
+            Text(title)
+                .foregroundStyle(.secondary)
+
+            Spacer(minLength: 12)
+
+            Text(value)
+                .font(.body.weight(.semibold))
+                .multilineTextAlignment(.trailing)
+                .lineLimit(2)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(Color(uiColor: .tertiarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+}
+
+private struct SalesHistoryNoticeCard: View {
+    let icon: String
+    let title: String
+    let message: String
+    let tint: Color
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: icon)
+                .font(.body.weight(.semibold))
+                .foregroundStyle(tint)
+                .frame(width: 24)
+                .padding(.top, 1)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.subheadline.weight(.semibold))
+
+                Text(message)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(tint.opacity(0.09), in: RoundedRectangle(cornerRadius: 15, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 15, style: .continuous)
+                .strokeBorder(tint.opacity(0.16), lineWidth: 1)
+        )
+    }
+}
+
+private struct SalesHistoryLoadingCard: View {
+    let title: String
+    let subtitle: String
+
+    var body: some View {
+        HStack(spacing: 12) {
+            ProgressView()
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .font(.headline)
+
+                Text(subtitle)
+                    .font(.footnote)
                     .foregroundStyle(.secondary)
             }
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, 8)
+    }
+}
+
+private struct SalesHistoryIconBadge: View {
+    let systemImage: String
+    let tint: Color
+
+    var body: some View {
+        Image(systemName: systemImage)
+            .font(.headline.weight(.semibold))
+            .foregroundStyle(tint)
+            .frame(width: 42, height: 42)
+            .background(tint.opacity(0.12), in: RoundedRectangle(cornerRadius: 15, style: .continuous))
     }
 }
 
@@ -462,26 +753,5 @@ private struct SalesHistoryDocumentStatusBadge: View {
         }
 
         return .orange
-    }
-}
-
-#Preview {
-    NavigationStack {
-        SalesHistoryView(
-            viewModel: SalesHistoryViewModel(
-                organizationId: PreviewData.businessContext.organization.id,
-                branchId: PreviewData.businessContext.branches[0].id,
-                revisions: PreviewData.businessContext.revisions,
-                effectivePermissions: PreviewData.businessContext.effectivePermissions,
-                historyRepository: PreviewSalesHistoryRepository(),
-                documentsRepository: PreviewBusinessDocumentsRepository()
-            ),
-            salesRepository: PreviewSalesRepository(),
-            salesHistoryRepository: PreviewSalesHistoryRepository(),
-            cashRepository: PreviewCashRepository(),
-            paymentsRepository: PreviewPaymentsRepository(),
-            receivablesRepository: PreviewReceivablesRepository(),
-            documentsRepository: PreviewBusinessDocumentsRepository()
-        )
     }
 }

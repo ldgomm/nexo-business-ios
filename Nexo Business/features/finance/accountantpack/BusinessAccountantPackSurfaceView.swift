@@ -16,7 +16,7 @@ struct BusinessAccountantPackMoreTile: View {
         NavigationLink {
             BusinessAccountantPackSurfaceView(container: container)
         } label: {
-            BusinessHomeToolTile(
+            BusinessToolTile(
                 title: "Paquete contador",
                 subtitle: "ZIP mensual",
                 systemImage: "doc.zipper",
