@@ -192,6 +192,68 @@ struct SalesPreviewRequest: Encodable, Equatable, Sendable {
     }
 }
 
+enum BusinessSaleServiceType: String, CaseIterable, Identifiable, Codable, Sendable {
+    case dineIn = "DINE_IN"
+    case takeaway = "TAKEAWAY"
+    case manualDelivery = "MANUAL_DELIVERY"
+    case eventService = "EVENT_SERVICE"
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .dineIn: return "En mesa"
+        case .takeaway: return "Para llevar"
+        case .manualDelivery: return "Delivery manual"
+        case .eventService: return "Evento"
+        }
+    }
+
+    var shortDisplayName: String {
+        switch self {
+        case .dineIn: return "Mesa"
+        case .takeaway: return "Para llevar"
+        case .manualDelivery: return "Delivery"
+        case .eventService: return "Evento"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .dineIn: return "fork.knife"
+        case .takeaway: return "takeoutbag.and.cup.and.straw"
+        case .manualDelivery: return "scooter"
+        case .eventService: return "party.popper"
+        }
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        let raw = (try? container.decode(String.self)) ?? ""
+        self = Self.fromBackendValue(raw) ?? .dineIn
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(rawValue)
+    }
+
+    static func fromBackendValue(_ raw: String?) -> BusinessSaleServiceType? {
+        let normalized = raw?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: "-", with: "_")
+            .lowercased()
+
+        switch normalized {
+        case "dine_in", "dinein", "mesa", "salon", "salón": return .dineIn
+        case "takeaway", "take_away", "to_go", "retiro": return .takeaway
+        case "manual_delivery", "delivery_manual", "delivery": return .manualDelivery
+        case "event_service", "evento", "events": return .eventService
+        default: return nil
+        }
+    }
+}
+
 struct QuickSaleRequest: Encodable, Equatable, Sendable {
     let requestId: String
     let branchId: String
@@ -199,6 +261,7 @@ struct QuickSaleRequest: Encodable, Equatable, Sendable {
     let customerId: String?
     let customerSnapshot: BusinessSaleCustomerSnapshot?
     let cashSessionId: String?
+    let serviceType: BusinessSaleServiceType?
     let autoConfirm: Bool
     let catalogRevision: String
     let taxConfigurationRevision: String
@@ -212,6 +275,7 @@ struct QuickSaleRequest: Encodable, Equatable, Sendable {
         customerId: String? = nil,
         customerSnapshot: BusinessSaleCustomerSnapshot? = nil,
         cashSessionId: String? = nil,
+        serviceType: BusinessSaleServiceType? = nil,
         autoConfirm: Bool = true,
         catalogRevision: String,
         taxConfigurationRevision: String,
@@ -224,6 +288,7 @@ struct QuickSaleRequest: Encodable, Equatable, Sendable {
         self.customerId = customerId
         self.customerSnapshot = customerSnapshot
         self.cashSessionId = cashSessionId
+        self.serviceType = serviceType
         self.autoConfirm = autoConfirm
         self.catalogRevision = catalogRevision
         self.taxConfigurationRevision = taxConfigurationRevision
@@ -238,6 +303,7 @@ struct QuickSaleRequest: Encodable, Equatable, Sendable {
         customerId: String? = nil,
         customerSnapshot: BusinessSaleCustomerSnapshot? = nil,
         cashSessionId: String? = nil,
+        serviceType: BusinessSaleServiceType? = nil,
         autoConfirm: Bool = true,
         catalogRevision: String,
         taxConfigurationRevision: String,
@@ -251,6 +317,7 @@ struct QuickSaleRequest: Encodable, Equatable, Sendable {
             customerId: customerId,
             customerSnapshot: customerSnapshot,
             cashSessionId: cashSessionId,
+            serviceType: serviceType,
             autoConfirm: autoConfirm,
             catalogRevision: catalogRevision,
             taxConfigurationRevision: taxConfigurationRevision,
@@ -1054,6 +1121,7 @@ struct BusinessSale: Decodable, Equatable, Identifiable, Sendable {
     let customer: BusinessSaleCustomer?
     let status: String
     let paymentStatus: String?
+    let serviceType: BusinessSaleServiceType?
     let documentStatus: String?
     let electronicDocumentSummary: BusinessDocument?
     let receivableId: String?
@@ -1078,6 +1146,7 @@ struct BusinessSale: Decodable, Equatable, Identifiable, Sendable {
         customer: BusinessSaleCustomer? = nil,
         status: String,
         paymentStatus: String? = nil,
+        serviceType: BusinessSaleServiceType? = nil,
         documentStatus: String? = nil,
         electronicDocumentSummary: BusinessDocument? = nil,
         receivableId: String? = nil,
@@ -1101,6 +1170,7 @@ struct BusinessSale: Decodable, Equatable, Identifiable, Sendable {
         self.customer = customer
         self.status = status
         self.paymentStatus = paymentStatus
+        self.serviceType = serviceType
         self.documentStatus = documentStatus
         self.electronicDocumentSummary = electronicDocumentSummary
         self.receivableId = receivableId
@@ -1129,6 +1199,9 @@ struct BusinessSale: Decodable, Equatable, Identifiable, Sendable {
         case status
         case operationalStatus
         case paymentStatus
+        case serviceType
+        case service
+        case restaurantServiceType
         case documentStatus
         case electronicDocumentSummary
         case latestElectronicDocument
@@ -1175,6 +1248,9 @@ struct BusinessSale: Decodable, Equatable, Identifiable, Sendable {
         ?? (try? container.decodeIfPresent(String.self, forKey: .operationalStatus))
         ?? "pending"
         paymentStatus = try? container.decodeIfPresent(String.self, forKey: .paymentStatus)
+        serviceType = (try? container.decodeIfPresent(BusinessSaleServiceType.self, forKey: .serviceType))
+        ?? (try? container.decodeIfPresent(BusinessSaleServiceType.self, forKey: .service))
+        ?? (try? container.decodeIfPresent(BusinessSaleServiceType.self, forKey: .restaurantServiceType))
         electronicDocumentSummary = (try? container.decodeIfPresent(BusinessDocument.self, forKey: .electronicDocumentSummary))
         ?? (try? container.decodeIfPresent(BusinessDocument.self, forKey: .latestElectronicDocument))
         ?? (try? container.decodeIfPresent(BusinessDocument.self, forKey: .primaryElectronicDocument))

@@ -74,22 +74,25 @@ enum SaleLineTaxTreatmentOption: String, CaseIterable, Identifiable, Sendable {
     }
 
     static func defaultForCatalogItem(_ item: BusinessCatalogItem) -> SaleLineTaxTreatmentOption {
-        fromTaxProfileCode(item.taxProfileCode) ?? .defaultForNewLine()
+        fromTaxProfileCode(item.taxProfileCode)
+        ?? fromTaxProfileCode(item.taxProfileId)
+        ?? .defaultForNewLine()
     }
 
     static func fromTaxProfileCode(_ code: String?) -> SaleLineTaxTreatmentOption? {
-        switch code?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
-        case "altos_staging_no_tax_internal", "no_tax_internal", "internal_no_tax":
+        let normalized = code?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        switch normalized {
+        case "altos_staging_no_tax_internal", "no_tax_internal", "internal_no_tax", "taxp_no_tax_internal", "taxp_internal_no_tax":
             return .operationalNoTax
-        case "altos_staging_iva_current_full", "iva_current_full", "iva_full":
+        case "altos_staging_iva_current_full", "iva_current_full", "iva_full", "taxp_iva_current_full", "taxp_iva_full":
             return .ivaCurrent
-        case "altos_staging_iva_tourism_8", "iva_tourism_8", "iva_reduced_tourism":
+        case "altos_staging_iva_tourism_8", "iva_tourism_8", "iva_reduced_tourism", "taxp_iva_tourism_8", "taxp_iva_reduced_tourism":
             return .ivaTourism8
-        case "altos_staging_iva_0", "iva_0", "iva_zero":
+        case "altos_staging_iva_0", "iva_0", "iva_zero", "taxp_iva_0", "taxp_iva_zero":
             return .ivaZero
-        case "altos_staging_not_subject_to_iva", "not_subject_to_iva":
+        case "altos_staging_not_subject_to_iva", "not_subject_to_iva", "taxp_not_subject_to_iva":
             return .notSubject
-        case "altos_staging_exempt_iva", "exempt_iva":
+        case "altos_staging_exempt_iva", "exempt_iva", "taxp_exempt_iva":
             return .exempt
         default:
             return nil
@@ -406,6 +409,7 @@ final class SaleCartViewModel {
     private(set) var isPreviewing = false
     private(set) var isCreatingSale = false
     private(set) var selectedCustomer: BusinessCustomer?
+    var selectedServiceType: BusinessSaleServiceType = .dineIn
     var errorMessage: String?
     var infoMessage: String?
     var discountTarget: SaleDiscountTarget = .wholeSale
@@ -420,6 +424,7 @@ final class SaleCartViewModel {
     private(set) var revisions: BusinessRevisions
     let effectivePermissions: Set<String>
     
+    private let verticalContext: BusinessVerticalContext
     private let catalogRepository: CatalogRepository
     private let salesRepository: SalesRepository
     private let salesHistoryRepository: SalesHistoryRepository?
@@ -435,6 +440,7 @@ final class SaleCartViewModel {
         revisions: BusinessRevisions,
         effectivePermissions: Set<String> = [],
         cashSessionId: String? = nil,
+        verticalContext: BusinessVerticalContext = .empty,
         catalogRepository: CatalogRepository,
         salesRepository: SalesRepository,
         salesHistoryRepository: SalesHistoryRepository? = nil,
@@ -447,6 +453,7 @@ final class SaleCartViewModel {
         self.revisions = revisions
         self.effectivePermissions = effectivePermissions
         self.cashSessionId = cashSessionId
+        self.verticalContext = verticalContext
         self.catalogRepository = catalogRepository
         self.salesRepository = salesRepository
         self.salesHistoryRepository = salesHistoryRepository
@@ -480,6 +487,19 @@ final class SaleCartViewModel {
     
     var canCreateSale: Bool {
         !isOrderLocked && !cartItems.isEmpty && !isCreatingSale && !isPreviewing
+    }
+
+    var supportsRestaurantServiceType: Bool {
+        verticalContext.hasCapability("restaurant.service_type")
+    }
+
+    var availableServiceTypes: [BusinessSaleServiceType] {
+        guard supportsRestaurantServiceType else { return [] }
+        var values: [BusinessSaleServiceType] = [.dineIn, .takeaway, .manualDelivery]
+        if verticalContext.hasCapability("restaurant.event_service") {
+            values.append(.eventService)
+        }
+        return values
     }
     
     var canClearCart: Bool {
@@ -1325,6 +1345,7 @@ final class SaleCartViewModel {
         createdSale = nil
         registeredSaleHasUnsavedChanges = false
         selectedCustomer = nil
+        selectedServiceType = .dineIn
         errorMessage = nil
         infoMessage = nil
         orderState = .editing
@@ -1426,6 +1447,7 @@ final class SaleCartViewModel {
                     customerId: customerIdForRequest,
                     customerSnapshot: customerSnapshotForRequest(),
                     cashSessionId: cashSessionId,
+                    serviceType: serviceTypeForRequest,
                     autoConfirm: true,
                     catalogRevision: revisions.catalogRevision,
                     taxConfigurationRevision: revisions.taxConfigurationRevision,
@@ -1569,6 +1591,10 @@ final class SaleCartViewModel {
         return true
     }
     
+    private var serviceTypeForRequest: BusinessSaleServiceType? {
+        supportsRestaurantServiceType ? selectedServiceType : nil
+    }
+
     private func previewRequest() -> SalesPreviewRequest {
         SalesPreviewRequest(
             branchId: branchId,

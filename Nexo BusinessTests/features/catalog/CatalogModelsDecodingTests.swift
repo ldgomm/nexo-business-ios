@@ -200,4 +200,28 @@ final class CatalogModelsDecodingTests: XCTestCase {
         XCTAssertEqual(item.taxProfileId, "taxp_iva_current_full")
     }
 
+    func testDecodesTaxProfileCodeFromCatalogAttributesFallback() throws {
+        let json = #"""
+        {
+          "id": "ocat_iva_0",
+          "localName": "Borrego asado",
+          "type": "PRODUCT",
+          "status": "ACTIVE",
+          "localPrice": {
+            "amount": "10.00",
+            "currency": "USD"
+          },
+          "taxProfileId": "taxp_iva_0",
+          "attributes": {
+            "taxProfileCode": "altos_staging_iva_0"
+          }
+        }
+        """#.data(using: .utf8)!
+
+        let item = try JSONDecoder.nexoDefault.decode(BusinessCatalogItem.self, from: json)
+
+        XCTAssertEqual(item.taxProfileCode, "altos_staging_iva_0")
+        XCTAssertEqual(item.taxProfileId, "taxp_iva_0")
+    }
+
 }

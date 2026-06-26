@@ -157,6 +157,83 @@ struct CatalogCopyFromTemplateRequest: Encodable, Equatable, Sendable {
     let reason: String
 }
 
+struct BusinessRestaurantAttributes: Codable, Equatable, Sendable {
+    let menuCategory: String?
+    let preparationArea: String?
+    let isKitchenItem: Bool
+    let displayOrder: Int?
+    let availability: String
+    let visibleInMenu: Bool
+    let tags: [String]
+    let notes: String?
+
+    init(
+        menuCategory: String? = nil,
+        preparationArea: String? = nil,
+        isKitchenItem: Bool = false,
+        displayOrder: Int? = nil,
+        availability: String = "AVAILABLE",
+        visibleInMenu: Bool = true,
+        tags: [String] = [],
+        notes: String? = nil
+    ) {
+        self.menuCategory = menuCategory
+        self.preparationArea = preparationArea
+        self.isKitchenItem = isKitchenItem
+        self.displayOrder = displayOrder
+        self.availability = availability
+        self.visibleInMenu = visibleInMenu
+        self.tags = tags
+        self.notes = notes
+    }
+
+    static func from(attributes: [String: String]) -> BusinessRestaurantAttributes? {
+        guard attributes.keys.contains(where: { $0.hasPrefix("restaurant.") }) else { return nil }
+        return BusinessRestaurantAttributes(
+            menuCategory: attributes["restaurant.menuCategory"]?.nilIfBlankForRestaurantAttributes,
+            preparationArea: attributes["restaurant.preparationArea"]?.nilIfBlankForRestaurantAttributes,
+            isKitchenItem: attributes["restaurant.isKitchenItem"]?.lowercased() == "true",
+            displayOrder: attributes["restaurant.displayOrder"].flatMap(Int.init),
+            availability: attributes["restaurant.availability"]?.nilIfBlankForRestaurantAttributes ?? "AVAILABLE",
+            visibleInMenu: attributes["restaurant.visibleInMenu"].map { $0.lowercased() != "false" } ?? true,
+            tags: attributes["restaurant.tags"]?.split(separator: "|").map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty } ?? [],
+            notes: attributes["restaurant.notes"]?.nilIfBlankForRestaurantAttributes
+        )
+    }
+
+    var menuCategoryTitle: String {
+        switch menuCategory?.lowercased() {
+        case "platos_fuertes": return "Platos fuertes"
+        case "parrilladas": return "Parrilladas"
+        case "sopas": return "Sopas"
+        case "bebidas": return "Bebidas"
+        case "adicionales": return "Adicionales"
+        case "experiencias_eventos": return "Experiencias/Eventos"
+        case "otros": return "Otros"
+        default: return menuCategory ?? "Sin categoría"
+        }
+    }
+
+    var availabilityTitle: String {
+        switch availability.uppercased() {
+        case "TEMPORARILY_UNAVAILABLE": return "No disponible temporalmente"
+        case "HIDDEN": return "Oculto del menú"
+        default: return "Disponible"
+        }
+    }
+}
+
+struct BusinessRestaurantAttributesPatch: Encodable, Equatable, Sendable {
+    let menuCategory: String?
+    let preparationArea: String?
+    let isKitchenItem: Bool?
+    let displayOrder: Int?
+    let availability: String?
+    let visibleInMenu: Bool?
+    let tags: [String]?
+    let notes: String?
+}
+
 struct BusinessCatalogItem: Decodable, Equatable, Identifiable, Sendable {
     let id: String
     let name: String
@@ -183,6 +260,8 @@ struct BusinessCatalogItem: Decodable, Equatable, Identifiable, Sendable {
     let taxProfileId: String?
     let availableStock: String?
     let allowsDecimalQuantity: Bool?
+    let attributes: [String: String]
+    let restaurantAttributes: BusinessRestaurantAttributes?
 
     init(
         id: String,
@@ -209,7 +288,9 @@ struct BusinessCatalogItem: Decodable, Equatable, Identifiable, Sendable {
         taxProfileName: String? = nil,
         taxProfileId: String? = nil,
         availableStock: String? = nil,
-        allowsDecimalQuantity: Bool? = nil
+        allowsDecimalQuantity: Bool? = nil,
+        attributes: [String: String] = [:],
+        restaurantAttributes: BusinessRestaurantAttributes? = nil
     ) {
         self.id = id
         self.name = name
@@ -236,6 +317,8 @@ struct BusinessCatalogItem: Decodable, Equatable, Identifiable, Sendable {
         self.taxProfileId = taxProfileId
         self.availableStock = availableStock
         self.allowsDecimalQuantity = allowsDecimalQuantity
+        self.attributes = attributes
+        self.restaurantAttributes = restaurantAttributes
     }
 
     fileprivate enum CodingKeys: String, CodingKey {
@@ -270,11 +353,15 @@ struct BusinessCatalogItem: Decodable, Equatable, Identifiable, Sendable {
         case unitPrice
         case localPrice
         case taxProfileCode
+        case defaultTaxProfileCode
+        case suggestedTaxProfileCode
         case taxProfileName
         case taxProfileId
         case availableStock
         case stock
         case allowsDecimalQuantity
+        case attributes
+        case restaurantAttributes
     }
 
     init(from decoder: Decoder) throws {
@@ -301,11 +388,16 @@ struct BusinessCatalogItem: Decodable, Equatable, Identifiable, Sendable {
         requiresReview = try container.decodeIfPresent(Bool.self, forKey: .requiresReview)
         unit = try container.decodeIfPresent(BusinessCatalogUnit.self, forKey: .unit)
         price = try container.decodeFirstMoneyIfPresent(for: [.price, .basePrice, .unitPrice, .localPrice])
-        taxProfileCode = try container.decodeIfPresent(String.self, forKey: .taxProfileCode)
+        let decodedAttributes = try container.decodeIfPresent([String: String].self, forKey: .attributes) ?? [:]
+        taxProfileCode = try container.decodeFirstStringIfPresent(for: [.taxProfileCode, .defaultTaxProfileCode, .suggestedTaxProfileCode])
+            ?? decodedAttributes.catalogTaxProfileCodeFallback
         taxProfileName = try container.decodeIfPresent(String.self, forKey: .taxProfileName)
         taxProfileId = try container.decodeIfPresent(String.self, forKey: .taxProfileId)
         availableStock = try container.decodeFirstStringIfPresent(for: [.availableStock, .stock])
         allowsDecimalQuantity = try container.decodeIfPresent(Bool.self, forKey: .allowsDecimalQuantity)
+        attributes = decodedAttributes
+        restaurantAttributes = try container.decodeIfPresent(BusinessRestaurantAttributes.self, forKey: .restaurantAttributes)
+            ?? BusinessRestaurantAttributes.from(attributes: attributes)
     }
 }
 
@@ -338,6 +430,26 @@ struct CatalogSearchResponse: Decodable, Equatable, Sendable {
             ?? container.decodeIfPresent([BusinessCatalogItem].self, forKey: .data)
             ?? []
         catalogRevision = try container.decodeIfPresent(String.self, forKey: .catalogRevision)
+    }
+}
+
+private extension String {
+    var nilIfBlankForRestaurantAttributes: String? {
+        let trimmed = trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+}
+
+private extension Dictionary where Key == String, Value == String {
+    var catalogTaxProfileCodeFallback: String? {
+        [
+            self["taxProfileCode"],
+            self["defaultTaxProfileCode"],
+            self["suggestedTaxProfileCode"],
+            self["productTaxProfileCode"],
+        ]
+        .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+        .first(where: { !$0.isEmpty })
     }
 }
 

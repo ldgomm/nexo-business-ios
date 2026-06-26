@@ -135,6 +135,47 @@ final class SaleCartViewModelTests: XCTestCase {
         XCTAssertTrue(viewModel.canCollectCreatedSale)
     }
 
+    func testCartInheritsIvaZeroTaxProfileFromCatalogItem() {
+        let viewModel = makeViewModel()
+        let ivaZeroItem = BusinessCatalogItem(
+            id: "item_borrego",
+            name: "Borrego asado",
+            itemDescription: "Plato fuerte",
+            sku: "BORREGO",
+            type: "product",
+            status: "active",
+            price: MoneyAmount(amount: "10.00"),
+            taxProfileCode: "altos_staging_iva_0"
+        )
+
+        viewModel.addToCart(ivaZeroItem)
+
+        XCTAssertEqual(viewModel.cartItems.first?.taxTreatment, .ivaZero)
+        XCTAssertEqual(viewModel.localCalculation.totals.subtotalWithoutTaxes.amount, "10.00")
+        XCTAssertEqual(viewModel.localCalculation.totals.taxTotal.amount, "0.00")
+        XCTAssertEqual(viewModel.localCalculation.totals.grandTotal.amount, "10.00")
+    }
+
+    func testPreviewSendsInheritedProductTaxProfileCode() async {
+        let sales = SalesRepositorySpy(previewResponse: PreviewData.previewResponse)
+        let viewModel = makeViewModel(salesRepository: sales)
+        let ivaZeroItem = BusinessCatalogItem(
+            id: "item_borrego",
+            name: "Borrego asado",
+            itemDescription: "Plato fuerte",
+            sku: "BORREGO",
+            type: "product",
+            status: "active",
+            price: MoneyAmount(amount: "10.00"),
+            taxProfileCode: "altos_staging_iva_0"
+        )
+
+        viewModel.addToCart(ivaZeroItem)
+        await viewModel.loadPreview()
+
+        XCTAssertEqual(sales.lastPreviewRequest?.items.first?.taxProfileCode, "altos_staging_iva_0")
+    }
+
     private func makeViewModel(
         catalogRepository: CatalogRepository = CatalogRepositorySpy(),
         salesRepository: SalesRepository = SalesRepositorySpy(),

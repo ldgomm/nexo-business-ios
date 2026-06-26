@@ -73,6 +73,7 @@ struct BusinessHomeView: View {
                         activityId: activityId,
                         revisions: revisions,
                         effectivePermissions: permissions,
+                        verticalContext: context.verticals,
                         catalogRepository: container.catalogRepository,
                         salesRepository: container.salesRepository,
                         salesHistoryRepository: container.salesHistoryRepository,

@@ -250,6 +250,7 @@ struct BusinessProductPatchRequest: Encodable, Equatable, Sendable {
     let category: String?
     let price: MoneyAmount?
     let taxProfileCode: String?
+    let restaurantAttributes: BusinessRestaurantAttributesPatch?
     let reason: String
 }
 
@@ -318,6 +319,11 @@ extension BusinessProduct {
 
     var productsMasterReferenceLabel: String? {
         masterCatalogItemId?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmptyForProducts.map { "Catálogo: \($0)" }
+    }
+
+    var productsRestaurantMenuLabel: String? {
+        guard let restaurantAttributes else { return nil }
+        return "\(restaurantAttributes.menuCategoryTitle) · \(restaurantAttributes.availabilityTitle)"
     }
 }
 

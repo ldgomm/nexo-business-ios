@@ -171,6 +171,9 @@ struct SaleCartView: View {
 
             VStack(spacing: 12) {
                 operationalCustomerBlock
+                if viewModel.supportsRestaurantServiceType {
+                    operationalServiceTypeBlock
+                }
                 operationalCashBlock
             }
         }
@@ -243,6 +246,44 @@ struct SaleCartView: View {
                 .buttonStyle(.plain)
                 .disabled(!viewModel.canEditCart)
             }
+        }
+        .padding(12)
+        .background(Color(uiColor: .tertiarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+    }
+
+    private var operationalServiceTypeBlock: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 10) {
+                Image(systemName: viewModel.selectedServiceType.systemImage)
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 24)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Tipo de servicio")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+
+                    Text(viewModel.selectedServiceType.displayName)
+                        .font(.subheadline.weight(.semibold))
+                }
+
+                Spacer(minLength: 8)
+            }
+
+            Picker("Tipo de servicio", selection: $viewModel.selectedServiceType) {
+                ForEach(viewModel.availableServiceTypes) { serviceType in
+                    Label(serviceType.shortDisplayName, systemImage: serviceType.systemImage)
+                        .tag(serviceType)
+                }
+            }
+            .pickerStyle(.segmented)
+            .disabled(!viewModel.canEditCart)
+
+            Text("Metadata operativa sobre la venta core. No crea mesas, cocina ni venta restaurante paralela.")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
         }
         .padding(12)
         .background(Color(uiColor: .tertiarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
@@ -2061,6 +2102,7 @@ private struct SaleCartRow: View {
                 activityId: PreviewData.businessContext.activities[0].id,
                 revisions: PreviewData.businessContext.revisions,
                 effectivePermissions: PreviewData.businessContext.effectivePermissions,
+                verticalContext: PreviewData.businessContext.verticals,
                 catalogRepository: PreviewCatalogRepository(),
                 salesRepository: PreviewSalesRepository(),
                 salesHistoryRepository: PreviewSaleCartSalesHistoryRepository(),

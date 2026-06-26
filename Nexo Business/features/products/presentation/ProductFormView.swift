@@ -28,6 +28,9 @@ struct ProductFormView: View {
                 heroSection
                 localConfigurationSection
                 saleConfigurationSection
+                if viewModel.showsRestaurantMenuSection {
+                    restaurantMenuSection
+                }
                 saveGuideSection
             }
             .padding(.horizontal, 16)
@@ -146,6 +149,66 @@ struct ProductFormView: View {
         }
     }
 
+
+    private var restaurantMenuSection: some View {
+        ProductFormCard(
+            title: "Menú restaurante",
+            subtitle: "Metadata operativa sobre el catálogo existente. No crea ventas, cocina ni menú paralelo."
+        ) {
+            VStack(spacing: 12) {
+                ProductFormPickerRow(
+                    title: "Categoría de menú",
+                    systemImage: "fork.knife",
+                    selection: $viewModel.restaurantMenuCategory,
+                    options: restaurantMenuCategories
+                )
+
+                ProductFormPickerRow(
+                    title: "Área de preparación",
+                    systemImage: "flame",
+                    selection: $viewModel.restaurantPreparationArea,
+                    options: restaurantPreparationAreas
+                )
+
+                ProductFormInputRow(
+                    title: "Orden visual",
+                    placeholder: "Opcional",
+                    text: $viewModel.restaurantDisplayOrder,
+                    keyboardType: .numberPad,
+                    systemImage: "arrow.up.arrow.down"
+                )
+
+                ProductFormPickerRow(
+                    title: "Disponibilidad",
+                    systemImage: "checkmark.seal",
+                    selection: $viewModel.restaurantAvailability,
+                    options: restaurantAvailabilityOptions
+                )
+
+                ProductFormToggleRow(
+                    title: "Item de cocina",
+                    subtitle: "Solo metadata para futuro 22G; no genera ticket todavía.",
+                    isOn: $viewModel.restaurantIsKitchenItem,
+                    systemImage: "frying.pan"
+                )
+
+                ProductFormToggleRow(
+                    title: "Visible en menú",
+                    subtitle: "Oculta del menú restaurante sin borrar ni pausar el producto core.",
+                    isOn: $viewModel.restaurantVisibleInMenu,
+                    systemImage: "eye"
+                )
+
+                ProductFormMultilineInputRow(
+                    title: "Notas restaurante",
+                    placeholder: "Opcional",
+                    text: $viewModel.restaurantNotes,
+                    systemImage: "note.text"
+                )
+            }
+        }
+    }
+
     private var saveGuideSection: some View {
         ProductFormCard {
             VStack(alignment: .leading, spacing: 12) {
@@ -218,6 +281,39 @@ struct ProductFormView: View {
         case .adopt: return "Nombre local"
         case .edit: return "Nombre"
         }
+    }
+
+
+    private var restaurantMenuCategories: [(String, String)] {
+        [
+            ("", "Sin categoría"),
+            ("platos_fuertes", "Platos fuertes"),
+            ("parrilladas", "Parrilladas"),
+            ("sopas", "Sopas"),
+            ("bebidas", "Bebidas"),
+            ("adicionales", "Adicionales"),
+            ("experiencias_eventos", "Experiencias/Eventos"),
+            ("otros", "Otros")
+        ]
+    }
+
+    private var restaurantPreparationAreas: [(String, String)] {
+        [
+            ("", "Sin área"),
+            ("kitchen", "Cocina"),
+            ("grill", "Parrilla"),
+            ("bar", "Bar"),
+            ("counter", "Mostrador"),
+            ("none", "Ninguna")
+        ]
+    }
+
+    private var restaurantAvailabilityOptions: [(String, String)] {
+        [
+            ("AVAILABLE", "Disponible"),
+            ("TEMPORARILY_UNAVAILABLE", "No disponible temporalmente"),
+            ("HIDDEN", "Oculto del menú")
+        ]
     }
 
     private var typeLabel: String {
@@ -430,6 +526,59 @@ private struct ProductTaxProfilePicker: View {
                         .foregroundStyle(.blue)
 
                     Text(selectedProfile.helpText?.nilIfEmptyForProductFormUI ?? selectedProfile.pickerTitle)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+        .padding(12)
+        .background(Color(uiColor: .tertiarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+    }
+}
+
+
+private struct ProductFormPickerRow: View {
+    let title: String
+    let systemImage: String
+    @Binding var selection: String
+    let options: [(String, String)]
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: systemImage)
+                .foregroundStyle(.secondary)
+                .frame(width: 24)
+
+            Picker(title, selection: $selection) {
+                ForEach(options, id: \.0) { option in
+                    Text(option.1).tag(option.0)
+                }
+            }
+        }
+        .padding(12)
+        .background(Color(uiColor: .tertiarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+    }
+}
+
+private struct ProductFormToggleRow: View {
+    let title: String
+    let subtitle: String
+    @Binding var isOn: Bool
+    let systemImage: String
+
+    var body: some View {
+        Toggle(isOn: $isOn) {
+            HStack(alignment: .top, spacing: 12) {
+                Image(systemName: systemImage)
+                    .foregroundStyle(.secondary)
+                    .frame(width: 24)
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(title)
+                        .font(.subheadline.weight(.semibold))
+
+                    Text(subtitle)
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
