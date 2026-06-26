@@ -42,6 +42,7 @@ struct BusinessView: View {
             ScrollView {
                 LazyVStack(spacing: 12) {
                     operationHero
+                    restaurantContextCard
                     dailyOperationCard
                     toolsCard
                     reportingCard
@@ -82,6 +83,73 @@ struct BusinessView: View {
             countryCode: context.organization.countryCode,
             readinessTint: readinessTint
         )
+    }
+
+    @ViewBuilder
+    private var restaurantContextCard: some View {
+        if let restaurant = context.verticals.restaurant {
+            BusinessCard(
+                title: "Restaurante v1 activo",
+                subtitle: "22C consume el contexto vertical sin cambiar venta, caja, documentos ni catálogo."
+            ) {
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack(spacing: 8) {
+                        BusinessPill(title: restaurant.displayName, systemImage: "fork.knife", tint: .accentColor)
+                        BusinessPill(title: restaurant.status.capitalized, systemImage: "checkmark.seal", tint: restaurant.status.lowercased() == "active" ? .green : .orange)
+                        BusinessPill(title: "v\(restaurant.packageVersion)", systemImage: "number", tint: .secondary)
+                    }
+
+                    BusinessMetaRow(
+                        title: "Modo",
+                        value: context.verticals.workMode ?? restaurant.defaultWorkMode ?? "quick_sale",
+                        isMonospaced: true
+                    )
+
+                    BusinessInlineMessage(
+                        message: "Venta rápida sigue siendo el flujo principal. Tipo de servicio entra en 22E; mesas y cocina quedan para 22F/22G.",
+                        systemImage: "info.circle",
+                        tint: .secondary
+                    )
+
+                    if !restaurantEnabledCapabilities.isEmpty {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Capabilities activas")
+                                .font(.subheadline.weight(.semibold))
+
+                            LazyVGrid(columns: toolColumns, spacing: 8) {
+                                ForEach(restaurantEnabledCapabilities, id: \.self) { capability in
+                                    BusinessVerticalCompactPill(
+                                        title: humanizedRestaurantCapability(capability),
+                                        code: capability,
+                                        systemImage: "checkmark.circle.fill",
+                                        tint: .green
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    if !context.verticals.readiness.isEmpty {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Readiness vertical")
+                                .font(.subheadline.weight(.semibold))
+
+                            ForEach(context.verticals.readiness) { check in
+                                verticalReadinessRow(check)
+                            }
+                        }
+                    }
+
+                    if !context.verticals.foreignVerticalCodes.isEmpty {
+                        BusinessInlineMessage(
+                            message: "WARN: aparecen verticales ajenos para esta organización: \(context.verticals.foreignVerticalCodes.joined(separator: ", ")).",
+                            systemImage: "exclamationmark.triangle.fill",
+                            tint: .orange
+                        )
+                    }
+                }
+            }
+        }
     }
 
     @ViewBuilder
@@ -555,6 +623,29 @@ struct BusinessView: View {
 
                 DisclosureGroup {
                     VStack(alignment: .leading, spacing: 8) {
+                        if context.verticals.activeVerticals.isEmpty {
+                            Text("Sin verticales activos")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        } else {
+                            ForEach(context.verticals.activeVerticals) { vertical in
+                                Text("\(vertical.code) · \(vertical.status) · v\(vertical.packageVersion)")
+                                    .font(.caption.monospaced())
+                                    .foregroundStyle(.secondary)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                        }
+                    }
+                    .padding(.top, 8)
+                } label: {
+                    Label("Verticales activos", systemImage: "square.stack.3d.up")
+                        .font(.subheadline.weight(.semibold))
+                }
+
+                Divider()
+
+                DisclosureGroup {
+                    VStack(alignment: .leading, spacing: 8) {
                         ForEach(context.activeModules.map(\.rawValue).sorted(), id: \.self) { module in
                             Text(module)
                                 .font(.caption.monospaced())
@@ -751,6 +842,83 @@ struct BusinessView: View {
         .background(Color(.tertiarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 
+    private func verticalReadinessRow(_ check: BusinessVerticalReadiness) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: verticalReadinessSystemImage(check.normalizedStatus))
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(verticalReadinessTint(check.normalizedStatus))
+                .frame(width: 28, height: 28)
+                .background(verticalReadinessTint(check.normalizedStatus).opacity(0.10), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text(check.code)
+                        .font(.caption.monospaced().weight(.semibold))
+                        .foregroundStyle(.primary)
+
+                    Spacer(minLength: 8)
+
+                    Text(check.normalizedStatus)
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(verticalReadinessTint(check.normalizedStatus))
+                }
+
+                Text(check.message)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(10)
+        .background(Color(.tertiarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+
+    private func humanizedRestaurantCapability(_ capability: String) -> String {
+        switch capability {
+        case "restaurant.menu_attributes":
+            return "Atributos menú"
+        case "restaurant.service_type":
+            return "Tipo servicio"
+        case "restaurant.event_service":
+            return "Eventos"
+        case "restaurant.tables_optional":
+            return "Mesas"
+        case "restaurant.kitchen_basic_optional":
+            return "Cocina"
+        default:
+            return capability
+                .replacingOccurrences(of: "restaurant.", with: "")
+                .replacingOccurrences(of: "_", with: " ")
+                .capitalized
+        }
+    }
+
+    private func verticalReadinessTint(_ status: String) -> Color {
+        switch status {
+        case "PASS":
+            return .green
+        case "WARN":
+            return .orange
+        case "FAIL":
+            return .red
+        default:
+            return .secondary
+        }
+    }
+
+    private func verticalReadinessSystemImage(_ status: String) -> String {
+        switch status {
+        case "PASS":
+            return "checkmark.seal.fill"
+        case "WARN":
+            return "exclamationmark.triangle.fill"
+        case "FAIL":
+            return "xmark.octagon.fill"
+        default:
+            return "questionmark.circle.fill"
+        }
+    }
+
     @ToolbarContentBuilder
     private var commonToolbar: some ToolbarContent {
         ToolbarItem(placement: .topBarTrailing) {
@@ -789,6 +957,13 @@ struct BusinessView: View {
             GridItem(.flexible(), spacing: 12),
             GridItem(.flexible(), spacing: 12)
         ]
+    }
+
+    private var restaurantEnabledCapabilities: [String] {
+        let packageCapabilities = context.verticals.restaurant?.capabilities ?? []
+        return Array(Set(context.verticals.capabilities + packageCapabilities))
+            .filter { $0.hasPrefix("restaurant.") }
+            .sorted()
     }
 
     private var readinessTint: Color {
@@ -1038,6 +1213,35 @@ private struct UnpaidSaleRow: View {
             }
         }
         .padding(.vertical, 4)
+    }
+}
+
+private struct BusinessVerticalCompactPill: View {
+    let title: String
+    let code: String
+    let systemImage: String
+    let tint: Color
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Label(title, systemImage: systemImage)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(tint)
+                .lineLimit(1)
+
+            Text(code)
+                .font(.caption2.monospaced())
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.78)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(10)
+        .background(tint.opacity(0.08), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .strokeBorder(tint.opacity(0.10))
+        )
     }
 }
 

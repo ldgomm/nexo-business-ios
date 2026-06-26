@@ -137,6 +137,122 @@ struct BusinessModuleReadiness: Decodable, Equatable, Sendable {
     }
 }
 
+struct BusinessVerticalContext: Decodable, Equatable, Sendable {
+    let activeVerticals: [BusinessActiveVertical]
+    let defaultVerticalCode: String?
+    let workMode: String?
+    let surfaces: [String]
+    let capabilities: [String]
+    let readiness: [BusinessVerticalReadiness]
+
+    init(
+        activeVerticals: [BusinessActiveVertical] = [],
+        defaultVerticalCode: String? = nil,
+        workMode: String? = nil,
+        surfaces: [String] = [],
+        capabilities: [String] = [],
+        readiness: [BusinessVerticalReadiness] = []
+    ) {
+        self.activeVerticals = activeVerticals
+        self.defaultVerticalCode = defaultVerticalCode
+        self.workMode = workMode
+        self.surfaces = surfaces
+        self.capabilities = capabilities
+        self.readiness = readiness
+    }
+
+    static let empty = BusinessVerticalContext()
+
+    var isEmpty: Bool {
+        activeVerticals.isEmpty && surfaces.isEmpty && capabilities.isEmpty && readiness.isEmpty
+    }
+
+    var restaurant: BusinessActiveVertical? {
+        activeVerticals.first { $0.code == "restaurant" }
+    }
+
+    var hasRestaurant: Bool {
+        restaurant != nil
+    }
+
+    func hasCapability(_ capability: String) -> Bool {
+        capabilities.contains(capability) || activeVerticals.contains { $0.capabilities.contains(capability) }
+    }
+
+    func hasSurface(_ surface: String) -> Bool {
+        surfaces.contains(surface) || activeVerticals.contains { $0.surfaces.contains(surface) }
+    }
+
+    var foreignVerticalCodes: [String] {
+        activeVerticals
+            .map(\.code)
+            .filter { $0 != "restaurant" }
+            .sorted()
+    }
+}
+
+struct BusinessActiveVertical: Decodable, Equatable, Identifiable, Sendable {
+    var id: String { code }
+
+    let code: String
+    let displayName: String
+    let packageVersion: String
+    let status: String
+    let capabilities: [String]
+    let workModes: [String]
+    let surfaces: [String]
+    let defaultWorkMode: String?
+
+    init(
+        code: String,
+        displayName: String,
+        packageVersion: String,
+        status: String,
+        capabilities: [String] = [],
+        workModes: [String] = [],
+        surfaces: [String] = [],
+        defaultWorkMode: String? = nil
+    ) {
+        self.code = code
+        self.displayName = displayName
+        self.packageVersion = packageVersion
+        self.status = status
+        self.capabilities = capabilities
+        self.workModes = workModes
+        self.surfaces = surfaces
+        self.defaultWorkMode = defaultWorkMode
+    }
+}
+
+struct BusinessVerticalReadiness: Decodable, Equatable, Identifiable, Sendable {
+    var id: String { code }
+
+    let code: String
+    let status: String
+    let message: String
+    let details: [String: String]
+
+    init(
+        code: String,
+        status: String,
+        message: String,
+        details: [String: String] = [:]
+    ) {
+        self.code = code
+        self.status = status
+        self.message = message
+        self.details = details
+    }
+
+    var normalizedStatus: String {
+        status.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+    }
+
+    var isBlocking: Bool {
+        normalizedStatus == "FAIL"
+    }
+}
+
 struct BusinessCapabilities: Decodable, Equatable, Sendable {
     let sales: SalesCapabilities
     let cash: CashCapabilities
@@ -557,6 +673,7 @@ struct BusinessContextResponse: Decodable, Equatable, Sendable {
     let activeModules: Set<ModuleCode>
     let effectivePermissions: Set<String>
     let capabilities: BusinessCapabilities
+    let verticals: BusinessVerticalContext
     let revisions: BusinessRevisions
     let readiness: BusinessReadiness
 
@@ -572,6 +689,7 @@ struct BusinessContextResponse: Decodable, Equatable, Sendable {
         case activeModules
         case effectivePermissions
         case capabilities
+        case verticals
         case revisions
         case readiness
         case catalogRevision
@@ -589,6 +707,7 @@ struct BusinessContextResponse: Decodable, Equatable, Sendable {
         activeModules: Set<ModuleCode>,
         effectivePermissions: Set<String>,
         capabilities: BusinessCapabilities? = nil,
+        verticals: BusinessVerticalContext = .empty,
         revisions: BusinessRevisions,
         readiness: BusinessReadiness,
         activeBranchId: String? = nil,
@@ -605,6 +724,7 @@ struct BusinessContextResponse: Decodable, Equatable, Sendable {
             activeModules: activeModules,
             effectivePermissions: effectivePermissions
         )
+        self.verticals = verticals
         self.revisions = revisions
         self.readiness = readiness
         self.activeBranchId = activeBranchId
@@ -625,6 +745,7 @@ struct BusinessContextResponse: Decodable, Equatable, Sendable {
         self.activeBranchId = try container.decodeIfPresent(String.self, forKey: .activeBranchId)
         self.activeActivityId = try container.decodeIfPresent(String.self, forKey: .activeActivityId)
         self.moduleReadiness = try Self.decodeModuleReadiness(from: container)
+        self.verticals = try container.decodeIfPresent(BusinessVerticalContext.self, forKey: .verticals) ?? .empty
 
         if let revisions = try container.decodeIfPresent(BusinessRevisions.self, forKey: .revisions) {
             self.revisions = revisions
