@@ -318,7 +318,7 @@ private struct ProductsHeroCard: View {
         .background(
             LinearGradient(
                 colors: [
-                    Color.accentColor.opacity(0.16),
+                    Color.teal.opacity(0.16),
                     Color(uiColor: .secondarySystemGroupedBackground)
                 ],
                 startPoint: .topLeading,

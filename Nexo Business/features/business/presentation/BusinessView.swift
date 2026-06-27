@@ -7,6 +7,7 @@
 
 import SwiftUI
 import Foundation
+import Observation
 
 struct BusinessView: View {
     private let context: BusinessContextResponse
@@ -179,6 +180,30 @@ struct BusinessView: View {
                         tint: .secondary,
                         isDisabled: true
                     )
+                }
+
+                if hasRestaurantTablesCapability {
+                    if canAccessRestaurantTables {
+                        NavigationLink {
+                            makeRestaurantTablesView()
+                        } label: {
+                            BusinessToolTile(
+                                title: "Mesas",
+                                subtitle: "Abrir y cerrar",
+                                systemImage: "tablecells",
+                                tint: .orange
+                            )
+                        }
+                        .buttonStyle(.plain)
+                    } else {
+                        BusinessToolTile(
+                            title: "Mesas",
+                            subtitle: "Sin permiso",
+                            systemImage: "lock",
+                            tint: .secondary,
+                            isDisabled: true
+                        )
+                    }
                 }
 
                 if capabilityGate.canAccessCash {
@@ -756,6 +781,17 @@ struct BusinessView: View {
         )
     }
 
+    private func makeRestaurantTablesView() -> RestaurantTablesView {
+        RestaurantTablesView(
+            viewModel: RestaurantTablesViewModel(
+                organizationId: organizationId,
+                branchId: branchId,
+                effectivePermissions: permissions,
+                repository: container.restaurantTablesRepository
+            )
+        )
+    }
+
     private func makeDailyClosureView() -> DailyClosureView {
         DailyClosureView(
             viewModel: DailyClosureViewModel(
@@ -974,6 +1010,17 @@ struct BusinessView: View {
         return Array(Set(context.verticals.capabilities + packageCapabilities))
             .filter { $0.hasPrefix("restaurant.") }
             .sorted()
+    }
+
+    private var hasRestaurantTablesCapability: Bool {
+        context.verticals.hasCapability("restaurant.tables_optional")
+    }
+
+    private var canAccessRestaurantTables: Bool {
+        hasRestaurantTablesCapability && (
+            permissionGate.allows("tables.view") ||
+            permissionGate.allows("tables.manage")
+        )
     }
 
     private var readinessTint: Color {
@@ -1526,3 +1573,696 @@ private struct BusinessIconBadge: View {
             .background(tint.opacity(0.12), in: RoundedRectangle(cornerRadius: 15, style: .continuous))
     }
 }
+
+// MARK: - Restaurant Tables Optional UI (22F.7)
+
+@MainActor
+@Observable
+final class RestaurantTablesViewModel {
+    private(set) var tables: [RestaurantTableReadiness] = []
+    private(set) var summary = RestaurantTableReadinessSummary(
+        total: 0,
+        available: 0,
+        occupied: 0,
+        disabled: 0,
+        openSessions: 0
+    )
+    private(set) var isLoading = false
+    private(set) var isMutating = false
+    var errorMessage: String?
+    var infoMessage: String?
+
+    private let organizationId: String
+    private let branchId: String
+    private let effectivePermissions: Set<String>
+    private let repository: BusinessRestaurantTablesRepository
+    private var hasLoaded = false
+
+    init(
+        organizationId: String,
+        branchId: String,
+        effectivePermissions: Set<String>,
+        repository: BusinessRestaurantTablesRepository
+    ) {
+        self.organizationId = organizationId
+        self.branchId = branchId
+        self.effectivePermissions = effectivePermissions
+        self.repository = repository
+    }
+
+    var canViewTables: Bool {
+        permissionGate.allows("tables.view") || permissionGate.allows("tables.manage")
+    }
+
+    var canManageTables: Bool {
+        permissionGate.allows("tables.manage")
+    }
+
+    func loadIfNeeded() async {
+        guard !hasLoaded else { return }
+        await refresh()
+    }
+
+    func refresh() async {
+        guard canViewTables else {
+            tables = []
+            summary = .empty
+            errorMessage = "No tienes permiso para consultar mesas."
+            hasLoaded = true
+            return
+        }
+
+        isLoading = true
+        errorMessage = nil
+        defer {
+            isLoading = false
+            hasLoaded = true
+        }
+
+        do {
+            let response = try await repository.readiness(
+                organizationId: organizationId,
+                branchId: branchId
+            )
+            apply(response)
+            infoMessage = response.tables.isEmpty ? "No hay mesas configuradas para esta sucursal." : nil
+        } catch let error as APIError {
+            errorMessage = error.userMessage
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    func open(_ table: RestaurantTableReadiness) async {
+        guard canManageTables else {
+            errorMessage = "No tienes permiso para abrir mesas."
+            return
+        }
+        guard table.canOpen else {
+            errorMessage = table.reasonIfBlocked ?? "Esta mesa no puede abrirse ahora."
+            return
+        }
+
+        await mutate(successMessage: "Mesa \(table.displayCode) abierta.") {
+            _ = try await repository.openSession(
+                organizationId: organizationId,
+                branchId: branchId,
+                idempotencyKey: .generate(prefix: "business-table-open"),
+                request: OpenRestaurantTableSessionRequest(
+                    tableId: table.tableId,
+                    saleId: nil,
+                    notes: "Abierta desde Business iOS"
+                )
+            )
+        }
+    }
+
+    func close(_ table: RestaurantTableReadiness) async {
+        guard canManageTables else {
+            errorMessage = "No tienes permiso para cerrar mesas."
+            return
+        }
+        guard table.canClose, let sessionId = table.activeSessionId else {
+            errorMessage = table.reasonIfBlocked ?? "Esta mesa no tiene una sesión abierta para cerrar."
+            return
+        }
+
+        await mutate(successMessage: "Mesa \(table.displayCode) cerrada.") {
+            _ = try await repository.closeSession(
+                organizationId: organizationId,
+                branchId: branchId,
+                sessionId: sessionId,
+                idempotencyKey: .generate(prefix: "business-table-close")
+            )
+        }
+    }
+
+    func cancel(_ table: RestaurantTableReadiness, reason: String) async {
+        guard canManageTables else {
+            errorMessage = "No tienes permiso para cancelar sesiones de mesa."
+            return
+        }
+        guard table.canCancel, let sessionId = table.activeSessionId else {
+            errorMessage = table.reasonIfBlocked ?? "Esta mesa no tiene una sesión abierta para cancelar."
+            return
+        }
+
+        let cleanReason = reason.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleanReason.isEmpty else {
+            errorMessage = "Ingresa un motivo para cancelar la sesión."
+            return
+        }
+
+        await mutate(successMessage: "Sesión de \(table.displayCode) cancelada.") {
+            _ = try await repository.cancelSession(
+                organizationId: organizationId,
+                branchId: branchId,
+                sessionId: sessionId,
+                idempotencyKey: .generate(prefix: "business-table-cancel"),
+                request: CancelRestaurantTableSessionRequest(reason: cleanReason)
+            )
+        }
+    }
+
+    private func mutate(
+        successMessage: String,
+        operation: () async throws -> Void
+    ) async {
+        guard !isMutating else { return }
+        isMutating = true
+        errorMessage = nil
+        infoMessage = nil
+        defer { isMutating = false }
+
+        do {
+            try await operation()
+            infoMessage = successMessage
+            await refresh()
+        } catch let error as APIError {
+            errorMessage = error.userMessage
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    private func apply(_ response: RestaurantTableReadinessEnvelopeResponse) {
+        tables = response.tables.sorted { lhs, rhs in
+            if lhs.statusSortOrder != rhs.statusSortOrder {
+                return lhs.statusSortOrder < rhs.statusSortOrder
+            }
+            return lhs.displayCode.localizedStandardCompare(rhs.displayCode) == .orderedAscending
+        }
+        summary = response.summary
+    }
+
+    private var permissionGate: PermissionGate {
+        PermissionGate(effectivePermissions: effectivePermissions)
+    }
+}
+
+struct RestaurantTablesView: View {
+    @State private var viewModel: RestaurantTablesViewModel
+    @State private var closeCandidate: RestaurantTableReadiness?
+    @State private var cancelCandidate: RestaurantTableReadiness?
+
+    init(viewModel: RestaurantTablesViewModel) {
+        self._viewModel = State(initialValue: viewModel)
+    }
+
+    var body: some View {
+        ScrollView {
+            LazyVStack(spacing: 12) {
+                headerCard
+                messageSection
+                summarySection
+                contentSection
+            }
+            .padding(.horizontal, 11)
+            .padding(.top, 11)
+            .padding(.bottom, 34)
+        }
+        .background(Color(.systemGroupedBackground))
+        .navigationTitle("Mesas")
+        .navigationBarTitleDisplayMode(.large)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    Task { await viewModel.refresh() }
+                } label: {
+                    if viewModel.isLoading {
+                        ProgressView()
+                            .controlSize(.small)
+                    } else {
+                        Image(systemName: "arrow.clockwise")
+                    }
+                }
+                .disabled(viewModel.isLoading || viewModel.isMutating)
+                .accessibilityLabel("Actualizar mesas")
+            }
+        }
+        .refreshable { await viewModel.refresh() }
+        .task { await viewModel.loadIfNeeded() }
+        .alert(
+            alertTitle,
+            isPresented: alertBinding
+        ) {
+            Button("OK") {
+                viewModel.errorMessage = nil
+                viewModel.infoMessage = nil
+            }
+        } message: {
+            Text(viewModel.errorMessage ?? viewModel.infoMessage ?? "")
+        }
+        .confirmationDialog("Cerrar mesa", isPresented: closeBinding, titleVisibility: .visible) {
+            if let closeCandidate {
+                Button("Cerrar \(closeCandidate.displayName)") {
+                    Task { await viewModel.close(closeCandidate) }
+                }
+                .disabled(viewModel.isMutating)
+            }
+            Button("Cancelar", role: .cancel) { closeCandidate = nil }
+        } message: {
+            Text("La mesa volverá a disponible. Esto no cobra, factura ni modifica ventas.")
+        }
+        .confirmationDialog("Cancelar sesión", isPresented: cancelBinding, titleVisibility: .visible) {
+            if let cancelCandidate {
+                Button("Cancelar sesión de \(cancelCandidate.displayName)", role: .destructive) {
+                    Task {
+                        await viewModel.cancel(
+                            cancelCandidate,
+                            reason: "Cancelada desde Business iOS"
+                        )
+                    }
+                }
+                .disabled(viewModel.isMutating)
+            }
+            Button("Volver", role: .cancel) { cancelCandidate = nil }
+        } message: {
+            Text("Usa esta acción solo si la sesión de mesa se abrió por error. No toca caja, factura ni historial.")
+        }
+    }
+
+    private var headerCard: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .top, spacing: 12) {
+                Image(systemName: "tablecells")
+                    .font(.title2.weight(.semibold))
+                    .foregroundStyle(.orange)
+                    .frame(width: 46, height: 46)
+                    .background(Color.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Mesas opcionales")
+                        .font(.title3.weight(.bold))
+                    Text("Abre, cierra o cancela sesiones de mesa sin cambiar el flujo fiscal de venta, cobro o factura.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+
+            Label("Venta rápida sigue funcionando aunque no selecciones mesa.", systemImage: "checkmark.seal.fill")
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(.green)
+        }
+        .padding(16)
+        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .strokeBorder(Color.primary.opacity(0.06))
+        )
+    }
+
+    @ViewBuilder
+    private var messageSection: some View {
+        if viewModel.isMutating {
+            RestaurantTablesInlineMessage(
+                message: "Procesando acción de mesa…",
+                systemImage: "clock.arrow.circlepath",
+                tint: .secondary
+            )
+        }
+
+        if !viewModel.canManageTables {
+            RestaurantTablesInlineMessage(
+                message: "Puedes consultar mesas, pero tu usuario no puede abrir, cerrar ni cancelar sesiones.",
+                systemImage: "lock",
+                tint: .orange
+            )
+        }
+    }
+
+    private var summarySection: some View {
+        LazyVGrid(columns: summaryColumns, spacing: 10) {
+            RestaurantTableSummaryTile(title: "Total", value: viewModel.summary.total, systemImage: "square.grid.2x2", tint: .secondary)
+            RestaurantTableSummaryTile(title: "Disponibles", value: viewModel.summary.available, systemImage: "checkmark.circle.fill", tint: .green)
+            RestaurantTableSummaryTile(title: "Ocupadas", value: viewModel.summary.occupied, systemImage: "person.2.fill", tint: .orange)
+            RestaurantTableSummaryTile(title: "Abiertas", value: viewModel.summary.openSessions, systemImage: "clock.fill", tint: .blue)
+        }
+    }
+
+    @ViewBuilder
+    private var contentSection: some View {
+        if viewModel.isLoading && viewModel.tables.isEmpty {
+            RestaurantTablesLoadingCard()
+        } else if viewModel.tables.isEmpty {
+            RestaurantTablesEmptyCard()
+        } else {
+            LazyVStack(spacing: 10) {
+                ForEach(viewModel.tables) { table in
+                    RestaurantTableReadinessCard(
+                        table: table,
+                        canManage: viewModel.canManageTables,
+                        isMutating: viewModel.isMutating,
+                        onOpen: {
+                            Task { await viewModel.open(table) }
+                        },
+                        onClose: {
+                            closeCandidate = table
+                        },
+                        onCancel: {
+                            cancelCandidate = table
+                        }
+                    )
+                }
+            }
+        }
+    }
+
+    private var alertTitle: String {
+        viewModel.errorMessage == nil ? "Mesas" : "No se pudo completar"
+    }
+
+    private var alertBinding: Binding<Bool> {
+        Binding(
+            get: { viewModel.errorMessage != nil || viewModel.infoMessage != nil },
+            set: { isPresented in
+                if !isPresented {
+                    viewModel.errorMessage = nil
+                    viewModel.infoMessage = nil
+                }
+            }
+        )
+    }
+
+    private var closeBinding: Binding<Bool> {
+        Binding(
+            get: { closeCandidate != nil },
+            set: { if !$0 { closeCandidate = nil } }
+        )
+    }
+
+    private var cancelBinding: Binding<Bool> {
+        Binding(
+            get: { cancelCandidate != nil },
+            set: { if !$0 { cancelCandidate = nil } }
+        )
+    }
+
+    private var summaryColumns: [GridItem] {
+        [
+            GridItem(.flexible(), spacing: 10),
+            GridItem(.flexible(), spacing: 10)
+        ]
+    }
+}
+
+private struct RestaurantTableReadinessCard: View {
+    let table: RestaurantTableReadiness
+    let canManage: Bool
+    let isMutating: Bool
+    let onOpen: () -> Void
+    let onClose: () -> Void
+    let onCancel: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .top, spacing: 12) {
+                Image(systemName: table.statusSystemImage)
+                    .font(.headline.weight(.semibold))
+                    .foregroundStyle(table.statusTint)
+                    .frame(width: 44, height: 44)
+                    .background(table.statusTint.opacity(0.12), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Text(table.displayName)
+                            .font(.headline)
+                            .lineLimit(1)
+
+                        Text(table.displayCode)
+                            .font(.caption.monospaced().weight(.bold))
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Text(table.displaySubtitle)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                }
+
+                Spacer(minLength: 8)
+
+                Text(table.displayStatus)
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(table.statusTint)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(table.statusTint.opacity(0.12), in: Capsule())
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                if let sessionId = table.activeSessionId, !sessionId.isEmpty {
+                    Label("Sesión: \(sessionId)", systemImage: "clock")
+                        .font(.caption.monospaced())
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+
+                if let saleId = table.linkedSaleId, !saleId.isEmpty {
+                    Label("Venta vinculada: \(saleId)", systemImage: "cart")
+                        .font(.caption.monospaced())
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+
+                if let reason = table.reasonIfBlocked, !reason.isEmpty {
+                    Label(reason, systemImage: "info.circle")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+
+            actionRow
+        }
+        .padding(14)
+        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .strokeBorder(table.statusTint.opacity(0.12))
+        )
+    }
+
+    @ViewBuilder
+    private var actionRow: some View {
+        HStack(spacing: 10) {
+            if table.canOpen {
+                Button {
+                    onOpen()
+                } label: {
+                    Label("Abrir", systemImage: "plus.circle.fill")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(!canManage || isMutating)
+            }
+
+            if table.canClose {
+                Button {
+                    onClose()
+                } label: {
+                    Label("Cerrar", systemImage: "checkmark.circle.fill")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+                .disabled(!canManage || isMutating)
+            }
+
+            if table.canCancel {
+                Button(role: .destructive) {
+                    onCancel()
+                } label: {
+                    Label("Cancelar", systemImage: "xmark.circle.fill")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+                .disabled(!canManage || isMutating)
+            }
+
+            if !table.canOpen && !table.canClose && !table.canCancel {
+                Label("Sin acciones", systemImage: "minus.circle")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+        .controlSize(.regular)
+    }
+}
+
+private struct RestaurantTableSummaryTile: View {
+    let title: String
+    let value: Int
+    let systemImage: String
+    let tint: Color
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: systemImage)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(tint)
+                .frame(width: 34, height: 34)
+                .background(tint.opacity(0.12), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Text("\(value)")
+                    .font(.title3.weight(.bold))
+                    .monospacedDigit()
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(12)
+        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .strokeBorder(Color.primary.opacity(0.06))
+        )
+    }
+}
+
+private struct RestaurantTablesInlineMessage: View {
+    let message: String
+    let systemImage: String
+    let tint: Color
+
+    var body: some View {
+        Label(message, systemImage: systemImage)
+            .font(.footnote)
+            .foregroundStyle(tint)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(12)
+            .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .fixedSize(horizontal: false, vertical: true)
+    }
+}
+
+private struct RestaurantTablesLoadingCard: View {
+    var body: some View {
+        VStack(spacing: 12) {
+            ProgressView()
+            Text("Cargando mesas…")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(24)
+        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+    }
+}
+
+private struct RestaurantTablesEmptyCard: View {
+    var body: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "tablecells.badge.ellipsis")
+                .font(.system(size: 34, weight: .semibold))
+                .foregroundStyle(.secondary)
+            Text("No hay mesas configuradas")
+                .font(.headline)
+            Text("Crea mesas desde backend/Admin readiness antes de usar esta pantalla en operación real.")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(24)
+        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+    }
+}
+
+private extension RestaurantTableReadinessSummary {
+    static let empty = RestaurantTableReadinessSummary(
+        total: 0,
+        available: 0,
+        occupied: 0,
+        disabled: 0,
+        openSessions: 0
+    )
+}
+
+private extension RestaurantTableReadiness {
+    var normalizedStatusForUI: String {
+        status.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    }
+
+    var statusSortOrder: Int {
+        switch normalizedStatusForUI {
+        case "occupied":
+            return 0
+        case "available":
+            return 1
+        case "disabled":
+            return 2
+        default:
+            return 3
+        }
+    }
+
+    var displayCode: String {
+        let cleanCode = code.trimmingCharacters(in: .whitespacesAndNewlines)
+        return cleanCode.isEmpty ? tableId : cleanCode
+    }
+
+    var displayName: String {
+        let cleanName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        return cleanName.isEmpty ? displayCode : cleanName
+    }
+
+    var displaySubtitle: String {
+        var parts: [String] = []
+        if let area = area?.trimmingCharacters(in: .whitespacesAndNewlines), !area.isEmpty {
+            parts.append(area)
+        }
+        if let capacity, capacity > 0 {
+            parts.append("\(capacity) personas")
+        }
+        if parts.isEmpty {
+            return "Mesa operativa"
+        }
+        return parts.joined(separator: " · ")
+    }
+
+    var displayStatus: String {
+        switch normalizedStatusForUI {
+        case "available":
+            return "Disponible"
+        case "occupied":
+            return "Ocupada"
+        case "disabled":
+            return "Deshabilitada"
+        default:
+            return status.capitalized
+        }
+    }
+
+    var statusSystemImage: String {
+        switch normalizedStatusForUI {
+        case "available":
+            return "checkmark.circle.fill"
+        case "occupied":
+            return "person.2.fill"
+        case "disabled":
+            return "nosign"
+        default:
+            return "questionmark.circle.fill"
+        }
+    }
+
+    var statusTint: Color {
+        switch normalizedStatusForUI {
+        case "available":
+            return .green
+        case "occupied":
+            return .orange
+        case "disabled":
+            return .secondary
+        default:
+            return .blue
+        }
+    }
+}
+
