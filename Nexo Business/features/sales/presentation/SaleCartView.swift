@@ -31,7 +31,7 @@ struct SaleCartView: View {
     @State private var isPreparingPaymentNavigation = false
     @State private var shouldShowPaymentRegister = false
     @State private var paymentPreparationMessage: String?
-    
+
     init(
         viewModel: SaleCartViewModel,
         customersRepository: CustomersRepository = UnavailableCustomersRepository(),
@@ -62,7 +62,7 @@ struct SaleCartView: View {
                 if shouldShowSummaryGroup {
                     summaryGroup
                 }
-                
+
                 if viewModel.shouldShowPendingSalesGroup {
                     pendingSalesGroup
                 }
@@ -557,7 +557,7 @@ struct SaleCartView: View {
     private var lockedCartBlock: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .firstTextBaseline) {
-                Text("Carrito registrado")
+                Text("Carrito bloqueado")
                     .font(.subheadline.weight(.semibold))
 
                 Spacer()
@@ -566,6 +566,20 @@ struct SaleCartView: View {
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
                     .monospacedDigit()
+            }
+
+            if let message = viewModel.registeredSaleEditBlockedMessage {
+                Label(message, systemImage: "lock.fill")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            if viewModel.cartItems.isEmpty {
+                Text("El detalle de ítems no está disponible en este resumen. Abre Detalle para consultar la evidencia completa de la venta.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             ForEach(viewModel.cartItems) { item in
@@ -710,7 +724,7 @@ struct SaleCartView: View {
             autoApplyDiscountDraft()
         }
     }
-    
+
     private func isSelectedDiscountPreset(_ preset: String) -> Bool {
         viewModel.discountValue.trimmed == preset
     }
@@ -897,7 +911,7 @@ struct SaleCartView: View {
             }
         }
     }
-    
+
     private struct DiscountPresetChip: View {
         let title: String
         let isSelected: Bool
@@ -958,7 +972,12 @@ struct SaleCartView: View {
                     .buttonStyle(.borderedProminent)
                     .controlSize(.large)
                     .disabled(isPreparingPaymentNavigation)
-                } else {
+                } else if let message = viewModel.registeredSaleEditBlockedMessage {
+                    Label(message, systemImage: "lock.fill")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                } else if sale.isCollectableForOperationalFlow {
                     Label("Este usuario puede registrar ventas, pero no cobrar.", systemImage: "lock")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
@@ -1212,7 +1231,7 @@ struct SaleCartView: View {
             }
         }
     }
-    
+
     private var shouldShowLineDiscountSelection: Bool {
         discountEditorBinding.wrappedValue && viewModel.discountTarget == .selectedItems
     }
@@ -1485,7 +1504,7 @@ struct SaleCartView: View {
             return viewModel.createdSaleMessageStyle
         }
     }
-    
+
     private func requestStartNewOrder() {
         if viewModel.createdSaleNeedsCollection {
             showStartNewOrderConfirmation = true

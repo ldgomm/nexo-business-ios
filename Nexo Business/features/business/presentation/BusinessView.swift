@@ -1331,7 +1331,7 @@ private struct BusinessHeroCard: View {
         .background(
             LinearGradient(
                 colors: [
-                    Color.black.opacity(0.36),
+                    Color.black.opacity(0.16),
                     Color(.secondarySystemGroupedBackground)
                 ],
                 startPoint: .topLeading,

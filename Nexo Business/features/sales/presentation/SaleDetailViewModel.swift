@@ -49,13 +49,9 @@ final class SaleDetailViewModel {
 
     var canEditSale: Bool {
         guard let sale else { return false }
-        let normalizedStatus = sale.status
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .lowercased()
-            .replacingOccurrences(of: "-", with: "_")
         return !isBusy &&
         hasPermission(["business.sales.create", "sales.create"]) &&
-        !["closed", "closed_day", "canceled", "cancelled", "voided"].contains(normalizedStatus)
+        sale.isEditableForOperationalChanges
     }
 
     var canConfirm: Bool {
@@ -69,14 +65,13 @@ final class SaleDetailViewModel {
         guard let sale else { return false }
         return !isBusy &&
         hasPermission(["business.sales.cancel", "sales.cancel"]) &&
-        SaleStatusPresentation.canCancel(status: sale.status)
+        sale.isCancellableOperationally
     }
 
     var canCollect: Bool {
         guard let sale else { return false }
         return !isBusy &&
-        !sale.hasReceivableReference &&
-        SaleStatusPresentation.canCollect(status: sale.status) &&
+        sale.isCollectableForOperationalFlow &&
         PaymentStatusPresentation.canCollect(status: sale.paymentStatus) &&
         hasAnyPaymentCapability
     }
@@ -96,6 +91,18 @@ final class SaleDetailViewModel {
 
         if sale.hasElectronicDocumentRegistered {
             return nil
+        }
+
+        if sale.isCancelledOperationally {
+            return "Esta venta está cancelada. Solo puedes consultar su historial; no se puede cobrar, editar ni emitir comprobante electrónico."
+        }
+
+        if sale.isClosedOperationally {
+            return "Esta venta está cerrada. Solo puedes consultar su historial y documentos existentes."
+        }
+
+        if !sale.isPaidOrFormalCreditForElectronicDocument {
+            return "Primero cobra la venta o conviértela en una cuenta por cobrar formal con cliente identificado. En el piloto actual no se emite factura electrónica desde una venta sin cobrar."
         }
 
         if !sale.electronicInvoiceReadiness.canIssue {
@@ -221,6 +228,15 @@ final class SaleDetailViewModel {
             : "doc.text"
     }
 
+    func canNavigateToDocuments(for sale: BusinessSale) -> Bool {
+        if sale.hasElectronicDocumentRegistered {
+            return hasPermission(documentViewPermissions)
+        }
+
+        return canIssueElectronicInvoice(for: sale)
+    }
+
+
     func canViewElectronicDocumentDetail(_ document: BusinessDocument?) -> Bool {
         guard document != nil else { return false }
         return hasPermission(documentViewPermissions)
@@ -272,6 +288,7 @@ final class SaleDetailViewModel {
     func canIssueElectronicInvoice(for sale: BusinessSale) -> Bool {
         !sale.hasElectronicDocumentRegistered &&
         BusinessDocumentStatusPresentation.isMissingElectronicDocument(sale.effectiveDocumentStatus) &&
+        sale.canStartNewElectronicDocumentUnderPilotPolicy &&
         sale.electronicInvoiceReadiness.canIssue &&
         BusinessElectronicInvoiceCustomerPolicy.blockingMessageForInvoice(sale: sale) == nil &&
         hasElectronicInvoiceIssuePermission &&

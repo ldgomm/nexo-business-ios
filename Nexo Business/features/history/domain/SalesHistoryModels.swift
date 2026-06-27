@@ -7,6 +7,12 @@
 
 import Foundation
 
+struct SalesHistoryStatusFilterGroup: Identifiable, Sendable, Hashable {
+    let id: String
+    let title: String
+    let filters: [SalesHistoryStatusFilter]
+}
+
 enum SalesHistoryStatusFilter: String, CaseIterable, Identifiable, Sendable, Hashable {
     case all
     case pending
@@ -33,7 +39,7 @@ enum SalesHistoryStatusFilter: String, CaseIterable, Identifiable, Sendable, Has
         case .all:
             return "Todas"
         case .pending:
-            return "Pendientes"
+            return "Borrador / pendiente"
         case .confirmed:
             return "Confirmadas"
         case .inProgress:
@@ -48,6 +54,24 @@ enum SalesHistoryStatusFilter: String, CaseIterable, Identifiable, Sendable, Has
             return "Canceladas"
         }
     }
+
+    static let groupedSections: [SalesHistoryStatusFilterGroup] = [
+        SalesHistoryStatusFilterGroup(
+            id: "overview",
+            title: "Vista general",
+            filters: [.all]
+        ),
+        SalesHistoryStatusFilterGroup(
+            id: "operation",
+            title: "Estado de venta",
+            filters: [.pending, .confirmed, .inProgress, .ready, .delivered]
+        ),
+        SalesHistoryStatusFilterGroup(
+            id: "terminal",
+            title: "Terminales",
+            filters: [.closed, .canceled]
+        )
+    ]
 }
 
 struct SalesHistorySearchRequest: Equatable, Sendable {

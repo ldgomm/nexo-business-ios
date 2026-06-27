@@ -23,9 +23,9 @@ enum SaleStatusPresentation {
             return "Lista"
         case "delivered":
             return "Entregada"
-        case "closed":
+        case "closed", "closed_day", "day_closed":
             return "Cerrada"
-        case "canceled", "cancelled", "voided":
+        case "canceled", "cancelled", "voided", "annulled", "cancelled_internal", "canceled_internal":
             return "Cancelada"
         default:
             return humanized(status)
@@ -34,9 +34,11 @@ enum SaleStatusPresentation {
 
     static func systemImage(for status: String) -> String {
         switch normalized(status) {
-        case "confirmed", "closed", "delivered", "ready":
+        case "confirmed", "delivered", "ready":
             return "checkmark.circle.fill"
-        case "canceled", "cancelled", "voided":
+        case "closed", "closed_day", "day_closed":
+            return "lock.circle.fill"
+        case "canceled", "cancelled", "voided", "annulled", "cancelled_internal", "canceled_internal":
             return "xmark.circle.fill"
         case "pending", "draft":
             return "clock"
@@ -57,18 +59,32 @@ enum SaleStatusPresentation {
     }
 
     static func canCancel(status: String) -> Bool {
-        !["closed", "canceled", "cancelled", "voided"].contains(normalized(status))
+        !isTerminal(status: status)
     }
 
     static func canCollect(status: String) -> Bool {
         switch normalized(status) {
-        case "confirmed", "closed", "delivered", "ready", "in_progress", "pending":
+        case "confirmed", "delivered", "ready", "in_progress", "pending":
             return true
-        case "draft", "borrador", "canceled", "cancelled", "voided":
+        case "draft", "borrador":
             return false
         default:
             return false
         }
+    }
+
+    static func isTerminal(status: String) -> Bool {
+        [
+            "closed",
+            "closed_day",
+            "day_closed",
+            "canceled",
+            "cancelled",
+            "voided",
+            "annulled",
+            "cancelled_internal",
+            "canceled_internal"
+        ].contains(normalized(status))
     }
 
     static func requiresConfirmationBeforeCollection(status: String) -> Bool {

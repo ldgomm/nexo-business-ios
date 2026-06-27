@@ -136,7 +136,7 @@ struct SaleCartItem: Equatable, Identifiable, Sendable {
     var taxTreatment: SaleLineTaxTreatmentOption
     var discount: MoneyAmount?
     var note: String?
-    
+
     init(
         id: String = UUID().uuidString,
         catalogItem: BusinessCatalogItem,
@@ -369,7 +369,7 @@ enum SaleCartOrderState: Equatable, Sendable {
     case previewing
     case creating
     case created
-    
+
     var displayName: String {
         switch self {
         case .editing:
@@ -419,13 +419,13 @@ final class SaleCartViewModel {
     var discountValue: String = ""
     var discountReason: String = ""
     var selectedDiscountItemIds: Set<String> = []
-    
+
     let organizationId: String
     let branchId: String
     let activityId: String
     private(set) var revisions: BusinessRevisions
     let effectivePermissions: Set<String>
-    
+
     private let verticalContext: BusinessVerticalContext
     private let catalogRepository: CatalogRepository
     private let salesRepository: SalesRepository
@@ -435,7 +435,7 @@ final class SaleCartViewModel {
     private let revisionRegistry: BusinessRevisionRegistry
     private var scheduledPreviewTask: Task<Void, Never>?
     private var lastPendingSalesLoadedAt: Date?
-    
+
     init(
         organizationId: String,
         branchId: String,
@@ -480,7 +480,7 @@ final class SaleCartViewModel {
         scheduledPreviewTask?.cancel()
         scheduledPreviewTask = nil
     }
-    
+
     var canSearchCatalog: Bool {
         !isSearching && !isSearchingSuggestions && adoptingTemplateId == nil && !isPreviewing && !isCreatingSale && (createdSale == nil || canEditRegisteredSaleItems)
     }
@@ -488,18 +488,18 @@ final class SaleCartViewModel {
     var canAdoptCatalogSuggestion: Bool {
         canEditCart && adoptingTemplateId == nil && effectivePermissions.contains("catalog.local.copy_from_master")
     }
-    
+
     var canEditCart: Bool {
         if createdSale != nil {
             return canEditRegisteredSaleItems && !isPreviewing && !isCreatingSale
         }
         return !isOrderLocked && !isPreviewing && !isCreatingSale
     }
-    
+
     var canPreview: Bool {
         canEditCart && !cartItems.isEmpty
     }
-    
+
     var canCreateSale: Bool {
         !isOrderLocked && !cartItems.isEmpty && !isCreatingSale && !isPreviewing
     }
@@ -516,7 +516,7 @@ final class SaleCartViewModel {
         }
         return values
     }
-    
+
     var canClearCart: Bool {
         canEditCart && !cartItems.isEmpty
     }
@@ -524,9 +524,7 @@ final class SaleCartViewModel {
 
     var canEditRegisteredSaleItems: Bool {
         guard let sale = createdSale else { return false }
-        guard !registeredSaleDocumentBlocksDirectItemEditing(sale) else { return false }
-        let normalizedStatus = sale.status.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        return !["closed", "closed_day", "canceled", "cancelled", "voided"].contains(normalizedStatus)
+        return sale.isEditableForOperationalChanges
     }
 
     var canSaveRegisteredSaleChanges: Bool {
@@ -540,8 +538,14 @@ final class SaleCartViewModel {
 
     var registeredSaleEditBlockedMessage: String? {
         guard let sale = createdSale else { return nil }
-        if registeredSaleDocumentBlocksDirectItemEditing(sale) {
-            return "Esta venta ya tiene un comprobante electrónico generado, enviado o autorizado. Para cambiar productos debes usar un flujo fiscal correctivo, no edición directa."
+        if sale.isCancelledOperationally {
+            return "Esta venta está cancelada. Solo consulta: no se puede editar, guardar, cobrar ni emitir comprobante electrónico."
+        }
+        if sale.isClosedOperationally {
+            return "Esta venta está cerrada. Solo consulta y documentos existentes."
+        }
+        if sale.hasBlockingElectronicDocumentForOperationalChanges || registeredSaleDocumentBlocksDirectItemEditing(sale) {
+            return "Esta venta ya tiene un comprobante electrónico generado, enviado o autorizado. Para cambiar productos debes usar un flujo correctivo, no edición directa."
         }
         if registeredSaleHasUnsavedChanges {
             return "Guarda los cambios de la venta antes de cobrar o emitir factura electrónica."
@@ -581,7 +585,7 @@ final class SaleCartViewModel {
             "sales.apply_discount"
         ])
     }
-    
+
     var canStartNewOrder: Bool {
         createdSale != nil || !cartItems.isEmpty || preview != nil || selectedCustomer != nil
     }
@@ -631,34 +635,37 @@ final class SaleCartViewModel {
         deletingPendingSaleId == sale.id
     }
 
-    
+
     var isOrderLocked: Bool {
         createdSale != nil || orderState == .created || orderState == .creating
     }
-    
+
     var canCollectCreatedSale: Bool {
         guard let sale = createdSale else { return false }
         return !registeredSaleHasUnsavedChanges &&
-        SaleStatusPresentation.canCollect(status: sale.status) &&
+        sale.isCollectableForOperationalFlow &&
         PaymentStatusPresentation.canCollect(status: sale.paymentStatus) &&
         (hasPaymentPermission || hasReceivablePermission)
     }
 
     var shouldShowCollectLockForCreatedSale: Bool {
         guard let sale = createdSale else { return false }
-        return sale.needsCollection && !canCollectCreatedSale
+        return sale.needsCollection && sale.isCollectableForOperationalFlow && !canCollectCreatedSale
     }
 
     var canOpenCreatedSaleDocuments: Bool {
-        guard createdSale != nil else { return false }
-        return hasPermission(documentViewPermissions + electronicInvoiceIssuePermissions)
+        guard let sale = createdSale else { return false }
+        if sale.hasElectronicDocumentRegistered {
+            return hasPermission(documentViewPermissions)
+        }
+        return canIssueElectronicInvoiceForCreatedSale
     }
 
     var canIssueElectronicInvoiceForCreatedSale: Bool {
         guard let sale = createdSale else { return false }
         return !registeredSaleHasUnsavedChanges &&
-        !sale.needsCollection &&
-        BusinessDocumentStatusPresentation.isMissingElectronicDocument(sale.documentStatus) &&
+        BusinessDocumentStatusPresentation.isMissingElectronicDocument(sale.effectiveDocumentStatus) &&
+        sale.canStartNewElectronicDocumentUnderPilotPolicy &&
         BusinessElectronicInvoiceCustomerPolicy.blockingMessageForInvoice(sale: sale) == nil &&
         hasPermission(electronicInvoiceIssuePermissions) &&
         !branchId.isEmpty &&
@@ -722,7 +729,7 @@ final class SaleCartViewModel {
         guard let selectedCustomer else { return nil }
         return selectedCustomer.identificationType == .finalConsumer ? nil : selectedCustomer.id
     }
-    
+
     var totalForDisplay: MoneyAmount? {
         createdSale?.totals.grandTotal ?? localCalculation.totals.grandTotal
     }
@@ -742,7 +749,8 @@ final class SaleCartViewModel {
     }
 
     var createdSaleNeedsCollection: Bool {
-        createdSale?.needsCollection == true
+        guard let sale = createdSale else { return false }
+        return sale.needsCollection && sale.isCollectableForOperationalFlow
     }
 
     var createdSalePaymentStatusText: String {
@@ -883,10 +891,9 @@ final class SaleCartViewModel {
     }
 
     private static func isPendingForCart(_ sale: BusinessSale) -> Bool {
-        let status = sale.status.trimmingCharacters(in: .whitespacesAndNewlines).lowercased().replacingOccurrences(of: "-", with: "_")
-        guard !["closed", "canceled", "cancelled", "voided"].contains(status) else { return false }
+        guard !sale.isTerminalOperationally else { return false }
         if SaleStatusPresentation.requiresConfirmationBeforeCollection(status: sale.status) { return true }
-        return SaleStatusPresentation.canCollect(status: sale.status) && PaymentStatusPresentation.canCollect(status: sale.paymentStatus)
+        return sale.isCollectableForOperationalFlow && PaymentStatusPresentation.canCollect(status: sale.paymentStatus)
     }
 
     func updateCreatedSale(_ sale: BusinessSale) {
@@ -1098,7 +1105,7 @@ final class SaleCartViewModel {
     func recalculateLocalTotalsIfNeeded() {
         recalculateLocalCalculation()
     }
-    
+
     func updateSelectedServiceType(_ serviceType: BusinessSaleServiceType) {
         guard ensureOrderIsEditable() else { return }
         selectedServiceType = serviceType
@@ -1123,7 +1130,7 @@ final class SaleCartViewModel {
             markCalculationDirty(shouldScheduleAutomaticPreview: true)
         }
     }
-    
+
     func clearCustomer() {
         guard ensureOrderIsEditable() else { return }
         selectedCustomer = createdSale == nil ? nil : BusinessCustomerPresentation.finalConsumer
@@ -1162,7 +1169,7 @@ final class SaleCartViewModel {
     func taxTreatment(for cartItemId: String) -> SaleLineTaxTreatmentOption {
         cartItems.first(where: { $0.id == cartItemId })?.taxTreatment ?? .defaultForNewLine()
     }
-    
+
     func lineDiscount(for cartItemId: String) -> String {
         cartItems.first(where: { $0.id == cartItemId })?.discount?.amount ?? ""
     }
@@ -1283,26 +1290,26 @@ final class SaleCartViewModel {
             errorMessage = registeredSaleEditBlockedMessage ?? "Esta venta ya fue registrada y no se puede editar desde aquí."
             return
         }
-        
+
         let query = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
-        
+
         guard !query.isEmpty else {
             searchResults = []
             errorMessage = "Busca por nombre, SKU o código."
             return
         }
-        
+
         guard validateOperationalContext() else { return }
         guard !isSearching else { return }
-        
+
         isSearching = true
         errorMessage = nil
         infoMessage = nil
-        
+
         defer {
             isSearching = false
         }
-        
+
         do {
             let response = try await catalogRepository.search(
                 organizationId: organizationId,
@@ -1312,7 +1319,7 @@ final class SaleCartViewModel {
                 query: query,
                 limit: 25
             )
-            
+
             searchResults = response.items
             if response.items.isEmpty {
                 infoMessage = "No encontramos productos activos en tu negocio. Buscando sugerencias de Nexo…"
@@ -1327,17 +1334,17 @@ final class SaleCartViewModel {
             errorMessage = error.localizedDescription
         }
     }
-    
+
     func clearSearch() {
         guard ensureOrderIsEditable() else { return }
-        
+
         searchQuery = ""
         searchResults = []
         suggestionResults = []
         errorMessage = nil
         infoMessage = nil
     }
-    
+
     private func searchSuggestedCatalog(query: String) async {
         guard !isSearchingSuggestions else { return }
 
@@ -1427,7 +1434,7 @@ final class SaleCartViewModel {
 
     func addToCart(_ item: BusinessCatalogItem) {
         guard ensureOrderIsEditable() else { return }
-        
+
         errorMessage = nil
         infoMessage = nil
         if let index = cartItems.firstIndex(where: { $0.catalogItem.id == item.id }) {
@@ -1435,7 +1442,7 @@ final class SaleCartViewModel {
             markCalculationDirty(shouldScheduleAutomaticPreview: true)
             return
         }
-        
+
         cartItems.append(
             SaleCartItem(
                 catalogItem: item,
@@ -1445,20 +1452,20 @@ final class SaleCartViewModel {
         )
         markCalculationDirty(shouldScheduleAutomaticPreview: true)
     }
-    
+
     func updateQuantity(cartItemId: String, quantity: String) {
         guard ensureOrderIsEditable() else { return }
         guard let index = cartItems.firstIndex(where: { $0.id == cartItemId }) else { return }
-        
+
         let normalized = normalizeQuantity(quantity)
         cartItems[index].quantity = normalized
         markCalculationDirty(shouldScheduleAutomaticPreview: true, showMessage: false)
     }
-    
+
     func quantity(for cartItemId: String) -> String {
         cartItems.first(where: { $0.id == cartItemId })?.quantity ?? ""
     }
-    
+
     func removeFromCart(cartItemId: String) {
         guard ensureOrderIsEditable() else { return }
         let removedHadDiscount = cartItems.first(where: { $0.id == cartItemId })?.discount != nil
@@ -1467,7 +1474,7 @@ final class SaleCartViewModel {
         normalizeDiscountSelectionAfterCartMutation(clearDiscountDraftIfNoDiscountedLines: removedHadDiscount)
         markCalculationDirty(shouldScheduleAutomaticPreview: true)
     }
-    
+
     func clearCart() {
         guard ensureOrderIsEditable() else { return }
         cartItems = []
@@ -1479,7 +1486,7 @@ final class SaleCartViewModel {
         infoMessage = nil
         orderState = .editing
     }
-    
+
     func startNewOrder() {
         searchQuery = ""
         searchResults = []
@@ -1496,7 +1503,7 @@ final class SaleCartViewModel {
         infoMessage = nil
         orderState = .editing
     }
-    
+
     func loadPreview() async {
         await loadPreview(showUserMessages: true)
     }
@@ -1646,7 +1653,7 @@ final class SaleCartViewModel {
             salesRepository: salesRepository
         )
     }
-    
+
     private func ensureFreshPreviewBeforeCreatingSale() async -> Bool {
         scheduledPreviewTask?.cancel()
 
@@ -1724,6 +1731,14 @@ final class SaleCartViewModel {
     }
 
     private func createdSaleSummaryMessage(for sale: BusinessSale, replayed: Bool) -> String {
+        if sale.isCancelledOperationally {
+            return "Venta cancelada. Solo consulta; no se puede cobrar, editar ni emitir comprobante electrónico."
+        }
+
+        if sale.isClosedOperationally {
+            return "Venta cerrada. Solo consulta y documentos existentes."
+        }
+
         if replayed {
             return sale.needsCollection
                 ? "Venta sin cobrar recuperada de un intento anterior. No se duplicó la operación."
@@ -1756,7 +1771,7 @@ final class SaleCartViewModel {
         }
         return true
     }
-    
+
     private var serviceTypeForRequest: BusinessSaleServiceType? {
         supportsRestaurantServiceType ? selectedServiceType : nil
     }
@@ -1816,7 +1831,7 @@ final class SaleCartViewModel {
     private func draftItems() -> [BusinessSaleItemRequest] {
         cartItems.map { saleItemRequest(for: $0) }
     }
-    
+
 
     private func saleItemRequest(for item: SaleCartItem) -> BusinessSaleItemRequest {
         BusinessSaleItemRequest(
@@ -1879,7 +1894,9 @@ final class SaleCartViewModel {
         registeredSaleHasUnsavedChanges = false
         orderState = .created
         recalculateLocalCalculation()
-        if sale.items.isEmpty {
+        if !sale.isEditableForOperationalChanges {
+            infoMessage = registeredSaleEditBlockedMessage ?? "Esta venta está bloqueada para edición. Puedes revisar el detalle, pero no guardar cambios, cobrar ni emitir nuevos comprobantes desde el carrito."
+        } else if sale.items.isEmpty {
             infoMessage = "Cargando detalle completo de la venta para editar ítems, descuentos, cliente y tipo de servicio."
         } else if cartItems.isEmpty {
             infoMessage = "Esta venta no tiene ítems activos editables. Puedes agregar nuevos ítems si la venta sigue abierta."
@@ -1947,34 +1964,34 @@ final class SaleCartViewModel {
 
     private func validateCart(showErrors: Bool = true) -> Bool {
         guard validateOperationalContext(showErrors: showErrors) else { return false }
-        
+
         guard !cartItems.isEmpty else {
             if showErrors { errorMessage = "Agrega al menos un producto o servicio." }
             return false
         }
-        
+
         guard cartItems.allSatisfy({ isValidQuantity($0.quantity) }) else {
             if showErrors { errorMessage = "Revisa las cantidades. Deben ser mayores a cero." }
             return false
         }
-        
+
         return true
     }
-    
+
     private func validateOperationalContext(showErrors: Bool = true) -> Bool {
         if organizationId.isEmpty || branchId.isEmpty || activityId.isEmpty {
             if showErrors { errorMessage = "Falta organización, sucursal o actividad operativa. Actualiza el contexto." }
             return false
         }
-        
+
         if revisions.catalogRevision.isEmpty || revisions.taxConfigurationRevision.isEmpty {
             if showErrors { errorMessage = "Faltan revisiones de catálogo o impuestos. Actualiza el contexto." }
             return false
         }
-        
+
         return true
     }
-    
+
     private func normalizedDiscountValue() -> Decimal? {
         let normalized = discountValue.trimmingCharacters(in: .whitespacesAndNewlines).replacingOccurrences(of: ",", with: ".")
         guard !normalized.isEmpty,
@@ -2022,31 +2039,31 @@ final class SaleCartViewModel {
             infoMessage = "Actualiza el contexto del negocio antes de continuar."
         }
     }
-    
+
     private func normalizeQuantity(_ quantity: String) -> String {
         quantity
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .replacingOccurrences(of: ",", with: ".")
     }
-    
+
     private func isValidQuantity(_ quantity: String) -> Bool {
         let normalized = normalizeQuantity(quantity)
         guard let decimal = Decimal(string: normalized) else { return false }
         return decimal > Decimal.zero
     }
-    
+
     private func incrementQuantity(_ quantity: String) -> String {
         let normalized = normalizeQuantity(quantity)
         let current = Decimal(string: normalized) ?? Decimal.zero
         let next = current + Decimal(1)
         return NSDecimalNumber(decimal: next).stringValue
     }
-    
+
     private func resolvedUnitCode(for item: BusinessCatalogItem) -> String {
         let raw = item.unit?.code?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         ?? item.unit?.name?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         ?? "unit"
-        
+
         switch raw {
         case "unidad", "unidades", "unit", "u", "und":
             return "unit"
@@ -2054,7 +2071,7 @@ final class SaleCartViewModel {
             return raw.isEmpty ? "unit" : raw
         }
     }
-    
+
     private func resolvedAllowsDecimal(for item: BusinessCatalogItem) -> Bool {
         item.allowsDecimalQuantity ?? item.unit?.allowsDecimal ?? false
     }

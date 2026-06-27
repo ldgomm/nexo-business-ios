@@ -208,13 +208,23 @@ struct SalesHistoryView: View {
                     .foregroundStyle(.secondary)
             }
 
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    ForEach(SalesHistoryStatusFilter.allCases) { status in
-                        statusChip(status)
+            VStack(alignment: .leading, spacing: 10) {
+                ForEach(SalesHistoryStatusFilter.groupedSections) { group in
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(group.title)
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(.tertiary)
+
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 8) {
+                                ForEach(group.filters) { status in
+                                    statusChip(status)
+                                }
+                            }
+                            .padding(.vertical, 2)
+                        }
                     }
                 }
-                .padding(.vertical, 2)
             }
         }
     }
