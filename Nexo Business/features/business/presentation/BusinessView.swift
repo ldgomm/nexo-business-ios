@@ -107,9 +107,17 @@ struct BusinessView: View {
                     )
 
                     BusinessInlineMessage(
-                        message: "Venta rápida sigue siendo el flujo principal. Tipo de servicio entra en 22E; mesas y cocina quedan para 22F/22G.",
+                        message: "Venta rápida sigue siendo el flujo principal. Esta tarjeta solo diagnostica readiness; no cobra, factura ni cambia mesas.",
                         systemImage: "info.circle",
                         tint: .secondary
+                    )
+
+                    BusinessRestaurantReadinessFinalSection(
+                        viewModel: BusinessRestaurantReadinessFinalViewModel(
+                            organizationId: organizationId,
+                            branchId: branchId,
+                            repository: container.restaurantTablesRepository
+                        )
                     )
 
                     if !restaurantEnabledCapabilities.isEmpty {
@@ -1574,7 +1582,376 @@ private struct BusinessIconBadge: View {
     }
 }
 
-// MARK: - Restaurant Tables Optional UI (22F.7)
+@MainActor
+@Observable
+final class BusinessRestaurantReadinessFinalViewModel {
+    private(set) var readiness: BusinessRestaurantReadinessResponse?
+    private(set) var isLoading = false
+    var errorMessage: String?
+
+    private let organizationId: String
+    private let branchId: String
+    private let repository: BusinessRestaurantTablesRepository
+    private var hasLoaded = false
+
+    init(
+        organizationId: String,
+        branchId: String,
+        repository: BusinessRestaurantTablesRepository
+    ) {
+        self.organizationId = organizationId
+        self.branchId = branchId
+        self.repository = repository
+    }
+
+    func loadIfNeeded() async {
+        guard !hasLoaded else { return }
+        await refresh()
+    }
+
+    func refresh() async {
+        isLoading = true
+        errorMessage = nil
+        defer {
+            isLoading = false
+            hasLoaded = true
+        }
+
+        do {
+            readiness = try await repository.restaurantReadiness(
+                organizationId: organizationId,
+                branchId: branchId
+            )
+        } catch let error as APIError {
+            errorMessage = error.userMessage
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+}
+
+private struct BusinessRestaurantReadinessFinalSection: View {
+    @State private var viewModel: BusinessRestaurantReadinessFinalViewModel
+
+    init(viewModel: BusinessRestaurantReadinessFinalViewModel) {
+        self._viewModel = State(initialValue: viewModel)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .center, spacing: 10) {
+                Label("Readiness final 22G", systemImage: "stethoscope")
+                    .font(.subheadline.weight(.semibold))
+
+                Spacer(minLength: 8)
+
+                Button {
+                    Task { await viewModel.refresh() }
+                } label: {
+                    if viewModel.isLoading {
+                        ProgressView()
+                            .controlSize(.small)
+                    } else {
+                        Image(systemName: "arrow.clockwise")
+                    }
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .disabled(viewModel.isLoading)
+                .accessibilityLabel("Actualizar readiness restaurante")
+            }
+
+            if viewModel.isLoading && viewModel.readiness == nil {
+                BusinessInlineMessage(
+                    message: "Leyendo readiness consolidado de Restaurante v1…",
+                    systemImage: "clock.arrow.circlepath",
+                    tint: .secondary
+                )
+            } else if let readiness = viewModel.readiness {
+                BusinessRestaurantReadinessSummaryView(readiness: readiness)
+
+                if let tables = readiness.tables {
+                    BusinessRestaurantReadinessTablesSummaryView(summary: tables)
+                }
+
+                if !readiness.blockers.isEmpty {
+                    BusinessRestaurantReadinessMessageList(
+                        title: "Blockers",
+                        systemImage: "xmark.octagon.fill",
+                        messages: readiness.blockers,
+                        tint: .red
+                    )
+                }
+
+                if !readiness.warnings.isEmpty {
+                    BusinessRestaurantReadinessMessageList(
+                        title: "Warnings",
+                        systemImage: "exclamationmark.triangle.fill",
+                        messages: readiness.warnings,
+                        tint: .orange
+                    )
+                }
+
+                if !readiness.checks.isEmpty {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Checks")
+                            .font(.subheadline.weight(.semibold))
+
+                        ForEach(readiness.checks) { check in
+                            BusinessRestaurantReadinessCheckRow(check: check)
+                        }
+                    }
+                }
+
+                if !readiness.components.isEmpty {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Componentes")
+                            .font(.subheadline.weight(.semibold))
+
+                        ForEach(readiness.components) { component in
+                            BusinessRestaurantReadinessComponentRow(component: component)
+                        }
+                    }
+                }
+            } else if let errorMessage = viewModel.errorMessage {
+                BusinessInlineMessage(
+                    message: "No se pudo cargar readiness Restaurante v1: \(errorMessage)",
+                    systemImage: "wifi.exclamationmark",
+                    tint: .orange
+                )
+            } else {
+                BusinessInlineMessage(
+                    message: "Readiness Restaurante v1 pendiente de cargar.",
+                    systemImage: "hourglass",
+                    tint: .secondary
+                )
+            }
+        }
+        .task { await viewModel.loadIfNeeded() }
+    }
+}
+
+private struct BusinessRestaurantReadinessSummaryView: View {
+    let readiness: BusinessRestaurantReadinessResponse
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 9) {
+            HStack(alignment: .top, spacing: 10) {
+                Image(systemName: readiness.overallStatus.readinessSystemImage)
+                    .font(.headline.weight(.semibold))
+                    .foregroundStyle(readiness.overallStatus.readinessTint)
+                    .frame(width: 34, height: 34)
+                    .background(readiness.overallStatus.readinessTint.opacity(0.12), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Restaurante v1 \(readiness.overallStatus.readinessTitle.lowercased())")
+                        .font(.subheadline.weight(.semibold))
+                    Text(readiness.ready ? "Puede avanzar si no hay blockers. Warnings como mesas abiertas son operativos." : "No avanzar a smoke hasta resolver blockers.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Spacer(minLength: 8)
+
+                Text(readiness.overallStatus.uppercased())
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(readiness.overallStatus.readinessTint)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(readiness.overallStatus.readinessTint.opacity(0.12), in: Capsule())
+            }
+
+            Label("Diagnóstico únicamente: vender, cobrar, facturar y operar mesas viven en sus pantallas normales.", systemImage: "eye")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            if !readiness.capabilities.isEmpty {
+                Text("Capabilities: \(readiness.capabilities.joined(separator: ", "))")
+                    .font(.caption2.monospaced())
+                    .foregroundStyle(.secondary)
+                    .lineLimit(3)
+            }
+        }
+        .padding(12)
+        .background(Color(.tertiarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+    }
+}
+
+private struct BusinessRestaurantReadinessTablesSummaryView: View {
+    let summary: RestaurantTableReadinessSummary
+
+    var body: some View {
+        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
+            BusinessRestaurantReadinessMetric(title: "Total", value: summary.total, systemImage: "square.grid.2x2", tint: .secondary)
+            BusinessRestaurantReadinessMetric(title: "Libres", value: summary.available, systemImage: "checkmark.circle.fill", tint: .green)
+            BusinessRestaurantReadinessMetric(title: "Ocupadas", value: summary.occupied, systemImage: "person.2.fill", tint: .orange)
+            BusinessRestaurantReadinessMetric(title: "Abiertas", value: summary.openSessions, systemImage: "clock.fill", tint: .blue)
+        }
+    }
+}
+
+private struct BusinessRestaurantReadinessMetric: View {
+    let title: String
+    let value: Int
+    let systemImage: String
+    let tint: Color
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: systemImage)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(tint)
+            VStack(alignment: .leading, spacing: 1) {
+                Text("\(value)")
+                    .font(.headline.weight(.bold))
+                    .monospacedDigit()
+                Text(title)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(10)
+        .background(Color(.tertiarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+}
+
+private struct BusinessRestaurantReadinessCheckRow: View {
+    let check: BusinessRestaurantReadinessCheck
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: check.status.readinessSystemImage)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(check.status.readinessTint)
+                .frame(width: 28, height: 28)
+                .background(check.status.readinessTint.opacity(0.10), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 8) {
+                    Text(check.code.restaurantReadableCode)
+                        .font(.caption.monospaced().weight(.semibold))
+                    Spacer(minLength: 8)
+                    if check.blocking {
+                        Text("Bloqueante")
+                            .font(.caption2.weight(.bold))
+                            .foregroundStyle(.red)
+                    }
+                }
+
+                Text(check.message)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                if !check.details.isEmpty {
+                    Text(check.details.map { "\($0.key): \($0.value)" }.sorted().joined(separator: " • "))
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+        .padding(10)
+        .background(Color(.tertiarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+}
+
+private struct BusinessRestaurantReadinessComponentRow: View {
+    let component: BusinessRestaurantReadinessComponent
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            HStack {
+                Text(component.code.restaurantReadableCode)
+                    .font(.caption.monospaced().weight(.semibold))
+                Spacer(minLength: 8)
+                Text(component.status.uppercased())
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(component.status.readinessTint)
+            }
+
+            if let path = component.path, !path.isEmpty {
+                Text(path)
+                    .font(.caption2.monospaced())
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+            }
+
+            if component.supportOnly {
+                Label("Solo soporte", systemImage: "eye")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(10)
+        .background(Color(.tertiarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+}
+
+private struct BusinessRestaurantReadinessMessageList: View {
+    let title: String
+    let systemImage: String
+    let messages: [String]
+    let tint: Color
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Label(title, systemImage: systemImage)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(tint)
+
+            ForEach(messages, id: \.self) { message in
+                Text("• \(message.restaurantReadableCode)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(10)
+        .background(tint.opacity(0.08), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+}
+
+private extension String {
+    var normalizedRestaurantReadinessStatus: String {
+        trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+    }
+
+    var readinessTitle: String {
+        switch normalizedRestaurantReadinessStatus {
+        case "PASS", "READY": return "Listo"
+        case "WARN", "WARNING": return "Con advertencias"
+        case "FAIL", "BLOCKED": return "Bloqueado"
+        default: return "Desconocido"
+        }
+    }
+
+    var readinessTint: Color {
+        switch normalizedRestaurantReadinessStatus {
+        case "PASS", "READY": return .green
+        case "WARN", "WARNING": return .orange
+        case "FAIL", "BLOCKED": return .red
+        default: return .secondary
+        }
+    }
+
+    var readinessSystemImage: String {
+        switch normalizedRestaurantReadinessStatus {
+        case "PASS", "READY": return "checkmark.seal.fill"
+        case "WARN", "WARNING": return "exclamationmark.triangle.fill"
+        case "FAIL", "BLOCKED": return "xmark.octagon.fill"
+        default: return "questionmark.circle.fill"
+        }
+    }
+
+    var restaurantReadableCode: String {
+        replacingOccurrences(of: "restaurant_", with: "")
+            .replacingOccurrences(of: "restaurant.", with: "")
+            .replacingOccurrences(of: "_", with: " ")
+            .capitalized
+    }
+}
 
 @MainActor
 @Observable

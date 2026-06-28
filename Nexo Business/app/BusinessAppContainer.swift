@@ -137,6 +137,11 @@ final class BusinessAppContainer: @unchecked Sendable {
 // MARK: - Restaurant Tables Optional UI Contracts (22F.7)
 
 protocol BusinessRestaurantTablesRepository: Sendable {
+    func restaurantReadiness(
+        organizationId: String,
+        branchId: String
+    ) async throws -> BusinessRestaurantReadinessResponse
+
     func readiness(
         organizationId: String,
         branchId: String
@@ -166,6 +171,7 @@ protocol BusinessRestaurantTablesRepository: Sendable {
 }
 
 enum BusinessRestaurantTableRoutes {
+    static let restaurantReadiness = "/api/v1/business/restaurant/readiness"
     static let readiness = "/api/v1/business/restaurant/tables/readiness"
     static let tableSessions = "/api/v1/business/restaurant/table-sessions"
 
@@ -183,6 +189,23 @@ final class BusinessRestaurantTablesAPIRepository: BusinessRestaurantTablesRepos
 
     init(apiClient: APIClient) {
         self.apiClient = apiClient
+    }
+
+    func restaurantReadiness(
+        organizationId: String,
+        branchId: String
+    ) async throws -> BusinessRestaurantReadinessResponse {
+        try await apiClient.send(
+            APIRequest<BusinessRestaurantReadinessResponse>(
+                method: .get,
+                path: BusinessRestaurantTableRoutes.restaurantReadiness,
+                queryItems: [URLQueryItem(name: "branchId", value: branchId)],
+                headers: [
+                    BusinessHeaders.organizationId: organizationId,
+                    BusinessHeaders.branchId: branchId
+                ]
+            )
+        )
     }
 
     func readiness(
@@ -278,6 +301,146 @@ final class BusinessRestaurantTablesAPIRepository: BusinessRestaurantTablesRepos
 struct RestaurantTableReadinessEnvelopeResponse: Decodable, Equatable, Sendable {
     let tables: [RestaurantTableReadiness]
     let summary: RestaurantTableReadinessSummary
+}
+
+
+struct BusinessRestaurantReadinessResponse: Decodable, Equatable, Sendable {
+    let organizationId: String
+    let branchId: String?
+    let status: String
+    let overallStatus: String
+    let ready: Bool
+    let surface: String
+    let capabilities: [String]
+    let supportMode: String
+    let warnings: [String]
+    let blockers: [String]
+    let checks: [BusinessRestaurantReadinessCheck]
+    let components: [BusinessRestaurantReadinessComponent]
+    let tables: RestaurantTableReadinessSummary?
+    let supportLinks: [BusinessRestaurantReadinessSupportLink]
+
+    var isSupportOnly: Bool {
+        supportMode.lowercased().contains("support_only") || supportMode.lowercased().contains("support-only")
+    }
+}
+
+struct BusinessRestaurantReadinessCheck: Decodable, Equatable, Identifiable, Sendable {
+    var id: String { code }
+
+    let code: String
+    let status: String
+    let message: String
+    let blocking: Bool
+    let details: [String: String]
+
+    init(
+        code: String,
+        status: String,
+        message: String,
+        blocking: Bool = false,
+        details: [String: String] = [:]
+    ) {
+        self.code = code
+        self.status = status
+        self.message = message
+        self.blocking = blocking
+        self.details = details
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case code
+        case status
+        case message
+        case blocking
+        case details
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        code = try container.decode(String.self, forKey: .code)
+        status = try container.decode(String.self, forKey: .status)
+        message = try container.decode(String.self, forKey: .message)
+        blocking = try container.decodeIfPresent(Bool.self, forKey: .blocking) ?? false
+        details = try container.decodeIfPresent([String: String].self, forKey: .details) ?? [:]
+    }
+}
+
+struct BusinessRestaurantReadinessComponent: Decodable, Equatable, Identifiable, Sendable {
+    var id: String { code }
+
+    let code: String
+    let status: String
+    let path: String?
+    let supportOnly: Bool
+    let details: [String: String]
+
+    init(
+        code: String,
+        status: String,
+        path: String? = nil,
+        supportOnly: Bool = false,
+        details: [String: String] = [:]
+    ) {
+        self.code = code
+        self.status = status
+        self.path = path
+        self.supportOnly = supportOnly
+        self.details = details
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case code
+        case status
+        case path
+        case supportOnly
+        case details
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        code = try container.decode(String.self, forKey: .code)
+        status = try container.decode(String.self, forKey: .status)
+        path = try container.decodeIfPresent(String.self, forKey: .path)
+        supportOnly = try container.decodeIfPresent(Bool.self, forKey: .supportOnly) ?? false
+        details = try container.decodeIfPresent([String: String].self, forKey: .details) ?? [:]
+    }
+}
+
+struct BusinessRestaurantReadinessSupportLink: Decodable, Equatable, Identifiable, Sendable {
+    var id: String { "\(method):\(path)" }
+
+    let label: String
+    let method: String
+    let path: String
+    let supportOnly: Bool
+
+    init(
+        label: String,
+        method: String,
+        path: String,
+        supportOnly: Bool = false
+    ) {
+        self.label = label
+        self.method = method
+        self.path = path
+        self.supportOnly = supportOnly
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case label
+        case method
+        case path
+        case supportOnly
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        label = try container.decode(String.self, forKey: .label)
+        method = try container.decode(String.self, forKey: .method)
+        path = try container.decode(String.self, forKey: .path)
+        supportOnly = try container.decodeIfPresent(Bool.self, forKey: .supportOnly) ?? false
+    }
 }
 
 struct RestaurantTableReadinessSummary: Decodable, Equatable, Sendable {
@@ -409,6 +572,75 @@ final class PreviewBusinessRestaurantTablesRepository: BusinessRestaurantTablesR
         ],
         summary: RestaurantTableReadinessSummary(total: 3, available: 1, occupied: 1, disabled: 1, openSessions: 1)
     )
+
+    func restaurantReadiness(
+        organizationId: String,
+        branchId: String
+    ) async throws -> BusinessRestaurantReadinessResponse {
+        BusinessRestaurantReadinessResponse(
+            organizationId: organizationId,
+            branchId: branchId,
+            status: envelope.summary.openSessions > 0 ? "WARN" : "PASS",
+            overallStatus: envelope.summary.openSessions > 0 ? "WARN" : "PASS",
+            ready: true,
+            surface: "business",
+            capabilities: [
+                "restaurant.menu_attributes",
+                "restaurant.service_type",
+                "restaurant.tables_optional"
+            ],
+            supportMode: "business_readiness_no_critical_actions",
+            warnings: envelope.summary.openSessions > 0 ? ["restaurant_tables_have_open_sessions"] : [],
+            blockers: [],
+            checks: [
+                BusinessRestaurantReadinessCheck(
+                    code: "restaurant_active",
+                    status: "PASS",
+                    message: "Restaurante v1 está activo para la organización.",
+                    blocking: true
+                ),
+                BusinessRestaurantReadinessCheck(
+                    code: "quick_sale_ready",
+                    status: "PASS",
+                    message: "Venta rápida sigue como modo operativo base.",
+                    blocking: true,
+                    details: ["workMode": "quick_sale"]
+                ),
+                BusinessRestaurantReadinessCheck(
+                    code: "tables_optional_ready",
+                    status: "PASS",
+                    message: "Mesas opcionales activas y con mesas configuradas.",
+                    details: ["total": "\(envelope.summary.total)"]
+                )
+            ],
+            components: [
+                BusinessRestaurantReadinessComponent(
+                    code: "business_context",
+                    status: "PASS",
+                    path: "/api/v1/business/context"
+                ),
+                BusinessRestaurantReadinessComponent(
+                    code: "tables_readiness",
+                    status: "PASS",
+                    path: "/api/v1/business/restaurant/tables/readiness?branchId=\(branchId)",
+                    details: ["openSessions": "\(envelope.summary.openSessions)"]
+                )
+            ],
+            tables: envelope.summary,
+            supportLinks: [
+                BusinessRestaurantReadinessSupportLink(
+                    label: "Business context",
+                    method: "GET",
+                    path: "/api/v1/business/context"
+                ),
+                BusinessRestaurantReadinessSupportLink(
+                    label: "Restaurant tables readiness",
+                    method: "GET",
+                    path: "/api/v1/business/restaurant/tables/readiness?branchId=\(branchId)"
+                )
+            ]
+        )
+    }
 
     func readiness(
         organizationId: String,
