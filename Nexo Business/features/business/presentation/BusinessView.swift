@@ -106,55 +106,63 @@ struct BusinessView: View {
                         isMonospaced: true
                     )
 
-                    BusinessInlineMessage(
-                        message: "Venta rápida sigue siendo el flujo principal. Esta tarjeta solo diagnostica readiness; no cobra, factura ni cambia mesas.",
-                        systemImage: "info.circle",
-                        tint: .secondary
+                    BusinessRestaurantOperationalStatusCard(
+                        workMode: context.verticals.workMode ?? restaurant.defaultWorkMode ?? "quick_sale",
+                        hasTables: hasRestaurantTablesCapability
                     )
 
-                    BusinessRestaurantReadinessFinalSection(
-                        viewModel: BusinessRestaurantReadinessFinalViewModel(
-                            organizationId: organizationId,
-                            branchId: branchId,
-                            repository: container.restaurantTablesRepository
-                        )
-                    )
+                    DisclosureGroup {
+                        VStack(alignment: .leading, spacing: 12) {
+                            BusinessRestaurantReadinessFinalSection(
+                                viewModel: BusinessRestaurantReadinessFinalViewModel(
+                                    organizationId: organizationId,
+                                    branchId: branchId,
+                                    repository: container.restaurantTablesRepository
+                                )
+                            )
 
-                    if !restaurantEnabledCapabilities.isEmpty {
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("Capabilities activas")
-                                .font(.subheadline.weight(.semibold))
+                            if !restaurantEnabledCapabilities.isEmpty {
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Text("Capacidades técnicas")
+                                        .font(.subheadline.weight(.semibold))
 
-                            LazyVGrid(columns: toolColumns, spacing: 8) {
-                                ForEach(restaurantEnabledCapabilities, id: \.self) { capability in
-                                    BusinessVerticalCompactPill(
-                                        title: humanizedRestaurantCapability(capability),
-                                        code: capability,
-                                        systemImage: "checkmark.circle.fill",
-                                        tint: .green
-                                    )
+                                    LazyVGrid(columns: toolColumns, spacing: 8) {
+                                        ForEach(restaurantEnabledCapabilities, id: \.self) { capability in
+                                            BusinessVerticalCompactPill(
+                                                title: humanizedRestaurantCapability(capability),
+                                                code: capability,
+                                                systemImage: "checkmark.circle.fill",
+                                                tint: .green
+                                            )
+                                        }
+                                    }
                                 }
                             }
-                        }
-                    }
 
-                    if !context.verticals.readiness.isEmpty {
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("Readiness vertical")
-                                .font(.subheadline.weight(.semibold))
+                            if !context.verticals.readiness.isEmpty {
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Text("Readiness técnico")
+                                        .font(.subheadline.weight(.semibold))
 
-                            ForEach(context.verticals.readiness) { check in
-                                verticalReadinessRow(check)
+                                    ForEach(context.verticals.readiness) { check in
+                                        verticalReadinessRow(check)
+                                    }
+                                }
+                            }
+
+                            if !context.verticals.foreignVerticalCodes.isEmpty {
+                                BusinessInlineMessage(
+                                    message: "WARN técnico: aparecen verticales ajenos para esta organización: \(context.verticals.foreignVerticalCodes.joined(separator: ", ")).",
+                                    systemImage: "exclamationmark.triangle.fill",
+                                    tint: .orange
+                                )
                             }
                         }
-                    }
-
-                    if !context.verticals.foreignVerticalCodes.isEmpty {
-                        BusinessInlineMessage(
-                            message: "WARN: aparecen verticales ajenos para esta organización: \(context.verticals.foreignVerticalCodes.joined(separator: ", ")).",
-                            systemImage: "exclamationmark.triangle.fill",
-                            tint: .orange
-                        )
+                        .padding(.top, 8)
+                    } label: {
+                        Label("Diagnóstico técnico", systemImage: "stethoscope")
+                            .font(.footnote.weight(.semibold))
+                            .foregroundStyle(.secondary)
                     }
                 }
             }
@@ -197,7 +205,7 @@ struct BusinessView: View {
                         } label: {
                             BusinessToolTile(
                                 title: "Mesas",
-                                subtitle: "Abrir y cerrar",
+                                subtitle: "Ocupación"
                                 systemImage: "tablecells",
                                 tint: .orange
                             )
@@ -1553,6 +1561,46 @@ private struct BusinessInlineMessage: View {
     }
 }
 
+
+private struct BusinessRestaurantOperationalStatusCard: View {
+    let workMode: String
+    let hasTables: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .top, spacing: 10) {
+                BusinessIconBadge(systemImage: "fork.knife", tint: .orange)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Listo para operar")
+                        .font(.subheadline.weight(.semibold))
+                    Text("Vende y cobra desde Venta rápida. El restaurante usa el mismo flujo de caja, historial y documentos.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+
+            VStack(alignment: .leading, spacing: 7) {
+                Label("Venta rápida: crea productos, cobra y permite facturar.", systemImage: "cart.badge.plus")
+                    .foregroundStyle(.primary)
+
+                if hasTables {
+                    Label("Mesas: control de ocupación; no crea venta ni orden por sí sola.", systemImage: "tablecells")
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .font(.caption.weight(.semibold))
+
+            Text("Modo operativo: \(workMode)")
+                .font(.caption2.monospaced())
+                .foregroundStyle(.secondary)
+        }
+        .padding(12)
+        .background(Color(.tertiarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+    }
+}
+
 private struct BusinessPill: View {
     let title: String
     let systemImage: String
@@ -2022,7 +2070,9 @@ final class RestaurantTablesViewModel {
                 branchId: branchId
             )
             apply(response)
-            infoMessage = response.tables.isEmpty ? "No hay mesas configuradas para esta sucursal." : nil
+            if response.tables.isEmpty && infoMessage == nil {
+                infoMessage = "No hay mesas configuradas para esta sucursal."
+            }
         } catch let error as APIError {
             errorMessage = error.userMessage
         } catch {
@@ -2032,15 +2082,15 @@ final class RestaurantTablesViewModel {
 
     func open(_ table: RestaurantTableReadiness) async {
         guard canManageTables else {
-            errorMessage = "No tienes permiso para abrir mesas."
+            errorMessage = "No tienes permiso para marcar mesas ocupadas."
             return
         }
         guard table.canOpen else {
-            errorMessage = table.reasonIfBlocked ?? "Esta mesa no puede abrirse ahora."
+            errorMessage = table.reasonIfBlocked ?? "Esta mesa no puede marcarse ocupada ahora."
             return
         }
 
-        await mutate(successMessage: "Mesa \(table.displayCode) abierta.") {
+        await mutate(successMessage: "Mesa \(table.displayCode) marcada como ocupada.") {
             _ = try await repository.openSession(
                 organizationId: organizationId,
                 branchId: branchId,
@@ -2048,7 +2098,7 @@ final class RestaurantTablesViewModel {
                 request: OpenRestaurantTableSessionRequest(
                     tableId: table.tableId,
                     saleId: nil,
-                    notes: "Abierta desde Business iOS"
+                    notes: "Marcada ocupada desde Business iOS"
                 )
             )
         }
@@ -2056,15 +2106,15 @@ final class RestaurantTablesViewModel {
 
     func close(_ table: RestaurantTableReadiness) async {
         guard canManageTables else {
-            errorMessage = "No tienes permiso para cerrar mesas."
+            errorMessage = "No tienes permiso para liberar mesas."
             return
         }
         guard table.canClose, let sessionId = table.activeSessionId else {
-            errorMessage = table.reasonIfBlocked ?? "Esta mesa no tiene una sesión abierta para cerrar."
+            errorMessage = table.reasonIfBlocked ?? "Esta mesa no tiene ocupación activa para liberar."
             return
         }
 
-        await mutate(successMessage: "Mesa \(table.displayCode) cerrada.") {
+        await mutate(successMessage: "Mesa \(table.displayCode) liberada.") {
             _ = try await repository.closeSession(
                 organizationId: organizationId,
                 branchId: branchId,
@@ -2076,21 +2126,21 @@ final class RestaurantTablesViewModel {
 
     func cancel(_ table: RestaurantTableReadiness, reason: String) async {
         guard canManageTables else {
-            errorMessage = "No tienes permiso para cancelar sesiones de mesa."
+            errorMessage = "No tienes permiso para cancelar ocupaciones de mesa."
             return
         }
         guard table.canCancel, let sessionId = table.activeSessionId else {
-            errorMessage = table.reasonIfBlocked ?? "Esta mesa no tiene una sesión abierta para cancelar."
+            errorMessage = table.reasonIfBlocked ?? "Esta mesa no tiene ocupación activa para cancelar."
             return
         }
 
         let cleanReason = reason.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !cleanReason.isEmpty else {
-            errorMessage = "Ingresa un motivo para cancelar la sesión."
+            errorMessage = "Ingresa un motivo para cancelar la ocupación."
             return
         }
 
-        await mutate(successMessage: "Sesión de \(table.displayCode) cancelada.") {
+        await mutate(successMessage: "Ocupación de \(table.displayCode) cancelada.") {
             _ = try await repository.cancelSession(
                 organizationId: organizationId,
                 branchId: branchId,
@@ -2113,8 +2163,8 @@ final class RestaurantTablesViewModel {
 
         do {
             try await operation()
-            infoMessage = successMessage
             await refresh()
+            infoMessage = successMessage
         } catch let error as APIError {
             errorMessage = error.userMessage
         } catch {
@@ -2190,9 +2240,9 @@ struct RestaurantTablesView: View {
         } message: {
             Text(viewModel.errorMessage ?? viewModel.infoMessage ?? "")
         }
-        .confirmationDialog("Cerrar mesa", isPresented: closeBinding, titleVisibility: .visible) {
+        .confirmationDialog("Liberar mesa", isPresented: closeBinding, titleVisibility: .visible) {
             if let closeCandidate {
-                Button("Cerrar \(closeCandidate.displayName)") {
+                Button("Liberar \(closeCandidate.displayName)") {
                     Task { await viewModel.close(closeCandidate) }
                 }
                 .disabled(viewModel.isMutating)
@@ -2201,13 +2251,13 @@ struct RestaurantTablesView: View {
         } message: {
             Text("La mesa volverá a disponible. Esto no cobra, factura ni modifica ventas.")
         }
-        .confirmationDialog("Cancelar sesión", isPresented: cancelBinding, titleVisibility: .visible) {
+        .confirmationDialog("Cancelar ocupación", isPresented: cancelBinding, titleVisibility: .visible) {
             if let cancelCandidate {
-                Button("Cancelar sesión de \(cancelCandidate.displayName)", role: .destructive) {
+                Button("Cancelar ocupación de \(cancelCandidate.displayName)", role: .destructive) {
                     Task {
                         await viewModel.cancel(
                             cancelCandidate,
-                            reason: "Cancelada desde Business iOS"
+                            reason: "Ocupación cancelada desde Business iOS"
                         )
                     }
                 }
@@ -2215,7 +2265,7 @@ struct RestaurantTablesView: View {
             }
             Button("Volver", role: .cancel) { cancelCandidate = nil }
         } message: {
-            Text("Usa esta acción solo si la sesión de mesa se abrió por error. No toca caja, factura ni historial.")
+            Text("Usa esta acción solo si la mesa se marcó ocupada por error. No toca caja, factura ni historial.")
         }
     }
 
@@ -2231,14 +2281,14 @@ struct RestaurantTablesView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Mesas opcionales")
                         .font(.title3.weight(.bold))
-                    Text("Abre, cierra o cancela sesiones de mesa sin cambiar el flujo fiscal de venta, cobro o factura.")
+                    Text("Controla si una mesa está libre u ocupada. No crea venta, pedido, cobro ni factura por sí sola.")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
 
-            Label("Venta rápida sigue funcionando aunque no selecciones mesa.", systemImage: "checkmark.seal.fill")
+            Label("Para cobrar o facturar, entra por Venta rápida o Historial.", systemImage: "checkmark.seal.fill")
                 .font(.footnote.weight(.semibold))
                 .foregroundStyle(.green)
         }
@@ -2254,15 +2304,23 @@ struct RestaurantTablesView: View {
     private var messageSection: some View {
         if viewModel.isMutating {
             RestaurantTablesInlineMessage(
-                message: "Procesando acción de mesa…",
+                message: "Actualizando ocupación de mesa…",
                 systemImage: "clock.arrow.circlepath",
                 tint: .secondary
             )
         }
 
+        if let infoMessage = viewModel.infoMessage {
+            RestaurantTablesInlineMessage(
+                message: infoMessage,
+                systemImage: "checkmark.circle.fill",
+                tint: .green
+            )
+        }
+
         if !viewModel.canManageTables {
             RestaurantTablesInlineMessage(
-                message: "Puedes consultar mesas, pero tu usuario no puede abrir, cerrar ni cancelar sesiones.",
+                message: "Puedes consultar mesas, pero tu usuario no puede cambiar ocupación.",
                 systemImage: "lock",
                 tint: .orange
             )
@@ -2307,16 +2365,15 @@ struct RestaurantTablesView: View {
     }
 
     private var alertTitle: String {
-        viewModel.errorMessage == nil ? "Mesas" : "No se pudo completar"
+        "No se pudo completar"
     }
 
     private var alertBinding: Binding<Bool> {
         Binding(
-            get: { viewModel.errorMessage != nil || viewModel.infoMessage != nil },
+            get: { viewModel.errorMessage != nil },
             set: { isPresented in
                 if !isPresented {
                     viewModel.errorMessage = nil
-                    viewModel.infoMessage = nil
                 }
             }
         )
@@ -2390,7 +2447,7 @@ private struct RestaurantTableReadinessCard: View {
 
             VStack(alignment: .leading, spacing: 8) {
                 if let sessionId = table.activeSessionId, !sessionId.isEmpty {
-                    Label("Sesión: \(sessionId)", systemImage: "clock")
+                    Label("Ocupación: \(sessionId)", systemImage: "clock")
                         .font(.caption.monospaced())
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
@@ -2428,7 +2485,7 @@ private struct RestaurantTableReadinessCard: View {
                 Button {
                     onOpen()
                 } label: {
-                    Label("Abrir", systemImage: "plus.circle.fill")
+                    Label("Marcar ocupada", systemImage: "plus.circle.fill")
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
@@ -2439,7 +2496,7 @@ private struct RestaurantTableReadinessCard: View {
                 Button {
                     onClose()
                 } label: {
-                    Label("Cerrar", systemImage: "checkmark.circle.fill")
+                    Label("Liberar", systemImage: "checkmark.circle.fill")
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.bordered)
@@ -2450,7 +2507,7 @@ private struct RestaurantTableReadinessCard: View {
                 Button(role: .destructive) {
                     onCancel()
                 } label: {
-                    Label("Cancelar", systemImage: "xmark.circle.fill")
+                    Label("Cancelar ocupación", systemImage: "xmark.circle.fill")
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.bordered)
