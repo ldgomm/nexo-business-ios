@@ -28,6 +28,7 @@ struct SaleDetailView: View {
     @State private var documentShareFile: BusinessDocumentDownloadedFile?
     @State private var documentFileActionInFlight: SaleDetailDocumentFileAction?
     @State private var documentFileMessage: String?
+    @State private var editSaleRoute: SaleDetailEditRoute?
 
     init(
         viewModel: SaleDetailViewModel,
@@ -92,6 +93,9 @@ struct SaleDetailView: View {
                     }
                 )
             }
+        }
+        .navigationDestination(item: $editSaleRoute) { route in
+            editSaleCartRouteView(route)
         }
         .navigationTitle("Detalle de venta")
         .navigationBarTitleDisplayMode(.inline)
@@ -421,6 +425,28 @@ struct SaleDetailView: View {
         }
     }
 
+    private var consolidatedOperationalActionBlockedReason: String? {
+        guard let sale = viewModel.sale else { return nil }
+        guard !sale.isTerminalOperationally else { return nil }
+        guard !SaleStatusPresentation.requiresConfirmationBeforeCollection(status: sale.status) else { return nil }
+        guard !viewModel.canEditSale, !viewModel.canCancel else { return nil }
+        guard viewModel.operationalEditBlockedReason != nil || viewModel.cancellationBlockedReason != nil else { return nil }
+
+        if sale.hasPaymentImpactForOperationalChanges {
+            return "Esta venta ya tiene cobro registrado. Edición y cancelación directa están bloqueadas; emite factura si corresponde o usa un reverso/corrección controlado con auditoría."
+        }
+
+        if sale.hasReceivableReference {
+            return "Esta venta ya tiene una cuenta por cobrar asociada. No se puede editar ni cancelar desde este flujo."
+        }
+
+        if sale.hasAuthorizedElectronicDocument || sale.hasBlockingElectronicDocumentForOperationalChanges {
+            return "Esta venta ya tiene comprobante electrónico o evidencia documental. No se puede editar ni cancelar directamente; usa un flujo correctivo."
+        }
+
+        return viewModel.operationalEditBlockedReason ?? viewModel.cancellationBlockedReason
+    }
+
     private var actionsSection: some View {
         SaleDetailCard(title: "Acciones", subtitle: "Continúa con el siguiente paso operativo de la venta") {
             VStack(alignment: .leading, spacing: 12) {
@@ -459,47 +485,28 @@ struct SaleDetailView: View {
                     )
                 }
 
+                if let reason = consolidatedOperationalActionBlockedReason {
+                    SaleDetailInlineMessage(
+                        message: reason,
+                        systemImage: "lock.fill",
+                        tint: .secondary
+                    )
+                }
 
                 if let sale = viewModel.sale,
                    viewModel.canEditSale,
-                   let catalogRepository,
-                   let activityId = sale.activityId {
-                    NavigationLink {
-                        SaleCartView(
-                            viewModel: SaleCartViewModel(
-                                organizationId: viewModel.organizationId,
-                                branchId: sale.branchId,
-                                activityId: activityId,
-                                revisions: viewModel.revisions,
-                                effectivePermissions: viewModel.effectivePermissions,
-                                cashSessionId: nil,
-                                verticalContext: verticalContext,
-                                catalogRepository: catalogRepository,
-                                salesRepository: viewModel.salesRepositoryForPaymentReadiness,
-                                customersRepository: customersRepository,
-                                salesHistoryRepository: salesHistoryRepository,
-                                contextRepository: contextRepository,
-                                editingSale: sale
-                            ),
-                            customersRepository: customersRepository,
-                            cashRepository: cashRepository,
-                            paymentsRepository: paymentsRepository,
-                            salesHistoryRepository: salesHistoryRepository,
-                            receivablesRepository: receivablesRepository,
-                            documentsRepository: documentsRepository,
-                            onSaleUpdated: { updatedSale in
-                                viewModel.applySaleUpdate(updatedSale)
-                            }
-                        )
-                    } label: {
-                        SaleDetailNavigationActionLabel(
-                            title: "Editar venta",
-                            subtitle: "Ajusta ítems, cantidades, descuentos, cliente y tipo de servicio antes de cobrar o facturar",
-                            systemImage: "square.and.pencil",
-                            tint: .accentColor
-                        )
+                   catalogRepository != nil,
+                   sale.activityId != nil {
+                    SaleDetailActionButton(
+                        title: "Editar venta",
+                        subtitle: "Ajusta ítems, cantidades, descuentos, cliente y tipo de servicio antes de cobrar o facturar",
+                        systemImage: "square.and.pencil",
+                        tint: .accentColor,
+                        isLoading: false,
+                        isDisabled: false
+                    ) {
+                        prepareEditSaleNavigation(for: sale)
                     }
-                    .buttonStyle(.plain)
                 } else if let sale = viewModel.sale,
                           viewModel.canEditSale,
                           sale.activityId == nil {
@@ -508,6 +515,13 @@ struct SaleDetailView: View {
                         subtitle: "La venta no tiene actividad asociada. Actualiza el detalle o revisa el contrato de venta.",
                         systemImage: "exclamationmark.triangle",
                         tint: .orange
+                    )
+                } else if consolidatedOperationalActionBlockedReason == nil,
+                          let reason = viewModel.operationalEditBlockedReason {
+                    SaleDetailInlineMessage(
+                        message: reason,
+                        systemImage: "lock.fill",
+                        tint: .secondary
                     )
                 }
 
@@ -592,39 +606,80 @@ struct SaleDetailView: View {
                 Divider()
                     .padding(.vertical, 2)
 
-                if let sale = viewModel.sale, sale.isCancelledOperationally {
-                    SaleDetailInlineMessage(
-                        message: "Esta venta ya está cancelada. La cancelación es terminal para el flujo normal; conserva la evidencia y no intentes cobrar o facturar.",
-                        systemImage: "xmark.circle.fill",
-                        tint: .red
-                    )
-                } else if let sale = viewModel.sale, sale.isClosedOperationally {
-                    SaleDetailInlineMessage(
-                        message: "Esta venta está cerrada. No se puede cancelar nuevamente desde Business.",
-                        systemImage: "lock.fill",
-                        tint: .secondary
-                    )
-                } else {
-                    TextField("Motivo de cancelación opcional", text: $viewModel.cancelReason, axis: .vertical)
-                        .textInputAutocapitalization(.sentences)
-                        .lineLimit(1...3)
-                        .padding(12)
-                        .background(Color(.tertiarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                if consolidatedOperationalActionBlockedReason == nil {
+                    if let reason = viewModel.cancellationBlockedReason {
+                        SaleDetailInlineMessage(
+                            message: reason,
+                            systemImage: "lock.fill",
+                            tint: .secondary
+                        )
+                    } else {
+                        TextField("Motivo de cancelación opcional", text: $viewModel.cancelReason, axis: .vertical)
+                            .textInputAutocapitalization(.sentences)
+                            .lineLimit(1...3)
+                            .padding(12)
+                            .background(Color(.tertiarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
 
-                    SaleDetailActionButton(
-                        title: "Cancelar venta",
-                        subtitle: "Anula la venta si todavía está permitido",
-                        systemImage: "xmark.circle",
-                        tint: .red,
-                        isLoading: viewModel.isCanceling,
-                        isDisabled: !viewModel.canCancel
-                    ) {
-                        NexoKeyboard.dismiss()
-                        Task { await viewModel.cancel() }
+                        SaleDetailActionButton(
+                            title: "Cancelar venta",
+                            subtitle: "Anula la venta si todavía está permitido",
+                            systemImage: "xmark.circle",
+                            tint: .red,
+                            isLoading: viewModel.isCanceling,
+                            isDisabled: !viewModel.canCancel
+                        ) {
+                            NexoKeyboard.dismiss()
+                            Task { await viewModel.cancel() }
+                        }
                     }
                 }
             }
         }
+    }
+
+    @ViewBuilder
+    private func editSaleCartRouteView(_ route: SaleDetailEditRoute) -> some View {
+        let sale = route.sale
+
+        if let catalogRepository,
+           let activityId = sale.activityId {
+            SaleCartView(
+                viewModel: SaleCartViewModel(
+                    organizationId: viewModel.organizationId,
+                    branchId: sale.branchId,
+                    activityId: activityId,
+                    revisions: viewModel.revisions,
+                    effectivePermissions: viewModel.effectivePermissions,
+                    cashSessionId: nil,
+                    verticalContext: verticalContext,
+                    catalogRepository: catalogRepository,
+                    salesRepository: viewModel.salesRepositoryForPaymentReadiness,
+                    customersRepository: customersRepository,
+                    salesHistoryRepository: salesHistoryRepository,
+                    contextRepository: contextRepository,
+                    editingSale: sale
+                ),
+                customersRepository: customersRepository,
+                cashRepository: cashRepository,
+                paymentsRepository: paymentsRepository,
+                salesHistoryRepository: salesHistoryRepository,
+                receivablesRepository: receivablesRepository,
+                documentsRepository: documentsRepository,
+                onSaleUpdated: { updatedSale in
+                    viewModel.applySaleUpdate(updatedSale)
+                }
+            )
+        } else {
+            SaleDetailEmptyState()
+        }
+    }
+
+    private func prepareEditSaleNavigation(for sale: BusinessSale) {
+        guard viewModel.canEditSale else { return }
+        guard catalogRepository != nil, sale.activityId != nil else { return }
+
+        NexoKeyboard.dismiss()
+        editSaleRoute = SaleDetailEditRoute(sale: sale)
     }
 
     private func customer360Dependencies(for sale: BusinessSale) -> Customer360Dependencies? {
@@ -837,6 +892,24 @@ private enum SaleDetailDocumentFileAction: Equatable {
     case shareRide
     case previewXml
     case shareXml
+}
+
+private struct SaleDetailEditRoute: Hashable, Identifiable {
+    let id: String
+    let sale: BusinessSale
+
+    init(sale: BusinessSale) {
+        self.id = sale.id
+        self.sale = sale
+    }
+
+    static func == (lhs: SaleDetailEditRoute, rhs: SaleDetailEditRoute) -> Bool {
+        lhs.id == rhs.id
+    }
+
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
+    }
 }
 
 private struct SaleDetailHeroCard: View {

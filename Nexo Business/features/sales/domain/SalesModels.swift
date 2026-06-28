@@ -972,16 +972,99 @@ extension BusinessSale {
         isCancelledOperationally || isClosedOperationally
     }
 
+    var hasPaymentImpactForOperationalChanges: Bool {
+        if collectionState == .paid || collectionState == .partialWithoutReceivable {
+            return true
+        }
+
+        let payment = normalizedPaymentStatus
+        let impactedStatuses: Set<String> = [
+            "paid",
+            "pagada",
+            "collected",
+            "registered",
+            "confirmed",
+            "payment_confirmed",
+            "payment_registered",
+            "payment_received",
+            "received",
+            "captured",
+            "settled",
+            "completed",
+            "fully_paid",
+            "overpaid",
+            "partially_paid",
+            "partial",
+            "partial_payment",
+            "partially_collected",
+            "refunded",
+            "refund_pending",
+            "reversed",
+            "chargeback"
+        ]
+
+        return impactedStatuses.contains(payment)
+    }
+
+    var operationalEditBlockReason: String? {
+        if isCancelledOperationally {
+            return "Esta venta está cancelada. Solo consulta: no se puede editar, cobrar ni emitir comprobante electrónico."
+        }
+
+        if isClosedOperationally {
+            return "Esta venta está cerrada. Solo puedes consultar historial y documentos existentes."
+        }
+
+        if hasPaymentImpactForOperationalChanges {
+            return "Esta venta ya tiene cobro registrado. No se puede editar directamente; usa un flujo de reverso/corrección con auditoría."
+        }
+
+        if hasReceivableReference {
+            return "Esta venta ya tiene una cuenta por cobrar asociada. No se puede editar directamente desde el carrito."
+        }
+
+        if hasBlockingElectronicDocumentForOperationalChanges {
+            return "Esta venta ya tiene comprobante electrónico generado, enviado o autorizado. Usa un flujo correctivo."
+        }
+
+        return nil
+    }
+
+    var cancellationBlockReason: String? {
+        if isCancelledOperationally {
+            return "Esta venta ya está cancelada. Solo consulta; conserva la evidencia operativa."
+        }
+
+        if isClosedOperationally {
+            return "Esta venta está cerrada. No se puede cancelar nuevamente desde Business."
+        }
+
+        if hasPaymentImpactForOperationalChanges {
+            return "Esta venta ya tiene cobro registrado. No uses Cancelar venta; primero debe existir un reverso controlado de cobro y caja."
+        }
+
+        if hasReceivableReference {
+            return "Esta venta tiene cuenta por cobrar asociada. No puede cancelarse desde este flujo."
+        }
+
+        if hasAuthorizedElectronicDocument {
+            return "Esta venta ya tiene comprobante autorizado. Solo aplica flujo correctivo documental."
+        }
+
+        return nil
+    }
+
     var isEditableForOperationalChanges: Bool {
-        !isTerminalOperationally && !hasBlockingElectronicDocumentForOperationalChanges
+        operationalEditBlockReason == nil
     }
 
     var isCancellableOperationally: Bool {
-        !isTerminalOperationally && !hasAuthorizedElectronicDocument
+        cancellationBlockReason == nil
     }
 
     var isCollectableForOperationalFlow: Bool {
         guard !isTerminalOperationally else { return false }
+        guard !hasPaymentImpactForOperationalChanges else { return false }
         guard !hasReceivableReference else { return false }
 
         switch normalizedOperationalStatus {

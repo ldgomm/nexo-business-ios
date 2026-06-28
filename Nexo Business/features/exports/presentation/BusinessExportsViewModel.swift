@@ -295,7 +295,7 @@ class BusinessExportsViewModel {
                 BusinessExportChartPoint(
                     id: $0.id,
                     title: $0.name,
-                    subtitle: "Cantidad \($0.quantity)",
+                    subtitle: "Cantidad \($0.quantity.cleanQuantityText)",
                     value: $0.lineTotal.doubleValue,
                     valueText: $0.lineTotal.displayText
                 )

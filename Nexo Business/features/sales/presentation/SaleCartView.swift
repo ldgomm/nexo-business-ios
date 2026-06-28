@@ -233,35 +233,41 @@ struct SaleCartView: View {
 
                 Spacer(minLength: 8)
 
-                NavigationLink {
-                    CustomerPickerView(
-                        viewModel: CustomerPickerViewModel(
-                            organizationId: viewModel.organizationId,
-                            effectivePermissions: viewModel.effectivePermissions,
-                            customersRepository: resolvedCustomersRepository
-                        ),
-                        onSelect: { customer in
-                            viewModel.selectCustomer(customer)
-                        }
-                    )
-                } label: {
-                    Text(viewModel.selectedCustomer == nil ? "Elegir" : "Cambiar")
-                        .font(.footnote.weight(.semibold))
+                if viewModel.canEditCart {
+                    NavigationLink {
+                        CustomerPickerView(
+                            viewModel: CustomerPickerViewModel(
+                                organizationId: viewModel.organizationId,
+                                effectivePermissions: viewModel.effectivePermissions,
+                                customersRepository: resolvedCustomersRepository
+                            ),
+                            onSelect: { customer in
+                                viewModel.selectCustomer(customer)
+                            }
+                        )
+                    } label: {
+                        Text(viewModel.selectedCustomer == nil ? "Elegir" : "Cambiar")
+                            .font(.footnote.weight(.semibold))
+                    }
+                } else if viewModel.createdSale != nil {
+                    Label("Solo lectura", systemImage: "lock.fill")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
                 }
-                .disabled(!viewModel.canEditCart)
             }
 
             if let customer = viewModel.selectedCustomer {
                 CustomerRowView(customer: customer)
 
-                Button(role: .destructive) {
-                    viewModel.clearCustomer()
-                } label: {
-                    Label("Quitar cliente", systemImage: "xmark.circle")
-                        .font(.footnote.weight(.medium))
+                if viewModel.canEditCart {
+                    Button(role: .destructive) {
+                        viewModel.clearCustomer()
+                    } label: {
+                        Label("Quitar cliente", systemImage: "xmark.circle")
+                            .font(.footnote.weight(.medium))
+                    }
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
-                .disabled(!viewModel.canEditCart)
             }
         }
         .padding(12)
@@ -288,20 +294,26 @@ struct SaleCartView: View {
                 Spacer(minLength: 8)
             }
 
-            Picker(
-                "Tipo de servicio",
-                selection: Binding(
-                    get: { viewModel.selectedServiceType },
-                    set: { viewModel.updateSelectedServiceType($0) }
-                )
-            ) {
-                ForEach(viewModel.availableServiceTypes) { serviceType in
-                    Label(serviceType.shortDisplayName, systemImage: serviceType.systemImage)
-                        .tag(serviceType)
+            if viewModel.canEditCart {
+                Picker(
+                    "Tipo de servicio",
+                    selection: Binding(
+                        get: { viewModel.selectedServiceType },
+                        set: { viewModel.updateSelectedServiceType($0) }
+                    )
+                ) {
+                    ForEach(viewModel.availableServiceTypes) { serviceType in
+                        Label(serviceType.shortDisplayName, systemImage: serviceType.systemImage)
+                            .tag(serviceType)
+                    }
                 }
+                .pickerStyle(.segmented)
+            } else if viewModel.createdSale != nil {
+                Label("Tipo de servicio bloqueado por estado operativo de la venta.", systemImage: "lock.fill")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-            .pickerStyle(.segmented)
-            .disabled(!viewModel.canEditCart)
 
             Text("Metadata operativa sobre la venta core. No crea mesas, cocina ni venta restaurante paralela.")
                 .font(.caption2)
@@ -604,83 +616,175 @@ struct SaleCartView: View {
 
     @ViewBuilder
     private var discountBlock: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .center, spacing: 12) {
-                Image(systemName: discountEditorBinding.wrappedValue ? "percent" : "tag")
-                    .font(.body.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                    .frame(width: 24)
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .center, spacing: 13) {
+                Image(systemName: discountEditorBinding.wrappedValue ? "tag.circle.fill" : "tag")
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(discountStateTint)
+                    .frame(width: 42, height: 42)
+                    .background(
+                        discountStateTint.opacity(discountEditorBinding.wrappedValue ? 0.14 : 0.09),
+                        in: RoundedRectangle(cornerRadius: 15, style: .continuous)
+                    )
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 15, style: .continuous)
+                            .strokeBorder(discountStateTint.opacity(0.16), lineWidth: 1)
+                    }
 
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(discountEditorBinding.wrappedValue ? "Descuento activo" : "Sin descuento")
-                        .font(.subheadline.weight(.semibold))
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 7) {
+                        Text(discountEditorBinding.wrappedValue ? "Descuento aplicado" : "Descuento")
+                            .font(.subheadline.weight(.bold))
 
-                    Text(discountEditorBinding.wrappedValue ? discountActiveDescription : "Actívalo solo si aplica a esta venta.")
+                        if discountEditorBinding.wrappedValue {
+                            Text("Auto")
+                                .font(.caption2.weight(.bold))
+                                .foregroundStyle(Color.accentColor)
+                                .padding(.horizontal, 7)
+                                .padding(.vertical, 3)
+                                .background(Color.accentColor.opacity(0.11), in: Capsule(style: .continuous))
+                        }
+                    }
+
+                    Text(discountEditorBinding.wrappedValue ? discountActiveDescription : "Activa un descuento solo cuando esta venta realmente lo necesite.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
-                Spacer()
+                Spacer(minLength: 8)
 
-                Toggle("", isOn: discountEditorBinding)
-                    .labelsHidden()
-                    .disabled(!viewModel.canEditCart)
-                    .accessibilityLabel(discountEditorBinding.wrappedValue ? "Desactivar descuento" : "Activar descuento")
+                VStack(alignment: .trailing, spacing: 6) {
+                    Toggle("", isOn: discountEditorBinding)
+                        .labelsHidden()
+                        .disabled(!viewModel.canEditCart)
+                        .accessibilityLabel(discountEditorBinding.wrappedValue ? "Desactivar descuento" : "Activar descuento")
+
+                    if !viewModel.canEditCart {
+                        Label("Solo lectura", systemImage: "lock.fill")
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                    }
+                }
             }
 
             if discountEditorBinding.wrappedValue {
-                VStack(alignment: .leading, spacing: 12) {
-                    Picker("Aplicar a", selection: $viewModel.discountTarget) {
-                        ForEach(SaleDiscountTarget.allCases) { target in
-                            Text(target.displayName).tag(target)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                    .disabled(!viewModel.canEditCart)
+                VStack(alignment: .leading, spacing: 14) {
+                    HStack(spacing: 8) {
+                        DiscountMiniMetric(
+                            title: viewModel.discountType.displayName,
+                            value: discountDisplayValue,
+                            systemImage: viewModel.discountType == .percentage ? "percent" : "dollarsign.circle"
+                        )
 
-                    Picker("Tipo", selection: $viewModel.discountType) {
-                        ForEach(SaleDiscountInputType.allCases) { type in
-                            Text(type.displayName).tag(type)
+                        DiscountMiniMetric(
+                            title: "Descuenta",
+                            value: discountEstimatedValue,
+                            systemImage: "arrow.down.right.circle"
+                        )
+                    }
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        Label("Aplicación", systemImage: "scope")
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(.secondary)
+
+                        Picker("Aplicar a", selection: $viewModel.discountTarget) {
+                            ForEach(SaleDiscountTarget.allCases) { target in
+                                Text(target.displayName).tag(target)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+                        .disabled(!viewModel.canEditCart)
+                    }
+
+                    VStack(alignment: .leading, spacing: 10) {
+                        Label("Tipo y valor", systemImage: "slider.horizontal.3")
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(.secondary)
+
+                        Picker("Tipo", selection: $viewModel.discountType) {
+                            ForEach(SaleDiscountInputType.allCases) { type in
+                                Text(type.displayName).tag(type)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+                        .disabled(!viewModel.canEditCart)
+
+                        HStack(alignment: .center, spacing: 10) {
+                            HStack(spacing: 10) {
+                                Image(systemName: viewModel.discountType == .percentage ? "percent" : "dollarsign")
+                                    .font(.caption.weight(.bold))
+                                    .foregroundStyle(discountStateTint)
+                                    .frame(width: 26, height: 26)
+                                    .background(discountStateTint.opacity(0.10), in: Circle())
+
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(discountValueTitle)
+                                        .font(.caption2.weight(.semibold))
+                                        .foregroundStyle(.secondary)
+
+                                    TextField(discountFieldPrompt, text: $viewModel.discountValue)
+                                        .keyboardType(.decimalPad)
+                                        .textInputAutocapitalization(.never)
+                                        .autocorrectionDisabled()
+                                        .multilineTextAlignment(.leading)
+                                        .monospacedDigit()
+                                        .font(.title3.weight(.bold))
+                                        .disabled(!viewModel.canEditCart)
+                                        .accessibilityLabel("Valor del descuento")
+                                }
+                            }
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 10)
+                            .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 15, style: .continuous))
+
+                            Stepper("", value: discountStepperBinding, in: discountRange, step: discountStep)
+                                .labelsHidden()
+                                .disabled(!viewModel.canEditCart)
+                        }
+
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 8) {
+                                ForEach(discountPresetValues, id: \.self) { preset in
+                                    discountPresetButton(for: preset)
+                                }
+                            }
+                            .padding(.vertical, 1)
                         }
                     }
-                    .pickerStyle(.segmented)
-                    .disabled(!viewModel.canEditCart)
 
                     HStack(spacing: 10) {
-                        TextField(discountFieldPrompt, text: $viewModel.discountValue)
-                            .keyboardType(.decimalPad)
-                            .textInputAutocapitalization(.never)
-                            .autocorrectionDisabled()
-                            .multilineTextAlignment(.trailing)
-                            .monospacedDigit()
-                            .textFieldStyle(.roundedBorder)
-                            .disabled(!viewModel.canEditCart)
-                            .accessibilityLabel("Valor del descuento")
+                        Image(systemName: "text.bubble")
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(.secondary)
+                            .frame(width: 26, height: 26)
+                            .background(Color(uiColor: .secondarySystemGroupedBackground), in: Circle())
 
-                        Stepper("", value: discountStepperBinding, in: discountRange, step: discountStep)
-                            .labelsHidden()
+                        TextField("Motivo opcional, ej. cortesía o promoción", text: $viewModel.discountReason)
+                            .textInputAutocapitalization(.sentences)
                             .disabled(!viewModel.canEditCart)
                     }
-
-                    HStack(spacing: 8) {
-                        ForEach(discountPresetValues, id: \.self) { preset in
-                            discountPresetButton(for: preset)
-                        }
-                    }
-
-                    TextField("Motivo opcional", text: $viewModel.discountReason)
-                        .textInputAutocapitalization(.sentences)
-                        .disabled(!viewModel.canEditCart)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 11)
+                    .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 15, style: .continuous))
 
                     if viewModel.discountTarget == .selectedItems {
                         Label(selectedItemsDiscountHint, systemImage: selectedItemsDiscountIcon)
-                            .font(.caption)
+                            .font(.caption.weight(.semibold))
                             .foregroundStyle(viewModel.canApplyDiscount ? .secondary : Color.orange)
+                            .padding(10)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(
+                                (viewModel.canApplyDiscount ? Color.primary.opacity(0.035) : Color.orange.opacity(0.10)),
+                                in: RoundedRectangle(cornerRadius: 13, style: .continuous)
+                            )
                             .fixedSize(horizontal: false, vertical: true)
                     }
 
-                    HStack(alignment: .firstTextBaseline, spacing: 10) {
+                    Divider()
+
+                    HStack(alignment: .center, spacing: 10) {
                         Label(discountAutoApplyStatusText, systemImage: discountAutoApplyStatusIcon)
                             .font(.caption)
                             .foregroundStyle(viewModel.canApplyDiscount ? .secondary : Color.orange)
@@ -688,28 +792,50 @@ struct SaleCartView: View {
 
                         Spacer(minLength: 8)
 
-                        Text(discountEstimatedValue)
-                            .font(.caption.weight(.bold))
-                            .foregroundStyle(.secondary)
-                            .monospacedDigit()
+                        if viewModel.canClearDiscounts || !viewModel.discountValue.trimmed.isEmpty || !viewModel.discountReason.trimmed.isEmpty {
+                            Button(role: .destructive) {
+                                viewModel.clearDiscounts()
+                                NexoKeyboard.dismiss()
+                            } label: {
+                                Label("Quitar", systemImage: "xmark.circle")
+                                    .font(.caption.weight(.semibold))
+                            }
+                            .buttonStyle(.borderless)
+                            .disabled(!viewModel.canEditCart)
+                        }
                     }
 
-                    if viewModel.canClearDiscounts || !viewModel.discountValue.trimmed.isEmpty || !viewModel.discountReason.trimmed.isEmpty {
-                        Button(role: .destructive) {
-                            viewModel.clearDiscounts()
-                            NexoKeyboard.dismiss()
-                        } label: {
-                            Text("Quitar descuento")
-                                .font(.caption.weight(.medium))
-                        }
-                        .buttonStyle(.plain)
-                        .disabled(!viewModel.canEditCart)
-                    }
+                    Text(discountFooterText)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
-                .padding(12)
-                .background(Color(uiColor: .tertiarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .padding(14)
+                .background(Color(uiColor: .tertiarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 19, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 19, style: .continuous)
+                        .strokeBorder(Color.primary.opacity(0.045), lineWidth: 1)
+                }
+                .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
+        .padding(14)
+        .background(
+            LinearGradient(
+                colors: [
+                    discountStateTint.opacity(discountEditorBinding.wrappedValue ? 0.13 : 0.07),
+                    Color(uiColor: .secondarySystemGroupedBackground)
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            ),
+            in: RoundedRectangle(cornerRadius: 22, style: .continuous)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .strokeBorder(discountStateTint.opacity(discountEditorBinding.wrappedValue ? 0.16 : 0.08), lineWidth: 1)
+        }
+        .animation(.easeInOut(duration: 0.18), value: discountEditorBinding.wrappedValue)
         .onChange(of: viewModel.discountTarget) { _, _ in
             autoApplyDiscountDraft()
         }
@@ -723,6 +849,16 @@ struct SaleCartView: View {
         .onChange(of: viewModel.discountReason) { _, _ in
             autoApplyDiscountDraft()
         }
+    }
+    
+    private var discountStateTint: Color {
+        guard viewModel.canEditCart else { return .secondary }
+
+        if discountEditorBinding.wrappedValue && !viewModel.canApplyDiscount {
+            return .orange
+        }
+
+        return discountEditorBinding.wrappedValue ? .accentColor : .secondary
     }
 
     private func isSelectedDiscountPreset(_ preset: String) -> Bool {
@@ -747,31 +883,18 @@ struct SaleCartView: View {
 
     private var registeredSaleEditBlock: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Edición antes de facturar")
+            Text("Edición antes de cobrar")
                 .font(.subheadline.weight(.semibold))
 
             if viewModel.registeredSaleHasUnsavedChanges {
-                Label("Hay cambios sin guardar. Guarda antes de cobrar o facturar.", systemImage: "exclamationmark.triangle")
+                Label("Hay cambios sin guardar. Usa el botón principal en Resumen y acción antes de cobrar o facturar.", systemImage: "exclamationmark.triangle")
                     .font(.footnote)
                     .foregroundStyle(Color.orange)
             } else {
-                Label("Puedes corregir productos mientras la venta no tenga factura electrónica enviada o autorizada.", systemImage: "pencil.and.list.clipboard")
+                Label("Puedes corregir productos solo mientras la venta no tenga cobro, cuenta por cobrar ni comprobante electrónico.", systemImage: "pencil.and.list.clipboard")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
-
-            Button {
-                NexoKeyboard.dismiss()
-                Task { await viewModel.saveRegisteredSaleChanges() }
-            } label: {
-                if viewModel.isCreatingSale {
-                    ProgressView()
-                } else {
-                    Label("Guardar cambios de productos", systemImage: "checkmark.circle")
-                }
-            }
-            .buttonStyle(.bordered)
-            .disabled(!viewModel.canSaveRegisteredSaleChanges)
         }
     }
 
@@ -984,16 +1107,18 @@ struct SaleCartView: View {
                 }
 
                 HStack(spacing: 10) {
-                    Button {
-                        requestStartNewOrder()
-                    } label: {
-                        Label(
-                            viewModel.createdSaleNeedsCollection ? "Guardar" : "Nueva venta",
-                            systemImage: "plus.circle"
-                        )
-                        .frame(maxWidth: .infinity)
+                    if !viewModel.registeredSaleHasUnsavedChanges {
+                        Button {
+                            requestStartNewOrder()
+                        } label: {
+                            Label(
+                                viewModel.createdSaleNeedsCollection ? "Dejar pendiente" : "Nueva venta",
+                                systemImage: viewModel.createdSaleNeedsCollection ? "tray.and.arrow.down" : "plus.circle"
+                            )
+                            .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.bordered)
                     }
-                    .buttonStyle(.bordered)
 
                     NavigationLink {
                         SaleDetailView(

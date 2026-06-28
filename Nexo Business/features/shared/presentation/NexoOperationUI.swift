@@ -332,8 +332,14 @@ extension BusinessSale {
 extension String {
     var cleanQuantityText: String {
         let trimmed = trimmingCharacters(in: .whitespacesAndNewlines)
-        guard trimmed.hasSuffix(".000000") else { return trimmed }
-        return String(trimmed.dropLast(7))
+        guard !trimmed.isEmpty else { return trimmed }
+
+        let normalized = trimmed.replacingOccurrences(of: ",", with: ".")
+        guard let decimal = Decimal(string: normalized, locale: Locale(identifier: "en_US_POSIX")) else {
+            return trimmed
+        }
+
+        return NSDecimalNumber(decimal: decimal).stringValue
     }
 
     var nilIfBlankForUI: String? {

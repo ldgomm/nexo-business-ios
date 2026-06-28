@@ -68,6 +68,14 @@ final class SaleDetailViewModel {
         sale.isCancellableOperationally
     }
 
+    var operationalEditBlockedReason: String? {
+        sale?.operationalEditBlockReason
+    }
+
+    var cancellationBlockedReason: String? {
+        sale?.cancellationBlockReason
+    }
+
     var canCollect: Bool {
         guard let sale else { return false }
         return !isBusy &&
@@ -378,7 +386,7 @@ final class SaleDetailViewModel {
         }
 
         guard canCancel else {
-            errorMessage = "No puedes cancelar esta venta con tu usuario o estado actual."
+            errorMessage = cancellationBlockedReason ?? "No puedes cancelar esta venta con tu usuario o estado actual."
             return
         }
 

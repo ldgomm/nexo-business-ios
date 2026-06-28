@@ -538,13 +538,10 @@ final class SaleCartViewModel {
 
     var registeredSaleEditBlockedMessage: String? {
         guard let sale = createdSale else { return nil }
-        if sale.isCancelledOperationally {
-            return "Esta venta está cancelada. Solo consulta: no se puede editar, guardar, cobrar ni emitir comprobante electrónico."
+        if let reason = sale.operationalEditBlockReason {
+            return reason
         }
-        if sale.isClosedOperationally {
-            return "Esta venta está cerrada. Solo consulta y documentos existentes."
-        }
-        if sale.hasBlockingElectronicDocumentForOperationalChanges || registeredSaleDocumentBlocksDirectItemEditing(sale) {
+        if registeredSaleDocumentBlocksDirectItemEditing(sale) {
             return "Esta venta ya tiene un comprobante electrónico generado, enviado o autorizado. Para cambiar productos debes usar un flujo correctivo, no edición directa."
         }
         if registeredSaleHasUnsavedChanges {
@@ -576,7 +573,7 @@ final class SaleCartViewModel {
     }
 
     var canClearDiscounts: Bool {
-        canEditCart && cartItems.contains { $0.discount != nil }
+        canEditCart && cartItems.contains { Self.hasPositiveDiscount($0.discount) }
     }
 
     private var hasDiscountPermission: Bool {
@@ -1097,6 +1094,7 @@ final class SaleCartViewModel {
         preview = nil
         registeredSaleHasUnsavedChanges = false
         originalRegisteredCartItems = cartItems
+        hydrateDiscountDraftFromCartItems()
         isPreviewDirty = false
         recalculateLocalCalculation()
         infoMessage = "Cambios guardados. Ahora puedes cobrar o emitir factura con la venta corregida."
@@ -1468,7 +1466,7 @@ final class SaleCartViewModel {
 
     func removeFromCart(cartItemId: String) {
         guard ensureOrderIsEditable() else { return }
-        let removedHadDiscount = cartItems.first(where: { $0.id == cartItemId })?.discount != nil
+        let removedHadDiscount = cartItems.first(where: { $0.id == cartItemId }).map { Self.hasPositiveDiscount($0.discount) } ?? false
         cartItems.removeAll { $0.id == cartItemId }
         selectedDiscountItemIds.remove(cartItemId)
         normalizeDiscountSelectionAfterCartMutation(clearDiscountDraftIfNoDiscountedLines: removedHadDiscount)
@@ -1690,13 +1688,13 @@ final class SaleCartViewModel {
         selectedDiscountItemIds = selectedDiscountItemIds.filter { existingCartIds.contains($0) }
 
         if discountTarget == .selectedItems {
-            let discountedIds = Set(cartItems.filter { $0.discount != nil }.map(\.id))
+            let discountedIds = Set(cartItems.filter { Self.hasPositiveDiscount($0.discount) }.map(\.id))
             if selectedDiscountItemIds.isEmpty, !discountedIds.isEmpty {
                 selectedDiscountItemIds = discountedIds
             }
         }
 
-        if clearDiscountDraftIfNoDiscountedLines, !cartItems.contains(where: { $0.discount != nil }) {
+        if clearDiscountDraftIfNoDiscountedLines, !cartItems.contains(where: { Self.hasPositiveDiscount($0.discount) }) {
             discountValue = ""
             discountReason = ""
             selectedDiscountItemIds = []
@@ -1749,8 +1747,8 @@ final class SaleCartViewModel {
             return "Venta sin cobrar. La venta fue registrada, pero todavía no se ha cobrado ni es cuenta por cobrar."
         }
 
-        if PaymentStatusPresentation.isCollected(sale.paymentStatus) {
-            return "Venta cobrada correctamente."
+        if sale.hasPaymentImpactForOperationalChanges {
+            return "Venta cobrada correctamente. La venta queda en solo lectura; no edites ítems ni canceles desde este flujo."
         }
 
         return "Venta registrada. Revisa el detalle antes de continuar."
@@ -1889,6 +1887,7 @@ final class SaleCartViewModel {
         }
         originalRegisteredCartItems = cartItems
         selectedCustomer = sale.customerForCartEditing
+        hydrateDiscountDraftFromCartItems()
         preview = nil
         isPreviewDirty = false
         registeredSaleHasUnsavedChanges = false
@@ -1905,6 +1904,30 @@ final class SaleCartViewModel {
         }
     }
 
+
+    private func hydrateDiscountDraftFromCartItems() {
+        let discountedItems = cartItems.filter { Self.hasPositiveDiscount($0.discount) }
+
+        guard !discountedItems.isEmpty else {
+            discountTarget = .wholeSale
+            discountType = .percentage
+            discountValue = ""
+            discountReason = ""
+            selectedDiscountItemIds = []
+            return
+        }
+
+        let totalDiscount = discountedItems.reduce(Decimal.zero) { partial, item in
+            partial + Self.discountDecimalValue(item.discount)
+        }
+
+        discountTarget = discountedItems.count == cartItems.count ? .wholeSale : .selectedItems
+        discountType = .value
+        discountValue = formatMoney(totalDiscount)
+        discountReason = ""
+        selectedDiscountItemIds = Set(discountedItems.map { $0.id })
+    }
+
     private func realignCartItemsWithCreatedSale(_ sale: BusinessSale) {
         let activeSaleItems = sale.items.filter(\.isActiveForCartEditing)
         guard !activeSaleItems.isEmpty, !cartItems.isEmpty else { return }
@@ -1918,7 +1941,7 @@ final class SaleCartViewModel {
             return SaleCartItem(
                 id: saleItem.id,
                 catalogItem: match.catalogItem,
-                quantity: saleItem.quantity,
+                quantity: SaleCartItem.quantityTextForEditing(saleItem.quantity),
                 taxTreatment: match.taxTreatment,
                 discount: match.discount,
                 note: saleItem.note ?? match.note
@@ -2021,6 +2044,21 @@ final class SaleCartViewModel {
             : "\(NSDecimalNumber(decimal: rounded).stringValue).00"
     }
 
+
+    private static func discountDecimalValue(_ discount: MoneyAmount?) -> Decimal {
+        guard let amount = discount?.amount
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: ",", with: "."),
+              let value = Decimal(string: amount, locale: Locale(identifier: "en_US_POSIX")) else {
+            return .zero
+        }
+        return max(.zero, value)
+    }
+
+    private static func hasPositiveDiscount(_ discount: MoneyAmount?) -> Bool {
+        discountDecimalValue(discount) > .zero
+    }
+
     private func hasPermission(_ permissions: [String]) -> Bool {
         effectivePermissions.contains("*") || permissions.contains { effectivePermissions.contains($0) }
     }
@@ -2095,11 +2133,38 @@ private extension SaleCartItem {
                 taxProfileCode: saleItem.taxProfileCode ?? taxTreatment.taxProfileCode,
                 taxProfileName: saleItem.taxProfileName
             ),
-            quantity: saleItem.quantity,
+            quantity: Self.quantityTextForEditing(saleItem.quantity),
             taxTreatment: taxTreatment,
-            discount: saleItem.discount,
+            discount: Self.positiveDiscountOrNil(saleItem.discount),
             note: saleItem.note
         )
+    }
+
+    static func quantityTextForEditing(_ rawQuantity: String) -> String {
+        let normalized = rawQuantity
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: ",", with: ".")
+
+        guard !normalized.isEmpty,
+              let decimal = Decimal(string: normalized, locale: Locale(identifier: "en_US_POSIX")) else {
+            return normalized
+        }
+
+        return NSDecimalNumber(decimal: decimal).stringValue
+    }
+
+    private static func positiveDiscountOrNil(_ discount: MoneyAmount?) -> MoneyAmount? {
+        guard let discount else { return nil }
+        let normalized = discount.amount
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: ",", with: ".")
+
+        guard let value = Decimal(string: normalized, locale: Locale(identifier: "en_US_POSIX")),
+              value > .zero else {
+            return nil
+        }
+
+        return discount
     }
 }
 
