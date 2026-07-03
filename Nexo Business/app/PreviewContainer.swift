@@ -48,7 +48,25 @@ extension BusinessAppContainer {
             inventoryRepository: PreviewInventoryRepository(),
             teamRepository: PreviewBusinessTeamRepository(),
             proformasRepository: PreviewBusinessProformasRepository(),
+            supportNotificationsRepository: PreviewBusinessSupportNotificationsRepository(),
             restaurantTablesRepository: PreviewBusinessRestaurantTablesRepository()
         )
     }
 }
+
+final class PreviewBusinessSupportNotificationsRepository: BusinessSupportNotificationsRepository, @unchecked Sendable {
+    func listNotifications(
+        organizationId: String,
+        branchId: String,
+        limit: Int,
+        unreadOnly: Bool?
+    ) async throws -> BusinessSupportNotificationsResponse {
+        BusinessSupportNotificationsResponse(
+            items: [],
+            unreadCount: 0,
+            limit: limit,
+            unreadOnly: unreadOnly
+        )
+    }
+}
+

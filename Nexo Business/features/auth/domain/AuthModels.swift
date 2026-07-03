@@ -106,7 +106,6 @@ struct RevokeAuthSessionResponse: Decodable, Sendable {
     let revokedRefreshTokens: Int
 }
 
-
 private extension String {
     var trimmed: String { trimmingCharacters(in: .whitespacesAndNewlines) }
     var nilIfBlank: String? { trimmed.isEmpty ? nil : trimmed }

@@ -19,6 +19,7 @@ struct BusinessView: View {
     private let onLogout: () -> Void
 
     @State private var isLogoutConfirmationPresented = false
+    @State private var supportNotificationsViewModel: BusinessSupportNotificationsViewModel
 
     init(
         context: BusinessContextResponse,
@@ -36,6 +37,13 @@ struct BusinessView: View {
         self.onChangeOrganization = onChangeOrganization
         self.onChangeOperation = onChangeOperation
         self.onLogout = onLogout
+        self._supportNotificationsViewModel = State(
+            wrappedValue: BusinessSupportNotificationsViewModel(
+                repository: container.supportNotificationsRepository,
+                organizationId: context.organization.id,
+                branchId: operationalSelection.branchId
+            )
+        )
     }
 
     var body: some View {
@@ -49,7 +57,6 @@ struct BusinessView: View {
                     reportingCard
                     contextCard
                     businessCard
-                    diagnosticsCard
                     accountCard
                 }
                 .padding(.horizontal, 11)
@@ -91,7 +98,7 @@ struct BusinessView: View {
         if let restaurant = context.verticals.restaurant {
             BusinessCard(
                 title: "Restaurante v1 activo",
-                subtitle: "22C consume el contexto vertical sin cambiar venta, caja, documentos ni catálogo."
+                subtitle: "Venta rápida sigue siendo el flujo principal. Mesas y tipo de servicio son soporte operativo."
             ) {
                 VStack(alignment: .leading, spacing: 12) {
                     HStack(spacing: 8) {
@@ -111,61 +118,52 @@ struct BusinessView: View {
                         hasTables: hasRestaurantTablesCapability
                     )
 
-                    DisclosureGroup {
-                        VStack(alignment: .leading, spacing: 12) {
-                            BusinessRestaurantReadinessFinalSection(
-                                viewModel: BusinessRestaurantReadinessFinalViewModel(
-                                    organizationId: organizationId,
-                                    branchId: branchId,
-                                    repository: container.restaurantTablesRepository
-                                )
-                            )
-
-                            if !restaurantEnabledCapabilities.isEmpty {
-                                VStack(alignment: .leading, spacing: 8) {
-                                    Text("Capacidades técnicas")
-                                        .font(.subheadline.weight(.semibold))
-
-                                    LazyVGrid(columns: toolColumns, spacing: 8) {
-                                        ForEach(restaurantEnabledCapabilities, id: \.self) { capability in
-                                            BusinessVerticalCompactPill(
-                                                title: humanizedRestaurantCapability(capability),
-                                                code: capability,
-                                                systemImage: "checkmark.circle.fill",
-                                                tint: .green
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-
-                            if !context.verticals.readiness.isEmpty {
-                                VStack(alignment: .leading, spacing: 8) {
-                                    Text("Readiness técnico")
-                                        .font(.subheadline.weight(.semibold))
-
-                                    ForEach(context.verticals.readiness) { check in
-                                        verticalReadinessRow(check)
-                                    }
-                                }
-                            }
-
-                            if !context.verticals.foreignVerticalCodes.isEmpty {
-                                BusinessInlineMessage(
-                                    message: "WARN técnico: aparecen verticales ajenos para esta organización: \(context.verticals.foreignVerticalCodes.joined(separator: ", ")).",
-                                    systemImage: "exclamationmark.triangle.fill",
-                                    tint: .orange
-                                )
-                            }
-                        }
-                        .padding(.top, 8)
+                    NavigationLink {
+                        BusinessTechnicalStatusView(
+                            context: context,
+                            operationalSelection: operationalSelection,
+                            container: container,
+                            onRefresh: onRefresh
+                        )
                     } label: {
-                        Label("Diagnóstico técnico", systemImage: "stethoscope")
-                            .font(.footnote.weight(.semibold))
-                            .foregroundStyle(.secondary)
+                        BusinessActionLabel(
+                            title: "Ver estado técnico",
+                            subtitle: "Readiness, capacidades y checks de Restaurante v1",
+                            systemImage: "stethoscope",
+                            tint: .purple
+                        )
                     }
+                    .buttonStyle(.plain)
                 }
             }
+        }
+    }
+
+    private var supportNotificationsCard: some View {
+        NavigationLink {
+            BusinessSupportEntryPointsView(
+                notificationUnreadCount: supportNotificationsViewModel.unreadCount,
+                latestNotificationTitle: supportNotificationsViewModel.latestTitle,
+                latestNotificationSummary: supportNotificationsViewModel.latestSummary,
+                onRefreshNotifications: {
+                    Task {
+                        await supportNotificationsViewModel.refresh()
+                    }
+                }
+            )
+            .task {
+                await supportNotificationsViewModel.refreshIfNeeded()
+            }
+        } label: {
+            BusinessSupportHomeRow(
+                unreadCount: supportNotificationsViewModel.unreadCount,
+                latestTitle: supportNotificationsViewModel.latestTitle,
+                latestSummary: supportNotificationsViewModel.latestSummary
+            )
+        }
+        .buttonStyle(.plain)
+        .task {
+            await supportNotificationsViewModel.refreshIfNeeded()
         }
     }
 
@@ -205,7 +203,7 @@ struct BusinessView: View {
                         } label: {
                             BusinessToolTile(
                                 title: "Mesas",
-                                subtitle: "Ocupación"
+                                subtitle: "Ocupación",
                                 systemImage: "tablecells",
                                 tint: .orange
                             )
@@ -642,81 +640,14 @@ struct BusinessView: View {
         }
     }
 
-    private var diagnosticsCard: some View {
-        BusinessCard(
-            title: "Estado técnico",
-            subtitle: "Permisos, módulos y capacidades activas."
-        ) {
-            VStack(alignment: .leading, spacing: 12) {
-                DisclosureGroup {
-                    VStack(spacing: 8) {
-                        capabilityDiagnosticRow("Ventas", enabled: capabilityGate.canAccessSales)
-                        capabilityDiagnosticRow("Hoy", enabled: capabilityGate.canAccessToday)
-                        capabilityDiagnosticRow("Caja", enabled: capabilityGate.canAccessCash)
-                        capabilityDiagnosticRow("Historial", enabled: capabilityGate.canAccessHistory)
-                        capabilityDiagnosticRow("Ventas pendientes", enabled: capabilityGate.canAccessHistory)
-                        capabilityDiagnosticRow("Clientes", enabled: capabilityGate.canAccessCustomers)
-                        capabilityDiagnosticRow("Cuentas por cobrar", enabled: capabilityGate.canAccessReceivables)
-                        capabilityDiagnosticRow("Inventario", enabled: capabilityGate.canAccessInventory)
-                        capabilityDiagnosticRow("Comprobantes", enabled: canAccessElectronicDocumentVault)
-                        capabilityDiagnosticRow("Exportaciones", enabled: canAccessOperationalExports)
-                        capabilityDiagnosticRow("Equipo", enabled: canAccessTeamManagement)
-                    }
-                    .padding(.top, 8)
-                } label: {
-                    Label("Capacidades de negocio", systemImage: "switch.2")
-                        .font(.subheadline.weight(.semibold))
-                }
-
-                Divider()
-
-                DisclosureGroup {
-                    VStack(alignment: .leading, spacing: 8) {
-                        if context.verticals.activeVerticals.isEmpty {
-                            Text("Sin verticales activos")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        } else {
-                            ForEach(context.verticals.activeVerticals) { vertical in
-                                Text("\(vertical.code) · \(vertical.status) · v\(vertical.packageVersion)")
-                                    .font(.caption.monospaced())
-                                    .foregroundStyle(.secondary)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                            }
-                        }
-                    }
-                    .padding(.top, 8)
-                } label: {
-                    Label("Verticales activos", systemImage: "square.stack.3d.up")
-                        .font(.subheadline.weight(.semibold))
-                }
-
-                Divider()
-
-                DisclosureGroup {
-                    VStack(alignment: .leading, spacing: 8) {
-                        ForEach(context.activeModules.map(\.rawValue).sorted(), id: \.self) { module in
-                            Text(module)
-                                .font(.caption.monospaced())
-                                .foregroundStyle(.secondary)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                        }
-                    }
-                    .padding(.top, 8)
-                } label: {
-                    Label("Módulos activos", systemImage: "square.grid.2x2")
-                        .font(.subheadline.weight(.semibold))
-                }
-            }
-        }
-    }
-
     private var accountCard: some View {
         BusinessCard(
-            title: "Cuenta",
-            subtitle: "Sesión, negocio activo y seguridad."
+            title: "Cuenta y soporte",
+            subtitle: "Sesión, negocio activo, seguridad y diagnóstico."
         ) {
             VStack(spacing: 10) {
+                supportNotificationsCard
+
                 Button {
                     onRefresh()
                 } label: {
@@ -725,6 +656,23 @@ struct BusinessView: View {
                         subtitle: "Permisos, módulos y revisiones",
                         systemImage: "arrow.clockwise",
                         tint: .accentColor
+                    )
+                }
+                .buttonStyle(.plain)
+
+                NavigationLink {
+                    BusinessTechnicalStatusView(
+                        context: context,
+                        operationalSelection: operationalSelection,
+                        container: container,
+                        onRefresh: onRefresh
+                    )
+                } label: {
+                    BusinessActionLabel(
+                        title: "Estado técnico",
+                        subtitle: "Permisos, módulos, verticales y readiness",
+                        systemImage: "stethoscope",
+                        tint: .purple
                     )
                 }
                 .buttonStyle(.plain)
@@ -984,33 +932,12 @@ struct BusinessView: View {
     @ToolbarContentBuilder
     private var commonToolbar: some ToolbarContent {
         ToolbarItem(placement: .topBarTrailing) {
-            Menu {
-                Button {
-                    onRefresh()
-                } label: {
-                    Label("Actualizar datos", systemImage: "arrow.clockwise")
-                }
-
-                Button {
-                    onChangeOperation()
-                } label: {
-                    Label("Cambiar operación", systemImage: "slider.horizontal.3")
-                }
-
-                Button {
-                    onChangeOrganization()
-                } label: {
-                    Label("Cambiar negocio", systemImage: "building.2")
-                }
-
-                Button(role: .destructive) {
-                    isLogoutConfirmationPresented = true
-                } label: {
-                    Label("Cerrar sesión", systemImage: "rectangle.portrait.and.arrow.right")
-                }
+            Button {
+                onRefresh()
             } label: {
-                Image(systemName: "ellipsis.circle")
+                Image(systemName: "arrow.clockwise")
             }
+            .accessibilityLabel("Actualizar datos")
         }
     }
 
@@ -1122,6 +1049,468 @@ struct BusinessView: View {
 
     private var permissions: Set<String> {
         context.effectivePermissions
+    }
+
+    private var selectedBranchName: String {
+        context.branches.first(where: { $0.id == operationalSelection.branchId })?.name
+        ?? operationalSelection.branchId
+    }
+
+    private var selectedActivityName: String {
+        context.activities.first(where: { $0.id == operationalSelection.activityId })?.name
+        ?? operationalSelection.activityId
+    }
+}
+
+private struct BusinessTechnicalStatusView: View {
+    let context: BusinessContextResponse
+    let operationalSelection: BusinessOperationalSelection
+    let container: BusinessAppContainer
+    let onRefresh: () -> Void
+
+    var body: some View {
+        ScrollView {
+            LazyVStack(spacing: 12) {
+                summaryCard
+                operationStatusCard
+                capabilitiesCard
+                restaurantTechnicalCard
+                verticalsCard
+                modulesCard
+            }
+            .padding(.horizontal, 11)
+            .padding(.vertical, 11)
+        }
+        .background(Color(.systemGroupedBackground))
+        .navigationTitle("Estado técnico")
+        .navigationBarTitleDisplayMode(.large)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    onRefresh()
+                } label: {
+                    Image(systemName: "arrow.clockwise")
+                }
+                .accessibilityLabel("Actualizar estado técnico")
+            }
+        }
+    }
+
+    private var summaryCard: some View {
+        BusinessCard(
+            title: "Resumen técnico",
+            subtitle: "Permisos, módulos, verticales y readiness de la operación activa."
+        ) {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(alignment: .top, spacing: 12) {
+                    BusinessIconBadge(systemImage: "stethoscope", tint: readinessTint)
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(context.readiness.status)
+                            .font(.title3.weight(.bold))
+                            .foregroundStyle(readinessTint)
+
+                        Text("Diagnóstico únicamente. La operación diaria vive en Venta rápida, Caja, Historial y Mesas.")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
+                    Spacer(minLength: 0)
+                }
+
+                BusinessMetaRow(title: "Negocio", value: context.organization.commercialName)
+                BusinessMetaRow(title: "RUC", value: context.organization.taxId, isMonospaced: true)
+                BusinessMetaRow(title: "País", value: context.organization.countryCode)
+            }
+        }
+    }
+
+    private var operationStatusCard: some View {
+        BusinessCard(
+            title: "Operación activa",
+            subtitle: "Sucursal, actividad y revisiones usadas por esta sesión."
+        ) {
+            VStack(spacing: 10) {
+                BusinessMetaRow(title: "Sucursal", value: selectedBranchName)
+                BusinessMetaRow(title: "Actividad", value: selectedActivityName)
+                BusinessMetaRow(title: "Catálogo", value: context.revisions.catalogRevision, isMonospaced: true)
+                BusinessMetaRow(title: "Impuestos", value: context.revisions.taxConfigurationRevision, isMonospaced: true)
+            }
+        }
+    }
+
+    private var capabilitiesCard: some View {
+        BusinessCard(
+            title: "Capacidades de negocio",
+            subtitle: "Qué pantallas y flujos puede usar este usuario en este negocio."
+        ) {
+            LazyVGrid(columns: toolColumns, spacing: 8) {
+                technicalCapabilityRow("Ventas", enabled: capabilityGate.canAccessSales)
+                technicalCapabilityRow("Hoy", enabled: capabilityGate.canAccessToday)
+                technicalCapabilityRow("Caja", enabled: capabilityGate.canAccessCash)
+                technicalCapabilityRow("Historial", enabled: capabilityGate.canAccessHistory)
+                technicalCapabilityRow("Ventas pendientes", enabled: capabilityGate.canAccessHistory)
+                technicalCapabilityRow("Clientes", enabled: capabilityGate.canAccessCustomers)
+                technicalCapabilityRow("Cuentas por cobrar", enabled: capabilityGate.canAccessReceivables)
+                technicalCapabilityRow("Inventario", enabled: capabilityGate.canAccessInventory)
+                technicalCapabilityRow("Comprobantes", enabled: canAccessElectronicDocumentVault)
+                technicalCapabilityRow("Exportaciones", enabled: canAccessOperationalExports)
+                technicalCapabilityRow("Equipo", enabled: canAccessTeamManagement)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var restaurantTechnicalCard: some View {
+        if context.verticals.restaurant != nil {
+            BusinessCard(
+                title: "Restaurante v1 técnico",
+                subtitle: "Readiness, capabilities y checks de soporte. No ejecuta acciones operativas."
+            ) {
+                VStack(alignment: .leading, spacing: 12) {
+                    BusinessRestaurantReadinessFinalSection(
+                        viewModel: BusinessRestaurantReadinessFinalViewModel(
+                            organizationId: organizationId,
+                            branchId: branchId,
+                            repository: container.restaurantTablesRepository
+                        )
+                    )
+
+                    if !restaurantEnabledCapabilities.isEmpty {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Capacidades técnicas")
+                                .font(.subheadline.weight(.semibold))
+
+                            LazyVGrid(columns: toolColumns, spacing: 8) {
+                                ForEach(restaurantEnabledCapabilities, id: \.self) { capability in
+                                    BusinessVerticalCompactPill(
+                                        title: humanizedRestaurantCapability(capability),
+                                        code: capability,
+                                        systemImage: "checkmark.circle.fill",
+                                        tint: .green
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    if !context.verticals.readiness.isEmpty {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Readiness técnico")
+                                .font(.subheadline.weight(.semibold))
+
+                            ForEach(context.verticals.readiness) { check in
+                                verticalReadinessRow(check)
+                            }
+                        }
+                    }
+
+                    if !context.verticals.foreignVerticalCodes.isEmpty {
+                        BusinessInlineMessage(
+                            message: "WARN técnico: aparecen verticales ajenos para esta organización: \(context.verticals.foreignVerticalCodes.joined(separator: ", ")).",
+                            systemImage: "exclamationmark.triangle.fill",
+                            tint: .orange
+                        )
+                    }
+                }
+            }
+        } else {
+            BusinessCard(
+                title: "Restaurante v1 técnico",
+                subtitle: "No hay vertical Restaurante activo para esta operación."
+            ) {
+                BusinessInlineMessage(
+                    message: "Sin diagnóstico de Restaurante v1 en esta sesión.",
+                    systemImage: "fork.knife",
+                    tint: .secondary
+                )
+            }
+        }
+    }
+
+    private var verticalsCard: some View {
+        BusinessCard(
+            title: "Verticales activos",
+            subtitle: "Paquetes verticales habilitados para esta organización."
+        ) {
+            VStack(alignment: .leading, spacing: 8) {
+                if context.verticals.activeVerticals.isEmpty {
+                    BusinessInlineMessage(
+                        message: "Sin verticales activos.",
+                        systemImage: "square.stack.3d.up",
+                        tint: .secondary
+                    )
+                } else {
+                    ForEach(context.verticals.activeVerticals) { vertical in
+                        technicalCodeRow(
+                            title: vertical.code,
+                            value: "\(vertical.status) · v\(vertical.packageVersion)",
+                            systemImage: "square.stack.3d.up",
+                            tint: vertical.status.lowercased() == "active" ? .green : .orange
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    private var modulesCard: some View {
+        BusinessCard(
+            title: "Módulos activos",
+            subtitle: "Módulos técnicos recibidos desde el contexto del negocio."
+        ) {
+            if context.activeModules.isEmpty {
+                BusinessInlineMessage(
+                    message: "Sin módulos activos reportados.",
+                    systemImage: "square.grid.2x2",
+                    tint: .secondary
+                )
+            } else {
+                LazyVGrid(columns: toolColumns, spacing: 8) {
+                    ForEach(context.activeModules.map(\.rawValue).sorted(), id: \.self) { module in
+                        technicalModulePill(module)
+                    }
+                }
+            }
+        }
+    }
+
+    private func technicalCapabilityRow(_ title: String, enabled: Bool) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: enabled ? "checkmark.circle.fill" : "minus.circle")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(enabled ? Color.green : Color.secondary)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(.primary)
+
+                Text(enabled ? "Activo" : "No disponible")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(enabled ? Color.green : Color.secondary)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .frame(maxWidth: .infinity, minHeight: 56, alignment: .leading)
+        .padding(10)
+        .background((enabled ? Color.green : Color.secondary).opacity(0.08), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .strokeBorder((enabled ? Color.green : Color.secondary).opacity(0.10))
+        )
+    }
+
+    private func technicalCodeRow(
+        title: String,
+        value: String,
+        systemImage: String,
+        tint: Color
+    ) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: systemImage)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(tint)
+                .frame(width: 28, height: 28)
+                .background(tint.opacity(0.10), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .font(.caption.monospaced().weight(.semibold))
+                    .foregroundStyle(.primary)
+
+                Text(value)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(10)
+        .background(Color(.tertiarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+
+    private func technicalModulePill(_ module: String) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: "square.grid.2x2")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.primary)
+
+            Text(module)
+                .font(.caption.monospaced().weight(.semibold))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
+
+            Spacer(minLength: 0)
+        }
+        .padding(10)
+        .background(Color.accentColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .strokeBorder(Color.accentColor.opacity(0.10))
+        )
+    }
+
+    private func verticalReadinessRow(_ check: BusinessVerticalReadiness) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: verticalReadinessSystemImage(check.normalizedStatus))
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(verticalReadinessTint(check.normalizedStatus))
+                .frame(width: 28, height: 28)
+                .background(verticalReadinessTint(check.normalizedStatus).opacity(0.10), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text(check.code)
+                        .font(.caption.monospaced().weight(.semibold))
+                        .foregroundStyle(.primary)
+
+                    Spacer(minLength: 8)
+
+                    Text(check.normalizedStatus)
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(verticalReadinessTint(check.normalizedStatus))
+                }
+
+                Text(check.message)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(10)
+        .background(Color(.tertiarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+
+    private func humanizedRestaurantCapability(_ capability: String) -> String {
+        switch capability {
+        case "restaurant.menu_attributes":
+            return "Atributos menú"
+        case "restaurant.service_type":
+            return "Tipo servicio"
+        case "restaurant.event_service":
+            return "Eventos"
+        case "restaurant.tables_optional":
+            return "Mesas"
+        case "restaurant.kitchen_basic_optional":
+            return "Cocina"
+        default:
+            return capability
+                .replacingOccurrences(of: "restaurant.", with: "")
+                .replacingOccurrences(of: "_", with: " ")
+                .capitalized
+        }
+    }
+
+    private func verticalReadinessTint(_ status: String) -> Color {
+        switch status {
+        case "PASS":
+            return .green
+        case "WARN":
+            return .orange
+        case "FAIL":
+            return .red
+        default:
+            return .secondary
+        }
+    }
+
+    private func verticalReadinessSystemImage(_ status: String) -> String {
+        switch status {
+        case "PASS":
+            return "checkmark.seal.fill"
+        case "WARN":
+            return "exclamationmark.triangle.fill"
+        case "FAIL":
+            return "xmark.octagon.fill"
+        default:
+            return "questionmark.circle.fill"
+        }
+    }
+
+    private var toolColumns: [GridItem] {
+        [
+            GridItem(.flexible(), spacing: 8),
+            GridItem(.flexible(), spacing: 8)
+        ]
+    }
+
+    private var readinessTint: Color {
+        switch context.readiness.status.lowercased() {
+        case "ready", "ok", "active", "enabled":
+            return .green
+        case "warning", "partial", "pending", "warn":
+            return .orange
+        case "blocked", "error", "failed", "fail":
+            return .red
+        default:
+            return .secondary
+        }
+    }
+
+    private var capabilityGate: BusinessCapabilityGate {
+        BusinessCapabilityGate(capabilities: context.capabilities)
+    }
+
+    private var permissionGate: PermissionGate {
+        PermissionGate(effectivePermissions: context.effectivePermissions)
+    }
+
+    private var canAccessTeamManagement: Bool {
+        permissionGate.allows("credentials.users.view") ||
+        permissionGate.allows("credentials.roles.view") ||
+        permissionGate.allows("credentials.users.create") ||
+        permissionGate.allows("credentials.roles.manage")
+    }
+
+    private var canAccessElectronicDocumentVault: Bool {
+        permissionGate.allows("documents.electronic_invoice.list") ||
+        permissionGate.allows("documents.electronic_invoice.view") ||
+        permissionGate.allows("documents.electronic_invoice.download_ride") ||
+        permissionGate.allows("documents.electronic_invoice.download_xml") ||
+        permissionGate.allows("documents.electronic_invoice.email") ||
+        permissionGate.allows("documents.view") ||
+        permissionGate.allows("business.documents.view")
+    }
+
+    private var canAccessOperationalExports: Bool {
+        guard capabilityGate.canAccessToday || context.effectivePermissions.contains("*") else {
+            return false
+        }
+
+        return permissionGate.allowsAny(Self.operationalExportPermissions) || context.effectivePermissions.contains("*")
+    }
+
+    private static let operationalExportPermissions = [
+        "business.exports.view",
+        "business.exports.generate",
+        "business.exports.download",
+        "exports.view",
+        "exports.generate",
+        "exports.download",
+        "reports.export",
+        "reports.dashboard.view",
+        "reports.sales.view",
+        "reports.cash.view",
+        "reports.documents.view"
+    ]
+
+    private var organizationId: String {
+        context.organization.id
+    }
+
+    private var branchId: String {
+        operationalSelection.branchId
+    }
+
+    private var restaurantEnabledCapabilities: [String] {
+        let packageCapabilities = context.verticals.restaurant?.capabilities ?? []
+        return Array(Set(context.verticals.capabilities + packageCapabilities))
+            .filter { $0.hasPrefix("restaurant.") }
+            .sorted()
     }
 
     private var selectedBranchName: String {

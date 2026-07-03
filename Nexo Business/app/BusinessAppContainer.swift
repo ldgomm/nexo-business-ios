@@ -30,6 +30,7 @@ final class BusinessAppContainer: @unchecked Sendable {
     let inventoryRepository: InventoryRepository
     let teamRepository: BusinessTeamRepository
     let proformasRepository: BusinessProformasRepository
+    let supportNotificationsRepository: BusinessSupportNotificationsRepository
     let restaurantTablesRepository: BusinessRestaurantTablesRepository
 
     init(
@@ -55,6 +56,7 @@ final class BusinessAppContainer: @unchecked Sendable {
         inventoryRepository: InventoryRepository,
         teamRepository: BusinessTeamRepository,
         proformasRepository: BusinessProformasRepository,
+        supportNotificationsRepository: BusinessSupportNotificationsRepository,
         restaurantTablesRepository: BusinessRestaurantTablesRepository
     ) {
         self.tokenStore = tokenStore
@@ -79,6 +81,7 @@ final class BusinessAppContainer: @unchecked Sendable {
         self.inventoryRepository = inventoryRepository
         self.teamRepository = teamRepository
         self.proformasRepository = proformasRepository
+        self.supportNotificationsRepository = supportNotificationsRepository
         self.restaurantTablesRepository = restaurantTablesRepository
     }
 
@@ -129,6 +132,7 @@ final class BusinessAppContainer: @unchecked Sendable {
             inventoryRepository: InventoryAPIRepository(apiClient: apiClient),
             teamRepository: BusinessTeamAPIRepository(apiClient: apiClient),
             proformasRepository: BusinessProformasAPIRepository(apiClient: apiClient),
+            supportNotificationsRepository: BusinessSupportNotificationsAPIRepository(apiClient: apiClient),
             restaurantTablesRepository: BusinessRestaurantTablesAPIRepository(apiClient: apiClient)
         )
     }
