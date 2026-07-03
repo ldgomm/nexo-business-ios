@@ -99,6 +99,60 @@ struct BusinessActivity: Decodable, Equatable, Identifiable, Sendable {
     }
 }
 
+enum BusinessActivityTemplateCode {
+    static let retailStore = "retail_store"
+    static let techStore = "tech_store"
+    static let hardwareStore = "hardware_store"
+    static let bookstore = "bookstore"
+    static let serviceRepair = "service_repair"
+
+    static let all: Set<String> = [
+        retailStore,
+        techStore,
+        hardwareStore,
+        bookstore,
+        serviceRepair
+    ]
+
+    static func isRetailServiceTemplate(_ value: String) -> Bool {
+        all.contains(value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased().replacingOccurrences(of: "-", with: "_"))
+    }
+}
+
+extension BusinessActivity {
+    var isRetailServiceTemplate: Bool {
+        BusinessActivityTemplateCode.isRetailServiceTemplate(activityType)
+            || BusinessActivityTemplateCode.isRetailServiceTemplate(code)
+    }
+
+    var retailServiceTemplateTitle: String {
+        switch activityType {
+        case BusinessActivityTemplateCode.retailStore:
+            return "Retail store"
+        case BusinessActivityTemplateCode.techStore:
+            return "Tech store"
+        case BusinessActivityTemplateCode.hardwareStore:
+            return "Hardware store"
+        case BusinessActivityTemplateCode.bookstore:
+            return "Bookstore"
+        case BusinessActivityTemplateCode.serviceRepair:
+            return "Service repair"
+        default:
+            return name
+        }
+    }
+}
+
+extension BusinessContextResponse {
+    var retailServiceActivities: [BusinessActivity] {
+        activities.filter { $0.isRetailServiceTemplate }
+    }
+
+    var hasRetailServiceActivity: Bool {
+        !retailServiceActivities.isEmpty
+    }
+}
+
 struct BusinessReadiness: Decodable, Equatable, Sendable {
     let status: String
     let score: Int?

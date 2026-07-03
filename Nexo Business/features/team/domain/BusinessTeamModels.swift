@@ -718,7 +718,7 @@ struct BusinessRoleTemplate: Identifiable, Equatable, Decodable, Sendable {
     var readableVertical: String {
         switch vertical.uppercased() {
         case "CORE": return "General"
-        case "RESTAURANT": return "Restaurante"
+        case "RESTAURANT": return "Retail store"
         case "RETAIL": return "Tienda"
         case "HARDWARE_STORE": return "Ferretería"
         case "PHARMACY": return "Farmacia"

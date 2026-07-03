@@ -36,12 +36,44 @@ enum PreviewData {
         ],
         activities: [
             BusinessActivity(
-                id: "act_restaurant",
-                code: "retail_store",
+                id: "act_retail_store",
+                code: BusinessActivityTemplateCode.retailStore,
                 name: "Retail store",
-                activityType: "retail_store",
+                activityType: BusinessActivityTemplateCode.retailStore,
                 workflowMode: "quick_sale",
                 status: "active"
+            ),
+            BusinessActivity(
+                id: "act_tech_store",
+                code: BusinessActivityTemplateCode.techStore,
+                name: "Tech store",
+                activityType: BusinessActivityTemplateCode.techStore,
+                workflowMode: "quick_sale",
+                status: "active"
+            ),
+            BusinessActivity(
+                id: "act_hardware_store",
+                code: BusinessActivityTemplateCode.hardwareStore,
+                name: "Hardware store",
+                activityType: BusinessActivityTemplateCode.hardwareStore,
+                workflowMode: "quick_sale",
+                status: "draft"
+            ),
+            BusinessActivity(
+                id: "act_bookstore",
+                code: BusinessActivityTemplateCode.bookstore,
+                name: "Bookstore",
+                activityType: BusinessActivityTemplateCode.bookstore,
+                workflowMode: "quick_sale",
+                status: "draft"
+            ),
+            BusinessActivity(
+                id: "act_service_repair",
+                code: BusinessActivityTemplateCode.serviceRepair,
+                name: "Service repair",
+                activityType: BusinessActivityTemplateCode.serviceRepair,
+                workflowMode: "service_order",
+                status: "draft"
             )
         ],
         activeModules: [
