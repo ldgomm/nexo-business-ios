@@ -37,9 +37,9 @@ enum PreviewData {
         activities: [
             BusinessActivity(
                 id: "act_restaurant",
-                code: "restaurant",
-                name: "Restaurante",
-                activityType: "restaurant",
+                code: "retail_store",
+                name: "Retail store",
+                activityType: "retail_store",
                 workflowMode: "quick_sale",
                 status: "active"
             )

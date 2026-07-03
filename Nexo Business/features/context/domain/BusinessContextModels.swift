@@ -79,12 +79,18 @@ struct BusinessActivity: Decodable, Equatable, Identifiable, Sendable {
 
     private static func defaultName(for activityType: String) -> String {
         switch activityType {
-        case "restaurant":
-            return "Restaurant"
-        case "retail":
-            return "Tienda"
+        case "retail_store", "retail":
+            return "Retail store"
+        case "tech_store":
+            return "Tech store"
+        case "hardware_store":
+            return "Hardware store"
+        case "bookstore":
+            return "Bookstore"
+        case "service_repair", "services":
+            return "Service repair"
         case "tourism":
-            return "Turismo"
+            return "Tourism"
         default:
             return activityType
                 .replacingOccurrences(of: "_", with: " ")
@@ -180,6 +186,65 @@ struct BusinessVerticalContext: Decodable, Equatable, Sendable {
             .map(\.code)
             .filter { $0 != "restaurant" }
             .sorted()
+    }
+}
+
+
+
+enum BusinessRetailServiceCapabilityCode {
+    static let retailBasic = "retail.basic"
+    static let retailCatalog = "retail.catalog"
+    static let retailBarcodesBasic = "retail.barcodes_basic"
+    static let retailPriceListsBasic = "retail.price_lists_basic"
+    static let retailInventoryBasic = "retail.inventory_basic"
+    static let retailStockAlertsBasic = "retail.stock_alerts_basic"
+    static let retailWarrantyBasic = "retail.warranty_basic"
+    static let serviceBasic = "service.basic"
+    static let serviceRepairIntakeBasic = "service.repair_intake_basic"
+    static let serviceDiagnosticsBasic = "service.diagnostics_basic"
+    static let serviceQuotationsBasic = "service.quotations_basic"
+    static let serviceWorkOrdersPreview = "service.work_orders_preview"
+    static let serviceCustomerAssetsBasic = "service.customer_assets_basic"
+    static let supportContextual = "support.contextual"
+    static let procurementPreview = "procurement.preview"
+    static let payablesPreview = "payables.preview"
+    static let financeOperationalPreview = "finance.operational_preview"
+    static let financeAccountantPackPreview = "finance.accountant_pack_preview"
+
+    static let previewOnly: Set<String> = [
+        retailBarcodesBasic,
+        retailPriceListsBasic,
+        retailStockAlertsBasic,
+        retailWarrantyBasic,
+        serviceRepairIntakeBasic,
+        serviceDiagnosticsBasic,
+        serviceWorkOrdersPreview,
+        serviceCustomerAssetsBasic,
+        procurementPreview,
+        payablesPreview,
+        financeOperationalPreview,
+        financeAccountantPackPreview
+    ]
+}
+
+extension BusinessVerticalContext {
+    func hasRetailServiceCapability(_ capability: String) -> Bool {
+        hasCapability(capability)
+    }
+
+    var hasRetailFoundation: Bool {
+        hasCapability(BusinessRetailServiceCapabilityCode.retailBasic)
+            || hasCapability(BusinessRetailServiceCapabilityCode.retailCatalog)
+            || hasCapability(BusinessRetailServiceCapabilityCode.retailInventoryBasic)
+    }
+
+    var hasServiceFoundation: Bool {
+        hasCapability(BusinessRetailServiceCapabilityCode.serviceBasic)
+            || hasCapability(BusinessRetailServiceCapabilityCode.serviceQuotationsBasic)
+    }
+
+    func isPreviewOnlyRetailServiceCapability(_ capability: String) -> Bool {
+        BusinessRetailServiceCapabilityCode.previewOnly.contains(capability)
     }
 }
 

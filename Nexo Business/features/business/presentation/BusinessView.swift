@@ -989,7 +989,7 @@ private struct BusinessTechnicalStatusView: View {
                             .font(.title3.weight(.bold))
                             .foregroundStyle(readinessTint)
 
-                        Text("Diagnóstico únicamente. La operación diaria vive en Venta rápida, Caja, Historial y Mesas.")
+                        Text("Diagnóstico únicamente. La operación diaria vive en Vender, Caja, Productos, Clientes, Historial y Documentos.")
                             .font(.footnote)
                             .foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
@@ -1735,19 +1735,19 @@ private struct BusinessInlineMessage: View {
 }
 
 
-private struct BusinessRestaurantOperationalStatusCard: View {
+private struct BusinessRetailServiceOperationalStatusCard: View {
     let workMode: String
-    let hasTables: Bool
+    let hasServicePreview: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .top, spacing: 10) {
-                BusinessIconBadge(systemImage: "fork.knife", tint: .orange)
+                BusinessIconBadge(systemImage: "shippingbox", tint: .orange)
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Listo para operar")
                         .font(.subheadline.weight(.semibold))
-                    Text("Vende y cobra desde Venta rápida. El restaurante usa el mismo flujo de caja, historial y documentos.")
+                    Text("Vende y cobra desde el mismo flujo core de caja, historial y documentos. Retail & Service no duplica ventas ni documentos.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -1758,8 +1758,8 @@ private struct BusinessRestaurantOperationalStatusCard: View {
                 Label("Venta rápida: crea productos, cobra y permite facturar.", systemImage: "cart.badge.plus")
                     .foregroundStyle(.primary)
 
-                if hasTables {
-                    Label("Mesas: control de ocupación; no crea venta ni orden por sí sola.", systemImage: "tablecells")
+                if hasServicePreview {
+                    Label("Inventario básico: control operativo inicial; Inventory Pro entra en 26R.", systemImage: "shippingbox")
                         .foregroundStyle(.secondary)
                 }
             }

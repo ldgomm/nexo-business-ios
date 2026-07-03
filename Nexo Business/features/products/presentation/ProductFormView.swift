@@ -221,16 +221,16 @@ struct ProductFormView: View {
     }
 
 
-    private var restaurantMenuCategories: [(String, String)] {
+    private var retailServiceCategories: [(String, String)] {
         [
-            ("", "Sin categoría"),
-            ("platos_fuertes", "Platos fuertes"),
-            ("parrilladas", "Parrilladas"),
-            ("sopas", "Sopas"),
-            ("bebidas", "Bebidas"),
-            ("adicionales", "Adicionales"),
-            ("experiencias_eventos", "Experiencias/Eventos"),
-            ("otros", "Otros")
+            ("", "Uncategorized"),
+            ("retail_products", "Retail products"),
+            ("accessories", "Accessories"),
+            ("spare_parts", "Spare parts"),
+            ("labor", "Labor / service"),
+            ("supplies", "Supplies"),
+            ("warranty", "Warranty"),
+            ("other", "Other")
         ]
     }
 

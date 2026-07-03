@@ -117,7 +117,7 @@ final class ProductFormViewModel {
         price.replacingOccurrences(of: ",", with: ".").trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    var showsRestaurantMenuSection: Bool {
+    var showsRetailServiceCategorySection: Bool {
         if case .edit = mode { return true }
         return false
     }
