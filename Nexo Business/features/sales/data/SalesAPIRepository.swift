@@ -114,7 +114,6 @@ final class SalesAPIRepository: SalesRepository, @unchecked Sendable {
             customerId: body.customerId,
             customerSnapshot: body.customerSnapshot,
             cashSessionId: body.cashSessionId,
-            serviceType: body.serviceType,
             autoConfirm: body.autoConfirm,
             catalogRevision: resolvedRevisions.catalogRevision,
             taxConfigurationRevision: resolvedRevisions.taxConfigurationRevision,
@@ -306,35 +305,6 @@ final class SalesAPIRepository: SalesRepository, @unchecked Sendable {
                 throw error
             }
             return try await sendUpdateCustomer(
-                organizationId: organizationId,
-                saleId: saleId,
-                revisions: recoveredRevisions,
-                idempotencyKey: idempotencyKey,
-                body: body
-            )
-        }
-    }
-
-    func updateServiceType(
-        organizationId: String,
-        saleId: String,
-        revisions: BusinessRevisions,
-        idempotencyKey: IdempotencyKey,
-        request body: UpdateSaleServiceTypeRequest
-    ) async throws -> QuickSaleResponse {
-        do {
-            return try await sendUpdateServiceType(
-                organizationId: organizationId,
-                saleId: saleId,
-                revisions: revisions,
-                idempotencyKey: idempotencyKey,
-                body: body
-            )
-        } catch let error as APIError {
-            guard let recoveredRevisions = recoveredRevisions(from: error, fallback: revisions) else {
-                throw error
-            }
-            return try await sendUpdateServiceType(
                 organizationId: organizationId,
                 saleId: saleId,
                 revisions: recoveredRevisions,
@@ -542,29 +512,6 @@ final class SalesAPIRepository: SalesRepository, @unchecked Sendable {
             try APIRequest<QuickSaleResponse>.json(
                 method: .put,
                 path: BusinessSalesRoutes.updateCustomer(saleId: saleId),
-                body: body,
-                headers: mutationHeaders(
-                    organizationId: organizationId,
-                    branchId: nil,
-                    activityId: nil,
-                    revisions: revisions,
-                    idempotencyKey: idempotencyKey
-                )
-            )
-        )
-    }
-
-    private func sendUpdateServiceType(
-        organizationId: String,
-        saleId: String,
-        revisions: BusinessRevisions,
-        idempotencyKey: IdempotencyKey,
-        body: UpdateSaleServiceTypeRequest
-    ) async throws -> QuickSaleResponse {
-        try await apiClient.send(
-            try APIRequest<QuickSaleResponse>.json(
-                method: .put,
-                path: BusinessSalesRoutes.updateServiceType(saleId: saleId),
                 body: body,
                 headers: mutationHeaders(
                     organizationId: organizationId,

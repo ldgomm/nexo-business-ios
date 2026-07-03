@@ -27,13 +27,6 @@ final class ProductFormViewModel {
     var price: String
     var selectedTaxProfileCode: String
     var type: String
-    var restaurantMenuCategory: String
-    var restaurantPreparationArea: String
-    var restaurantIsKitchenItem: Bool
-    var restaurantDisplayOrder: String
-    var restaurantAvailability: String
-    var restaurantVisibleInMenu: Bool
-    var restaurantNotes: String
     var isSaving = false
     var errorMessage: String?
 
@@ -65,13 +58,6 @@ final class ProductFormViewModel {
             price = ""
             selectedTaxProfileCode = defaultTaxProfileCode
             type = master.type
-            restaurantMenuCategory = ""
-            restaurantPreparationArea = ""
-            restaurantIsKitchenItem = false
-            restaurantDisplayOrder = ""
-            restaurantAvailability = "AVAILABLE"
-            restaurantVisibleInMenu = true
-            restaurantNotes = ""
         case .edit(let product):
             name = product.name
             description = product.itemDescription ?? ""
@@ -79,13 +65,6 @@ final class ProductFormViewModel {
             price = product.price?.amount ?? ""
             selectedTaxProfileCode = defaultTaxProfileCode
             type = product.type ?? "PRODUCT"
-            restaurantMenuCategory = product.restaurantAttributes?.menuCategory ?? ""
-            restaurantPreparationArea = product.restaurantAttributes?.preparationArea ?? ""
-            restaurantIsKitchenItem = product.restaurantAttributes?.isKitchenItem ?? false
-            restaurantDisplayOrder = product.restaurantAttributes?.displayOrder.map(String.init) ?? ""
-            restaurantAvailability = product.restaurantAttributes?.availability ?? "AVAILABLE"
-            restaurantVisibleInMenu = product.restaurantAttributes?.visibleInMenu ?? true
-            restaurantNotes = product.restaurantAttributes?.notes ?? ""
         }
     }
 
@@ -131,10 +110,7 @@ final class ProductFormViewModel {
         }
         let hasName = !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         let hasValidPrice = Decimal(string: normalizedPrice) != nil
-        let displayOrderText = restaurantDisplayOrder.trimmingCharacters(in: .whitespacesAndNewlines)
-        let displayOrderValue = Int(displayOrderText)
-        let hasValidDisplayOrder = displayOrderText.isEmpty || (displayOrderValue != nil && displayOrderValue ?? -1 >= 0)
-        return (!requiresName || hasName) && hasValidPrice && selectedTaxProfile != nil && hasValidDisplayOrder
+        return (!requiresName || hasName) && hasValidPrice && selectedTaxProfile != nil
     }
 
     var normalizedPrice: String {
@@ -194,7 +170,6 @@ final class ProductFormViewModel {
                         category: nil,
                         price: money,
                         taxProfileCode: taxProfileCode.nilIfEmptyForProductForm,
-                        restaurantAttributes: restaurantAttributesPatch,
                         reason: "Producto editado desde Business."
                     )
                 )
@@ -204,41 +179,6 @@ final class ProductFormViewModel {
             errorMessage = ProductsErrorPresenter.message(for: error)
             return nil
         }
-    }
-
-
-    private var restaurantAttributesPatch: BusinessRestaurantAttributesPatch? {
-        let category = restaurantMenuCategory.trimmingCharacters(in: .whitespacesAndNewlines)
-        let preparationArea = restaurantPreparationArea.trimmingCharacters(in: .whitespacesAndNewlines)
-        let notes = restaurantNotes.trimmingCharacters(in: .whitespacesAndNewlines)
-        let displayOrderText = restaurantDisplayOrder.trimmingCharacters(in: .whitespacesAndNewlines)
-        let existingAttributes: BusinessRestaurantAttributes?
-        if case .edit(let product) = mode {
-            existingAttributes = product.restaurantAttributes
-        } else {
-            existingAttributes = nil
-        }
-        let hasRestaurantConfiguration = existingAttributes != nil
-            || !category.isEmpty
-            || !preparationArea.isEmpty
-            || !notes.isEmpty
-            || !displayOrderText.isEmpty
-            || restaurantIsKitchenItem
-            || restaurantAvailability != "AVAILABLE"
-            || !restaurantVisibleInMenu
-
-        guard hasRestaurantConfiguration else { return nil }
-
-        return BusinessRestaurantAttributesPatch(
-            menuCategory: category.nilIfEmptyForProductForm ?? existingAttributes.map { _ in "" },
-            preparationArea: preparationArea.nilIfEmptyForProductForm ?? existingAttributes.map { _ in "" },
-            isKitchenItem: restaurantIsKitchenItem,
-            displayOrder: Int(displayOrderText),
-            availability: restaurantAvailability,
-            visibleInMenu: restaurantVisibleInMenu,
-            tags: nil,
-            notes: notes.nilIfEmptyForProductForm ?? existingAttributes.map { _ in "" }
-        )
     }
 
     private static func resolveDefaultTaxProfileCode(

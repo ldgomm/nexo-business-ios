@@ -66,7 +66,6 @@ struct SaleDetailView: View {
                 if let sale = viewModel.sale {
                     messagesSection
                     heroSection(sale)
-                    serviceTypeSection(sale)
                     customerSection(sale)
                     itemsSection(sale)
                     totalsSection(sale)
@@ -147,15 +146,6 @@ struct SaleDetailView: View {
             createdAt: sale.createdAt,
             confirmedAt: sale.confirmedAt
         )
-    }
-
-    @ViewBuilder
-    private func serviceTypeSection(_ sale: BusinessSale) -> some View {
-        if let serviceType = sale.serviceType {
-            SaleDetailCard(title: "Operación", subtitle: "Metadata restaurante sobre venta core") {
-                SaleDetailMetaRow(title: "Tipo de servicio", value: serviceType.displayName)
-            }
-        }
     }
 
     @ViewBuilder

@@ -663,20 +663,6 @@ private struct ProductDetailView: View {
                         ProductDetailRow(title: "Motivo", value: reason)
                     }
                 }
-
-                if let restaurant = product.restaurantAttributes {
-                    ProductDetailSection(title: "Menú restaurante", systemImage: "fork.knife", tint: .orange) {
-                        ProductDetailRow(title: "Categoría", value: restaurant.menuCategoryTitle)
-                        ProductDetailRow(title: "Área preparación", value: restaurant.preparationArea ?? "Sin área")
-                        ProductDetailRow(title: "Cocina", value: restaurant.isKitchenItem ? "Sí" : "No")
-                        ProductDetailRow(title: "Orden", value: restaurant.displayOrder.map(String.init) ?? "Sin orden")
-                        ProductDetailRow(title: "Disponibilidad menú", value: restaurant.availabilityTitle)
-                        ProductDetailRow(title: "Visible", value: restaurant.visibleInMenu ? "Sí" : "No")
-                        if let notes = restaurant.notes, !notes.isEmpty {
-                            ProductDetailRow(title: "Notas", value: notes)
-                        }
-                    }
-                }
                 
                 detailActions
             }

@@ -53,14 +53,6 @@ protocol SalesRepository: Sendable {
         request: UpdateSaleCustomerRequest
     ) async throws -> QuickSaleResponse
 
-    func updateServiceType(
-        organizationId: String,
-        saleId: String,
-        revisions: BusinessRevisions,
-        idempotencyKey: IdempotencyKey,
-        request: UpdateSaleServiceTypeRequest
-    ) async throws -> QuickSaleResponse
-
     func getSale(
         organizationId: String,
         saleId: String

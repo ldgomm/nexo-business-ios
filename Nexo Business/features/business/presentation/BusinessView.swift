@@ -51,7 +51,6 @@ struct BusinessView: View {
             ScrollView {
                 LazyVStack(spacing: 12) {
                     operationHero
-                    restaurantContextCard
                     dailyOperationCard
                     toolsCard
                     reportingCard
@@ -91,52 +90,6 @@ struct BusinessView: View {
             countryCode: context.organization.countryCode,
             readinessTint: readinessTint
         )
-    }
-
-    @ViewBuilder
-    private var restaurantContextCard: some View {
-        if let restaurant = context.verticals.restaurant {
-            BusinessCard(
-                title: "Restaurante v1 activo",
-                subtitle: "Venta rápida sigue siendo el flujo principal. Mesas y tipo de servicio son soporte operativo."
-            ) {
-                VStack(alignment: .leading, spacing: 12) {
-                    HStack(spacing: 8) {
-                        BusinessPill(title: restaurant.displayName, systemImage: "fork.knife", tint: .accentColor)
-                        BusinessPill(title: restaurant.status.capitalized, systemImage: "checkmark.seal", tint: restaurant.status.lowercased() == "active" ? .green : .orange)
-                        BusinessPill(title: "v\(restaurant.packageVersion)", systemImage: "number", tint: .secondary)
-                    }
-
-                    BusinessMetaRow(
-                        title: "Modo",
-                        value: context.verticals.workMode ?? restaurant.defaultWorkMode ?? "quick_sale",
-                        isMonospaced: true
-                    )
-
-                    BusinessRestaurantOperationalStatusCard(
-                        workMode: context.verticals.workMode ?? restaurant.defaultWorkMode ?? "quick_sale",
-                        hasTables: hasRestaurantTablesCapability
-                    )
-
-                    NavigationLink {
-                        BusinessTechnicalStatusView(
-                            context: context,
-                            operationalSelection: operationalSelection,
-                            container: container,
-                            onRefresh: onRefresh
-                        )
-                    } label: {
-                        BusinessActionLabel(
-                            title: "Ver estado técnico",
-                            subtitle: "Readiness, capacidades y checks de Restaurante v1",
-                            systemImage: "stethoscope",
-                            tint: .purple
-                        )
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-        }
     }
 
     private var supportNotificationsCard: some View {
@@ -848,26 +801,6 @@ struct BusinessView: View {
         .background(Color(.tertiarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
 
-    private func humanizedRestaurantCapability(_ capability: String) -> String {
-        switch capability {
-        case "restaurant.menu_attributes":
-            return "Atributos menú"
-        case "restaurant.service_type":
-            return "Tipo servicio"
-        case "restaurant.event_service":
-            return "Eventos"
-        case "restaurant.tables_optional":
-            return "Mesas"
-        case "restaurant.kitchen_basic_optional":
-            return "Cocina"
-        default:
-            return capability
-                .replacingOccurrences(of: "restaurant.", with: "")
-                .replacingOccurrences(of: "_", with: " ")
-                .capitalized
-        }
-    }
-
     private func verticalReadinessTint(_ status: String) -> Color {
         switch status {
         case "PASS":
@@ -911,24 +844,6 @@ struct BusinessView: View {
             GridItem(.flexible(), spacing: 12),
             GridItem(.flexible(), spacing: 12)
         ]
-    }
-
-    private var restaurantEnabledCapabilities: [String] {
-        let packageCapabilities = context.verticals.restaurant?.capabilities ?? []
-        return Array(Set(context.verticals.capabilities + packageCapabilities))
-            .filter { $0.hasPrefix("restaurant.") }
-            .sorted()
-    }
-
-    private var hasRestaurantTablesCapability: Bool {
-        context.verticals.hasCapability("restaurant.tables_optional")
-    }
-
-    private var canAccessRestaurantTables: Bool {
-        hasRestaurantTablesCapability && (
-            permissionGate.allows("tables.view") ||
-            permissionGate.allows("tables.manage")
-        )
     }
 
     private var readinessTint: Color {
@@ -1281,26 +1196,6 @@ private struct BusinessTechnicalStatusView: View {
         .background(Color(.tertiarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
 
-    private func humanizedRestaurantCapability(_ capability: String) -> String {
-        switch capability {
-        case "restaurant.menu_attributes":
-            return "Atributos menú"
-        case "restaurant.service_type":
-            return "Tipo servicio"
-        case "restaurant.event_service":
-            return "Eventos"
-        case "restaurant.tables_optional":
-            return "Mesas"
-        case "restaurant.kitchen_basic_optional":
-            return "Cocina"
-        default:
-            return capability
-                .replacingOccurrences(of: "restaurant.", with: "")
-                .replacingOccurrences(of: "_", with: " ")
-                .capitalized
-        }
-    }
-
     private func verticalReadinessTint(_ status: String) -> Color {
         switch status {
         case "PASS":
@@ -1400,13 +1295,6 @@ private struct BusinessTechnicalStatusView: View {
 
     private var branchId: String {
         operationalSelection.branchId
-    }
-
-    private var restaurantEnabledCapabilities: [String] {
-        let packageCapabilities = context.verticals.restaurant?.capabilities ?? []
-        return Array(Set(context.verticals.capabilities + packageCapabilities))
-            .filter { $0.hasPrefix("restaurant.") }
-            .sorted()
     }
 
     private var selectedBranchName: String {

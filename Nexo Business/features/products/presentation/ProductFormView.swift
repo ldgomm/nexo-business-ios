@@ -28,9 +28,6 @@ struct ProductFormView: View {
                 heroSection
                 localConfigurationSection
                 saleConfigurationSection
-                if viewModel.showsRestaurantMenuSection {
-                    restaurantMenuSection
-                }
                 saveGuideSection
             }
             .padding(.horizontal, 16)
@@ -148,67 +145,7 @@ struct ProductFormView: View {
             }
         }
     }
-
-
-    private var restaurantMenuSection: some View {
-        ProductFormCard(
-            title: "Menú restaurante",
-            subtitle: "Metadata operativa sobre el catálogo existente. No crea ventas, cocina ni menú paralelo."
-        ) {
-            VStack(spacing: 12) {
-                ProductFormPickerRow(
-                    title: "Categoría de menú",
-                    systemImage: "fork.knife",
-                    selection: $viewModel.restaurantMenuCategory,
-                    options: restaurantMenuCategories
-                )
-
-                ProductFormPickerRow(
-                    title: "Área de preparación",
-                    systemImage: "flame",
-                    selection: $viewModel.restaurantPreparationArea,
-                    options: restaurantPreparationAreas
-                )
-
-                ProductFormInputRow(
-                    title: "Orden visual",
-                    placeholder: "Opcional",
-                    text: $viewModel.restaurantDisplayOrder,
-                    keyboardType: .numberPad,
-                    systemImage: "arrow.up.arrow.down"
-                )
-
-                ProductFormPickerRow(
-                    title: "Disponibilidad",
-                    systemImage: "checkmark.seal",
-                    selection: $viewModel.restaurantAvailability,
-                    options: restaurantAvailabilityOptions
-                )
-
-                ProductFormToggleRow(
-                    title: "Item de cocina",
-                    subtitle: "Solo metadata para futuro 22G; no genera ticket todavía.",
-                    isOn: $viewModel.restaurantIsKitchenItem,
-                    systemImage: "frying.pan"
-                )
-
-                ProductFormToggleRow(
-                    title: "Visible en menú",
-                    subtitle: "Oculta del menú restaurante sin borrar ni pausar el producto core.",
-                    isOn: $viewModel.restaurantVisibleInMenu,
-                    systemImage: "eye"
-                )
-
-                ProductFormMultilineInputRow(
-                    title: "Notas restaurante",
-                    placeholder: "Opcional",
-                    text: $viewModel.restaurantNotes,
-                    systemImage: "note.text"
-                )
-            }
-        }
-    }
-
+    
     private var saveGuideSection: some View {
         ProductFormCard {
             VStack(alignment: .leading, spacing: 12) {

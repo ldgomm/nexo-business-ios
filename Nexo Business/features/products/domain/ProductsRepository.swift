@@ -233,18 +233,6 @@ final class PreviewProductsRepository: ProductsRepository, @unchecked Sendable {
             availableStock: current.availableStock,
             allowsDecimalQuantity: current.allowsDecimalQuantity,
             attributes: current.attributes,
-            restaurantAttributes: request.restaurantAttributes.map { patch in
-                BusinessRestaurantAttributes(
-                    menuCategory: patch.menuCategory ?? current.restaurantAttributes?.menuCategory,
-                    preparationArea: patch.preparationArea ?? current.restaurantAttributes?.preparationArea,
-                    isKitchenItem: patch.isKitchenItem ?? current.restaurantAttributes?.isKitchenItem ?? false,
-                    displayOrder: patch.displayOrder ?? current.restaurantAttributes?.displayOrder,
-                    availability: patch.availability ?? current.restaurantAttributes?.availability ?? "AVAILABLE",
-                    visibleInMenu: patch.visibleInMenu ?? current.restaurantAttributes?.visibleInMenu ?? true,
-                    tags: patch.tags ?? current.restaurantAttributes?.tags ?? [],
-                    notes: patch.notes ?? current.restaurantAttributes?.notes
-                )
-            } ?? current.restaurantAttributes
         )
         storage[index] = product
         return BusinessProductMutationResponse(product: product, catalogRevision: nil)
@@ -285,7 +273,6 @@ final class PreviewProductsRepository: ProductsRepository, @unchecked Sendable {
             availableStock: current.availableStock,
             allowsDecimalQuantity: current.allowsDecimalQuantity,
             attributes: current.attributes,
-            restaurantAttributes: current.restaurantAttributes
         )
         storage[index] = product
         return BusinessProductMutationResponse(product: product, catalogRevision: nil)

@@ -13,7 +13,6 @@ enum BusinessSupportEntryPointKind: String, CaseIterable, Identifiable, Equatabl
     case product
     case customer
     case permission
-    case restaurant
     case export
     case readiness
 
@@ -28,7 +27,6 @@ enum BusinessSupportEntryPointKind: String, CaseIterable, Identifiable, Equatabl
         case .product: return "Ayuda con producto"
         case .customer: return "Ayuda con cliente"
         case .permission: return "Ayuda con permisos"
-        case .restaurant: return "Ayuda restaurante"
         case .export: return "Ayuda con exportaciones"
         case .readiness: return "Diagnóstico y readiness"
         }
@@ -43,7 +41,6 @@ enum BusinessSupportEntryPointKind: String, CaseIterable, Identifiable, Equatabl
         case .product: return "Producto"
         case .customer: return "Cliente"
         case .permission: return "Permisos"
-        case .restaurant: return "Restaurante"
         case .export: return "Exportaciones"
         case .readiness: return "Readiness"
         }
@@ -65,8 +62,6 @@ enum BusinessSupportEntryPointKind: String, CaseIterable, Identifiable, Equatabl
             return "Reporta dudas del cliente con datos mínimos y seguros."
         case .permission:
             return "Pide revisión de acceso sin cambiar roles desde Business."
-        case .restaurant:
-            return "Reporta operación de mesas/restaurante solo como diagnóstico operativo."
         case .export:
             return "Pide ayuda con reportes/exportaciones sin recalcular datos."
         case .readiness:
@@ -83,7 +78,6 @@ enum BusinessSupportEntryPointKind: String, CaseIterable, Identifiable, Equatabl
         case .product: return "shippingbox"
         case .customer: return "person.text.rectangle"
         case .permission: return "lock.shield"
-        case .restaurant: return "fork.knife"
         case .export: return "square.and.arrow.up"
         case .readiness: return "checkmark.seal"
         }
@@ -98,7 +92,6 @@ enum BusinessSupportEntryPointKind: String, CaseIterable, Identifiable, Equatabl
         case .product: return .orange
         case .customer: return .purple
         case .permission: return .pink
-        case .restaurant: return .orange
         case .export: return .teal
         case .readiness: return .indigo
         }
@@ -113,7 +106,6 @@ enum BusinessSupportEntryPointKind: String, CaseIterable, Identifiable, Equatabl
         case .product: return "PRODUCT"
         case .customer: return "CUSTOMER"
         case .permission: return "PERMISSION"
-        case .restaurant: return "RESTAURANT_TABLE"
         case .export: return "EXPORT"
         case .readiness: return "READINESS_CHECK"
         }
@@ -517,7 +509,6 @@ enum BusinessSupportEntryPointsCatalog {
         BusinessSupportEntryPoint(kind: .product, screenName: "business_products"),
         BusinessSupportEntryPoint(kind: .customer, screenName: "business_customers"),
         BusinessSupportEntryPoint(kind: .permission, screenName: "business_permissions"),
-        BusinessSupportEntryPoint(kind: .restaurant, screenName: "business_restaurant"),
         BusinessSupportEntryPoint(kind: .export, screenName: "business_exports"),
         BusinessSupportEntryPoint(kind: .readiness, screenName: "business_readiness"),
     ]

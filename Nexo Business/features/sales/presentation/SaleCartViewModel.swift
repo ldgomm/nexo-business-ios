@@ -410,8 +410,6 @@ final class SaleCartViewModel {
     private(set) var isPreviewing = false
     private(set) var isCreatingSale = false
     private(set) var selectedCustomer: BusinessCustomer?
-    var selectedServiceType: BusinessSaleServiceType = .dineIn
-    private var persistedServiceType: BusinessSaleServiceType?
     var errorMessage: String?
     var infoMessage: String?
     var discountTarget: SaleDiscountTarget = .wholeSale
@@ -506,15 +504,6 @@ final class SaleCartViewModel {
 
     var supportsRestaurantServiceType: Bool {
         verticalContext.hasCapability("restaurant.service_type")
-    }
-
-    var availableServiceTypes: [BusinessSaleServiceType] {
-        guard supportsRestaurantServiceType else { return [] }
-        var values: [BusinessSaleServiceType] = [.dineIn, .takeaway, .manualDelivery]
-        if verticalContext.hasCapability("restaurant.event_service") {
-            values.append(.eventService)
-        }
-        return values
     }
 
     var canClearCart: Bool {
@@ -1047,22 +1036,6 @@ final class SaleCartViewModel {
             latestSale = response.sale
         }
 
-        if registeredSaleServiceTypeChanged(from: latestSale) {
-            let identity = BusinessMutationIdentity.generate(prefix: "sale-service-type-update")
-            let response = try await salesRepository.updateServiceType(
-                organizationId: organizationId,
-                saleId: latestSale.id,
-                revisions: revisions,
-                idempotencyKey: identity.idempotencyKey,
-                request: UpdateSaleServiceTypeRequest(
-                    requestId: identity.requestId,
-                    serviceType: serviceTypeForRequest,
-                    reason: "Corrección de tipo de servicio antes de cobrar o facturar"
-                )
-            )
-            latestSale = response.sale
-        }
-
         if registeredSaleCustomerChanged(from: latestSale) {
             let identity = BusinessMutationIdentity.generate(prefix: "sale-customer-update")
             let response = try await salesRepository.updateCustomer(
@@ -1089,7 +1062,6 @@ final class SaleCartViewModel {
     ) {
         let enrichedSale = latestSale.withLocalCartTaxProfileFallback(from: desiredCartItems)
         createdSale = enrichedSale
-        persistedServiceType = enrichedSale.serviceType
         realignCartItemsWithCreatedSale(enrichedSale)
         preview = nil
         registeredSaleHasUnsavedChanges = false
@@ -1102,16 +1074,6 @@ final class SaleCartViewModel {
 
     func recalculateLocalTotalsIfNeeded() {
         recalculateLocalCalculation()
-    }
-
-    func updateSelectedServiceType(_ serviceType: BusinessSaleServiceType) {
-        guard ensureOrderIsEditable() else { return }
-        selectedServiceType = serviceType
-        errorMessage = nil
-        if createdSale != nil {
-            registeredSaleHasUnsavedChanges = registeredSaleServiceTypeChanged(from: createdSale) || registeredSaleHasUnsavedChanges
-            infoMessage = nil
-        }
     }
 
     func selectCustomer(_ customer: BusinessCustomer) {
@@ -1496,7 +1458,6 @@ final class SaleCartViewModel {
         createdSale = nil
         registeredSaleHasUnsavedChanges = false
         selectedCustomer = nil
-        selectedServiceType = .dineIn
         errorMessage = nil
         infoMessage = nil
         orderState = .editing
@@ -1598,7 +1559,6 @@ final class SaleCartViewModel {
                     customerId: customerIdForRequest,
                     customerSnapshot: customerSnapshotForRequest(),
                     cashSessionId: cashSessionId,
-                    serviceType: serviceTypeForRequest,
                     autoConfirm: true,
                     catalogRevision: revisions.catalogRevision,
                     taxConfigurationRevision: revisions.taxConfigurationRevision,
@@ -1608,7 +1568,6 @@ final class SaleCartViewModel {
 
             let saleWithLocalTaxFallback = response.sale.withLocalCartTaxProfileFallback(from: cartItems)
             createdSale = saleWithLocalTaxFallback
-            persistedServiceType = saleWithLocalTaxFallback.serviceType
             realignCartItemsWithCreatedSale(saleWithLocalTaxFallback)
             originalRegisteredCartItems = cartItems
             registeredSaleHasUnsavedChanges = false
@@ -1770,10 +1729,6 @@ final class SaleCartViewModel {
         return true
     }
 
-    private var serviceTypeForRequest: BusinessSaleServiceType? {
-        supportsRestaurantServiceType ? selectedServiceType : nil
-    }
-
     private func previewRequest() -> SalesPreviewRequest {
         SalesPreviewRequest(
             branchId: branchId,
@@ -1846,12 +1801,6 @@ final class SaleCartViewModel {
         )
     }
 
-    private func registeredSaleServiceTypeChanged(from sale: BusinessSale?) -> Bool {
-        guard supportsRestaurantServiceType else { return false }
-        let persisted = sale?.serviceType ?? persistedServiceType
-        return persisted != serviceTypeForRequest
-    }
-
     private func registeredSaleCustomerChanged(from sale: BusinessSale) -> Bool {
         let persistedCustomerId = sale.customerId?.nilIfBlank
         let selectedCustomerId = customerIdForRequest?.nilIfBlank
@@ -1879,8 +1828,6 @@ final class SaleCartViewModel {
     private func loadExistingSaleForEditing(_ sale: BusinessSale) {
         scheduledPreviewTask?.cancel()
         createdSale = sale
-        persistedServiceType = sale.serviceType
-        selectedServiceType = sale.serviceType ?? .dineIn
         let editableItems = sale.items.filter(\.isActiveForCartEditing)
         cartItems = editableItems.map { saleItem in
             SaleCartItem(existingSaleItem: saleItem)

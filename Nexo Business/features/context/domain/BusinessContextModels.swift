@@ -166,15 +166,7 @@ struct BusinessVerticalContext: Decodable, Equatable, Sendable {
     var isEmpty: Bool {
         activeVerticals.isEmpty && surfaces.isEmpty && capabilities.isEmpty && readiness.isEmpty
     }
-
-    var restaurant: BusinessActiveVertical? {
-        activeVerticals.first { $0.code == "restaurant" }
-    }
-
-    var hasRestaurant: Bool {
-        restaurant != nil
-    }
-
+    
     func hasCapability(_ capability: String) -> Bool {
         capabilities.contains(capability) || activeVerticals.contains { $0.capabilities.contains(capability) }
     }
