@@ -10,7 +10,7 @@ import Foundation
 import SwiftUI
 
 struct BusinessAccountantPackMoreTile: View {
-    let container: BusinessAppContainer
+    let container: AppContainer
 
     var body: some View {
         NavigationLink {
@@ -29,7 +29,7 @@ struct BusinessAccountantPackMoreTile: View {
 }
 
 struct BusinessAccountantPackSurfaceView: View {
-    let container: BusinessAppContainer
+    let container: AppContainer
     @StateObject private var viewModel = BusinessAccountantPackViewModel()
 
     var body: some View {
@@ -584,7 +584,7 @@ final class BusinessAccountantPackViewModel: ObservableObject {
     @Published private(set) var successMessage: String?
     @Published private(set) var localFileURL: URL?
 
-    private var container: BusinessAppContainer?
+    private var container: AppContainer?
 
     init(calendar: Calendar = .current) {
         let now = Date()
@@ -618,7 +618,7 @@ final class BusinessAccountantPackViewModel: ObservableObject {
         "README_CONTADOR.md",
     ]
 
-    func configure(container: BusinessAppContainer) {
+    func configure(container: AppContainer) {
         self.container = container
     }
 
@@ -649,7 +649,7 @@ final class BusinessAccountantPackViewModel: ObservableObject {
         isDownloading = false
     }
 
-    private func downloadPack(container: BusinessAppContainer) async throws -> URL {
+    private func downloadPack(container: AppContainer) async throws -> URL {
         let snapshot = await container.selectionStore.snapshot()
         guard let organizationId = snapshot.organizationId?.trimmingCharacters(in: .whitespacesAndNewlines), !organizationId.isEmpty else {
             throw BusinessAccountantPackDownloadError.message("No hay organización seleccionada para descargar el paquete.")

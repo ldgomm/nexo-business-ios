@@ -8,10 +8,10 @@
 import SwiftUI
 
 struct ContentView: View {
-    let container: BusinessAppContainer
+    let container: AppContainer
 
     var body: some View {
-        BusinessRootView(container: container)
+        RootView(container: container)
     }
 }
 

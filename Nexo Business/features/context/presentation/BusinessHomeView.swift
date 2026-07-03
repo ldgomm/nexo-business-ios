@@ -10,7 +10,7 @@ import SwiftUI
 struct BusinessHomeView: View {
     private let context: BusinessContextResponse
     private let operationalSelection: BusinessOperationalSelection
-    private let container: BusinessAppContainer
+    private let container: AppContainer
     private let onRefresh: () -> Void
     private let onChangeOrganization: () -> Void
     private let onChangeOperation: () -> Void
@@ -19,7 +19,7 @@ struct BusinessHomeView: View {
     init(
         context: BusinessContextResponse,
         operationalSelection: BusinessOperationalSelection,
-        container: BusinessAppContainer,
+        container: AppContainer,
         onRefresh: @escaping () -> Void = {},
         onChangeOrganization: @escaping () -> Void = {},
         onChangeOperation: @escaping () -> Void = {},

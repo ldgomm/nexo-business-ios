@@ -1,5 +1,5 @@
 //
-//  BusinessRootView.swift
+//  RootView.swift
 //  Nexo Business
 //
 //  Created by José Ruiz on 29/5/26.
@@ -7,13 +7,13 @@
 
 import SwiftUI
 
-struct BusinessRootView: View {
-    private let container: BusinessAppContainer
+struct RootView: View {
+    private let container: AppContainer
 
     @State private var sessionViewModel: BusinessSessionViewModel
     @State private var loginViewModel: LoginViewModel
 
-    init(container: BusinessAppContainer) {
+    init(container: AppContainer) {
         self.container = container
 
         let sessionViewModel = BusinessSessionViewModel(
@@ -132,5 +132,5 @@ struct BusinessRootView: View {
 }
 
 #Preview("Signed out") {
-    BusinessRootView(container: .preview)
+    RootView(container: .preview)
 }

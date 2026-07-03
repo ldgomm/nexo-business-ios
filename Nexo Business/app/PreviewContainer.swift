@@ -7,8 +7,8 @@
 
 import Foundation
 
-extension BusinessAppContainer {
-    static var preview: BusinessAppContainer {
+extension AppContainer {
+    static var preview: AppContainer {
         let tokenStore = InMemoryAuthTokenStore(
             tokens: AuthTokens(
                 accessToken: "preview-access-token",
@@ -25,7 +25,7 @@ extension BusinessAppContainer {
             )
         )
 
-        return BusinessAppContainer(
+        return AppContainer(
             tokenStore: tokenStore,
             selectionStore: selectionStore,
             networkStatusProvider: StaticNetworkStatusProvider(status: .satisfied),
@@ -49,7 +49,6 @@ extension BusinessAppContainer {
             teamRepository: PreviewBusinessTeamRepository(),
             proformasRepository: PreviewBusinessProformasRepository(),
             supportNotificationsRepository: PreviewBusinessSupportNotificationsRepository(),
-            restaurantTablesRepository: PreviewBusinessRestaurantTablesRepository()
         )
     }
 }

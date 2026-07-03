@@ -1,5 +1,5 @@
 //
-//  BusinessRuntimeConfig.swift
+//  RuntimeConfig.swift
 //  Nexo Business
 //
 //  Created by José Ruiz on 29/5/26.
@@ -7,12 +7,12 @@
 
 import Foundation
 
-struct BusinessRuntimeConfig: Equatable, Sendable {
+struct RuntimeConfig: Equatable, Sendable {
     let environment: AppEnvironment
     let organizationId: String?
     let deviceId: String
 
-    static var current: BusinessRuntimeConfig {
+    static var current: RuntimeConfig {
         let bundle = Bundle.main
 
         let baseURLString = bundle.object(forInfoDictionaryKey: "NEXO_API_BASE_URL") as? String
@@ -24,14 +24,14 @@ struct BusinessRuntimeConfig: Equatable, Sendable {
             .map { AppEnvironment(name: "configured", baseURL: $0) }
             ?? .staging
 
-        return BusinessRuntimeConfig(
+        return RuntimeConfig(
             environment: environment,
             organizationId: organizationId?.isEmpty == false ? organizationId : nil,
             deviceId: deviceId?.isEmpty == false ? deviceId! : "ios-business-15k"
         )
     }
 
-    static let staging = BusinessRuntimeConfig(
+    static let staging = RuntimeConfig(
         environment: .staging,
         organizationId: nil,
         deviceId: "ios-business-15k"

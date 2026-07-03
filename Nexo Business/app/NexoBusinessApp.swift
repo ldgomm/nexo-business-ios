@@ -9,13 +9,13 @@ import SwiftUI
 
 @main
 struct NexoBusinessApp: App {
-    private let config: BusinessRuntimeConfig
-    private let container: BusinessAppContainer
+    private let config: RuntimeConfig
+    private let container: AppContainer
 
     init() {
-        let config = BusinessRuntimeConfig.current
+        let config = RuntimeConfig.current
         self.config = config
-        self.container = BusinessAppContainer.live(config: config)
+        self.container = AppContainer.live(config: config)
     }
 
     var body: some Scene {
