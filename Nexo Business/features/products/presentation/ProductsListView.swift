@@ -184,7 +184,7 @@ struct ProductsListView: View {
                 HStack(spacing: 10) {
                     ProductsSearchField(
                         text: $viewModel.query,
-                        placeholder: "Nombre, código o referencia"
+                        placeholder: "Nombre, SKU, código de barras o referencia"
                     ) {
                         NexoKeyboard.dismiss()
                         Task { await viewModel.load() }
@@ -297,7 +297,7 @@ private struct ProductsHeroCard: View {
                         .font(.title2.weight(.bold))
                         .fixedSize(horizontal: false, vertical: true)
                     
-                    Text("Adopta desde catálogo maestro y configura solo lo local: precio, código, disponibilidad e impuestos permitidos.")
+                    Text("Adopta desde catálogo maestro y configura lo local: precio, SKU/código, tipo retail/servicio, disponibilidad e impuestos permitidos.")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -568,7 +568,9 @@ private struct ProductListRowCard: View {
     
     private var iconSystemImage: String {
         switch product.type?.uppercased() {
-        case "SERVICE": "wrench.and.screwdriver.fill"
+        case "SERVICE", "LABOR": "wrench.and.screwdriver.fill"
+        case "PART": "gearshape.2.fill"
+        case "KIT", "COMBO": "square.stack.3d.up.fill"
         case "PACKAGE": "shippingbox.and.arrow.backward.fill"
         default: product.productsIsActive ? "shippingbox.fill" : "shippingbox"
         }
@@ -639,6 +641,7 @@ private struct ProductDetailView: View {
                     ProductDetailRow(title: "Nombre comercial", value: product.name)
                     ProductDetailRow(title: "Código del producto", value: product.productsPrimaryCode ?? "Sin código")
                     ProductDetailRow(title: "Tipo", value: typeLabel)
+                    ProductDetailRow(title: "Catálogo 25R", value: "SKU/código, precio y tributación validados por backend")
                     ProductDetailRow(title: "Origen", value: product.productsSourceLabelForProductsUI)
                 }
                 
@@ -652,6 +655,7 @@ private struct ProductDetailView: View {
                     ProductDetailRow(title: "Perfil tributario", value: product.taxProfileName ?? product.taxProfileCode ?? "No configurado")
                     ProductDetailRow(title: "Código tributario", value: product.taxProfileCode ?? "No configurado")
                     ProductDetailRow(title: "Regla", value: "Calculada por servidor")
+                    ProductDetailRow(title: "Venta", value: "El backend valida sellability, precio e impuestos antes de cobrar")
                 }
                 
                 ProductDetailSection(title: "Disponibilidad", systemImage: "checkmark.seal", tint: statusTint) {
@@ -659,6 +663,7 @@ private struct ProductDetailView: View {
                     ProductDetailRow(title: "Estado local", value: product.localStatus ?? product.status ?? "Sin estado")
                     ProductDetailRow(title: "Estado maestro", value: product.masterStatus ?? "No informado")
                     ProductDetailRow(title: "Estado efectivo", value: product.effectiveStatus ?? "No informado")
+                    ProductDetailRow(title: "Costo/margen", value: "Dato sensible: visible solo con permisos de catálogo financiero")
                     if let reason = product.productsAvailabilityReason {
                         ProductDetailRow(title: "Motivo", value: reason)
                     }
