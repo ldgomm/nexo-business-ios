@@ -579,7 +579,11 @@ private struct ProductListRowCard: View {
     private var typeLabel: String {
         switch product.type?.uppercased() {
         case "SERVICE": return "Servicio"
-        case "PACKAGE": return "Paquete"
+        case "LABOR": return "Mano de obra"
+        case "PART": return "Repuesto"
+        case "KIT": return "Kit"
+        case "COMBO": return "Combo"
+        case "PACK", "PACKAGE": return "Pack"
         default: return "Producto"
         }
     }
@@ -644,11 +648,25 @@ private struct ProductDetailView: View {
                     ProductDetailRow(title: "Catálogo 25R", value: "SKU/código, precio y tributación validados por backend")
                     ProductDetailRow(title: "Origen", value: product.productsSourceLabelForProductsUI)
                 }
+
+                ProductDetailSection(title: "Identidad extendida", systemImage: "barcode.viewfinder", tint: .blue) {
+                    ProductDetailRow(title: "SKU / barras", value: product.v1cExtendedIdentitySummary)
+                    ProductDetailRow(title: "Descripción", value: product.v1cDescriptionSummary)
+                    ProductDetailRow(title: "Tags / búsqueda", value: product.v1cTagsSummary)
+                }
                 
                 ProductDetailSection(title: "Venta y precio", systemImage: "dollarsign.circle", tint: .green) {
                     ProductDetailRow(title: "Precio de venta", value: product.productsDisplayPrice)
                     ProductDetailRow(title: "Moneda", value: product.price?.currency ?? "USD")
                     ProductDetailRow(title: "Unidad de medida", value: "Unidad")
+                }
+
+                ProductDetailSection(title: "ProductModel V1C", systemImage: "square.stack.3d.up", tint: .indigo) {
+                    ProductDetailRow(title: "Media", value: product.v1cMediaSummary)
+                    ProductDetailRow(title: "Relacionados", value: product.v1cRelatedItemsSummary)
+                    ProductDetailRow(title: "Pack / combo", value: product.v1cBundleSummary)
+                    ProductDetailRow(title: "Pricing / promos", value: product.v1cCommercialReadinessSummary)
+                    ProductDetailRow(title: "Costo / margen", value: product.v1cCostMarginPermissionSummary)
                 }
                 
                 ProductDetailSection(title: "Tributación", systemImage: "percent", tint: .purple) {
@@ -901,7 +919,11 @@ private struct ProductDetailView: View {
     private var typeLabel: String {
         switch product.type?.uppercased() {
         case "SERVICE": return "Servicio"
-        case "PACKAGE": return "Paquete"
+        case "LABOR": return "Mano de obra"
+        case "PART": return "Repuesto"
+        case "KIT": return "Kit"
+        case "COMBO": return "Combo"
+        case "PACK", "PACKAGE": return "Pack"
         default: return "Producto"
         }
     }
@@ -1180,5 +1202,90 @@ private extension String {
     var nilIfEmptyForProductsUI: String? {
         let trimmed = trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : trimmed
+    }
+}
+
+
+private extension BusinessProduct {
+    var v1cExtendedIdentitySummary: String {
+        let values = [
+            labeledV1C("SKU", sku),
+            labeledV1C("Barcode", barcode),
+            labeledV1C("EAN", v1cAttributeValue(for: ["ean", "ean13", "ean_13", "gtin", "upc", "isbn"])),
+            labeledV1C("Ref", v1cAttributeValue(for: ["internalCode", "internal_code", "supplierCode", "supplier_code", "alternateCode", "alternateCodes"]))
+        ].compactMap { $0 }
+        return values.isEmpty ? "Sin identificadores extendidos aún" : values.joined(separator: " · ")
+    }
+
+    var v1cDescriptionSummary: String {
+        itemDescription?.nilIfEmptyForProductsUI
+        ?? v1cAttributeValue(for: ["shortDescription", "short_description", "publicDescription", "public_description", "description"])
+        ?? "Sin descripción comercial"
+    }
+
+    var v1cTagsSummary: String {
+        v1cAttributeValue(for: ["tags", "searchTags", "search_tags", "searchKeywords", "search_keywords", "keywords"])
+        ?? "Sin tags visibles"
+    }
+
+    var v1cMediaSummary: String {
+        if let value = v1cAttributeValue(for: ["primaryImageUrl", "primary_image_url", "imageUrl", "image_url", "media", "images", "objectPath", "object_path"]) {
+            return "Metadata presente: \(value)"
+        }
+        return "Sin imagen/media visible; carga de archivos queda para fase futura"
+    }
+
+    var v1cRelatedItemsSummary: String {
+        v1cAttributeValue(for: ["relatedItems", "related_items", "accessories", "compatibleWith", "compatible_with", "crossSell", "cross_sell"])
+        ?? "Sin relacionados navegables todavía"
+    }
+
+    var v1cBundleSummary: String {
+        let upperType = type?.uppercased() ?? ""
+        if ["KIT", "COMBO", "PACK", "PACKAGE", "SERVICE_PACKAGE"].contains(upperType) {
+            return "\(upperType.readableV1CLabel): se vende como una línea; inventario por componentes entra en 26R"
+        }
+        if let value = v1cAttributeValue(for: ["bundle", "bundleType", "bundle_type", "components", "componentCount", "component_count", "combo"] ) {
+            return "Metadata preparada: \(value)"
+        }
+        return "No configurado como pack/combo"
+    }
+
+    var v1cCommercialReadinessSummary: String {
+        v1cAttributeValue(for: ["pricingMetadata", "pricing_metadata", "commercialMetadata", "commercial_metadata", "promotionReady", "promotion_ready", "compareAtPrice", "compare_at_price", "offer", "discountReadiness"])
+        ?? "Preparado para metadata; sin motor de promociones automáticas"
+    }
+
+    var v1cCostMarginPermissionSummary: String {
+        if v1cAttributeValue(for: ["cost", "unitCost", "unit_cost", "margin", "marginPercent", "margin_percent", "costAmount"]) != nil {
+            return "Metadata sensible presente; mostrar valores solo con permisos"
+        }
+        return "Dato sensible permission-gated; no se muestra sin permiso"
+    }
+
+    private func labeledV1C(_ label: String, _ value: String?) -> String? {
+        guard let clean = value?.nilIfEmptyForProductsUI else { return nil }
+        return "\(label): \(clean)"
+    }
+
+    private func v1cAttributeValue(for keys: [String]) -> String? {
+        for key in keys {
+            if let direct = attributes[key]?.nilIfEmptyForProductsUI {
+                return direct
+            }
+            let folded = key.lowercased()
+            if let match = attributes.first(where: { $0.key.lowercased() == folded })?.value.nilIfEmptyForProductsUI {
+                return match
+            }
+        }
+        return nil
+    }
+}
+
+private extension String {
+    var readableV1CLabel: String {
+        replacingOccurrences(of: "_", with: " ")
+            .lowercased()
+            .capitalized
     }
 }

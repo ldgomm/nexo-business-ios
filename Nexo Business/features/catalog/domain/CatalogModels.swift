@@ -68,6 +68,217 @@ struct CatalogIdentifier: Decodable, Equatable, Sendable {
     let isPrimary: Bool?
 }
 
+
+struct BusinessCatalogMediaAsset: Decodable, Equatable, Sendable {
+    let id: String?
+    let ownerKind: String?
+    let url: String?
+    let type: String?
+    let role: String?
+    let storageProvider: String?
+    let bucket: String?
+    let objectPath: String?
+    let publicUrl: String?
+    let signedUrlRequired: Bool?
+    let mimeType: String?
+    let sizeBytes: Int?
+    let checksumSha256: String?
+    let width: Int?
+    let height: Int?
+    let altText: String?
+    let sortOrder: Int?
+    let status: String?
+
+    var safeDisplayUrl: String? {
+        publicUrl?.nilIfEmptyForCatalog ?? url?.nilIfEmptyForCatalog ?? objectPath?.nilIfEmptyForCatalog
+    }
+}
+
+struct BusinessCatalogRelatedItem: Decodable, Equatable, Sendable {
+    let id: String?
+    let relatedItemId: String?
+    let targetItemId: String?
+    let relationType: String?
+    let priority: Int?
+    let type: String?
+    let reason: String?
+    let sortOrder: Int?
+    let status: String?
+}
+
+struct BusinessCatalogBundleComponent: Decodable, Equatable, Sendable {
+    let catalogItemId: String
+    let quantity: String?
+    let required: Bool?
+    let displayNameOverride: String?
+}
+
+struct BusinessCatalogPriceListEntry: Decodable, Equatable, Sendable {
+    let priceListId: String?
+    let label: String?
+    let price: MoneyAmount?
+    let kind: String?
+    let active: Bool?
+}
+
+struct BusinessCatalogPromotionEligibility: Decodable, Equatable, Sendable {
+    let eligibleForPromotions: Bool?
+    let eligibleForCoupons: Bool?
+    let eligibleForBundleOffers: Bool?
+    let promotionTags: [String]?
+}
+
+struct BusinessCatalogDiscountPolicy: Decodable, Equatable, Sendable {
+    let discountAllowed: Bool?
+    let requiresManagerApproval: Bool?
+    let maxManualDiscountPercent: String?
+}
+
+struct BusinessCatalogBundleDefinition: Decodable, Equatable, Sendable {
+    let kind: String?
+    let components: [BusinessCatalogBundleComponent]
+    let pricingMode: String?
+    let inventoryMode: String?
+    let isOperationallyReady: Bool?
+
+    init(
+        kind: String? = nil,
+        components: [BusinessCatalogBundleComponent] = [],
+        pricingMode: String? = nil,
+        inventoryMode: String? = nil,
+        isOperationallyReady: Bool? = nil
+    ) {
+        self.kind = kind
+        self.components = components
+        self.pricingMode = pricingMode
+        self.inventoryMode = inventoryMode
+        self.isOperationallyReady = isOperationallyReady
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case kind
+        case components
+        case pricingMode
+        case inventoryMode
+        case isOperationallyReady
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.kind = try container.decodeIfPresent(String.self, forKey: .kind)
+        self.components = try container.decodeIfPresent([BusinessCatalogBundleComponent].self, forKey: .components) ?? []
+        self.pricingMode = try container.decodeIfPresent(String.self, forKey: .pricingMode)
+        self.inventoryMode = try container.decodeIfPresent(String.self, forKey: .inventoryMode)
+        self.isOperationallyReady = try container.decodeIfPresent(Bool.self, forKey: .isOperationallyReady)
+    }
+}
+
+struct BusinessCatalogMetadataSnapshot: Decodable, Equatable, Sendable {
+    let rawKeys: [String]
+    let priceListEntries: [BusinessCatalogPriceListEntry]
+    let promotionEligibility: BusinessCatalogPromotionEligibility?
+    let discountPolicy: BusinessCatalogDiscountPolicy?
+    let tags: [String]
+    let publicTitle: String?
+    let publicDescription: String?
+    let searchKeywords: [String]
+    let isFeatured: Bool?
+    let isNewArrival: Bool?
+    let isBestSeller: Bool?
+    let isPubliclyVisible: Bool?
+
+    static let empty = BusinessCatalogMetadataSnapshot(rawKeys: [])
+
+    init(
+        rawKeys: [String] = [],
+        priceListEntries: [BusinessCatalogPriceListEntry] = [],
+        promotionEligibility: BusinessCatalogPromotionEligibility? = nil,
+        discountPolicy: BusinessCatalogDiscountPolicy? = nil,
+        tags: [String] = [],
+        publicTitle: String? = nil,
+        publicDescription: String? = nil,
+        searchKeywords: [String] = [],
+        isFeatured: Bool? = nil,
+        isNewArrival: Bool? = nil,
+        isBestSeller: Bool? = nil,
+        isPubliclyVisible: Bool? = nil
+    ) {
+        self.rawKeys = rawKeys
+        self.priceListEntries = priceListEntries
+        self.promotionEligibility = promotionEligibility
+        self.discountPolicy = discountPolicy
+        self.tags = tags
+        self.publicTitle = publicTitle
+        self.publicDescription = publicDescription
+        self.searchKeywords = searchKeywords
+        self.isFeatured = isFeatured
+        self.isNewArrival = isNewArrival
+        self.isBestSeller = isBestSeller
+        self.isPubliclyVisible = isPubliclyVisible
+    }
+
+    init(from decoder: Decoder) throws {
+        guard let container = try? decoder.container(keyedBy: CatalogDynamicCodingKey.self) else {
+            self.init()
+            return
+        }
+
+        let rawKeys = container.allKeys.map(\.stringValue).sorted()
+        let priceListEntries = try container.decodeIfPresent([BusinessCatalogPriceListEntry].self, forKey: CatalogDynamicCodingKey("priceListEntries")) ?? []
+        let promotionEligibility = try container.decodeIfPresent(BusinessCatalogPromotionEligibility.self, forKey: CatalogDynamicCodingKey("promotionEligibility"))
+        let discountPolicy = try container.decodeIfPresent(BusinessCatalogDiscountPolicy.self, forKey: CatalogDynamicCodingKey("discountPolicy"))
+        let tags = try container.decodeIfPresent([String].self, forKey: CatalogDynamicCodingKey("tags")) ?? []
+        let publicTitle = try container.decodeIfPresent(String.self, forKey: CatalogDynamicCodingKey("publicTitle"))
+        let publicDescription = try container.decodeIfPresent(String.self, forKey: CatalogDynamicCodingKey("publicDescription"))
+        let searchKeywords = try container.decodeIfPresent([String].self, forKey: CatalogDynamicCodingKey("searchKeywords")) ?? []
+        let isFeatured = try container.decodeIfPresent(Bool.self, forKey: CatalogDynamicCodingKey("isFeatured"))
+        let isNewArrival = try container.decodeIfPresent(Bool.self, forKey: CatalogDynamicCodingKey("isNewArrival"))
+        let isBestSeller = try container.decodeIfPresent(Bool.self, forKey: CatalogDynamicCodingKey("isBestSeller"))
+        let isPubliclyVisible = try container.decodeIfPresent(Bool.self, forKey: CatalogDynamicCodingKey("isPubliclyVisible"))
+
+        self.init(
+            rawKeys: rawKeys,
+            priceListEntries: priceListEntries,
+            promotionEligibility: promotionEligibility,
+            discountPolicy: discountPolicy,
+            tags: tags,
+            publicTitle: publicTitle,
+            publicDescription: publicDescription,
+            searchKeywords: searchKeywords,
+            isFeatured: isFeatured,
+            isNewArrival: isNewArrival,
+            isBestSeller: isBestSeller,
+            isPubliclyVisible: isPubliclyVisible
+        )
+    }
+
+    var hasContent: Bool {
+        !rawKeys.isEmpty || !priceListEntries.isEmpty || promotionEligibility != nil || discountPolicy != nil ||
+        !tags.isEmpty || publicTitle != nil || publicDescription != nil || !searchKeywords.isEmpty ||
+        isFeatured != nil || isNewArrival != nil || isBestSeller != nil || isPubliclyVisible != nil
+    }
+}
+
+private struct CatalogDynamicCodingKey: CodingKey {
+    let stringValue: String
+    let intValue: Int?
+
+    init(_ stringValue: String) {
+        self.stringValue = stringValue
+        self.intValue = nil
+    }
+
+    init?(stringValue: String) {
+        self.stringValue = stringValue
+        self.intValue = nil
+    }
+
+    init?(intValue: Int) {
+        self.stringValue = String(intValue)
+        self.intValue = intValue
+    }
+}
+
 struct PlatformCatalogTemplateSuggestion: Decodable, Equatable, Identifiable, Sendable {
     let id: String
     let globalCatalogId: String
@@ -161,6 +372,9 @@ struct BusinessCatalogItem: Decodable, Equatable, Identifiable, Sendable {
     let id: String
     let name: String
     let itemDescription: String?
+    let displayName: String?
+    let shortDescription: String?
+    let publicDescription: String?
     let sku: String?
     let barcode: String?
     let type: String?
@@ -178,6 +392,24 @@ struct BusinessCatalogItem: Decodable, Equatable, Identifiable, Sendable {
     let requiresReview: Bool?
     let unit: BusinessCatalogUnit?
     let price: MoneyAmount?
+    let compareAtPrice: MoneyAmount?
+    let cost: MoneyAmount?
+    let brandId: String?
+    let categoryId: String?
+    let unitId: String?
+    let publicDiscoveryStatus: String?
+    let productFamilyId: String?
+    let parentProductId: String?
+    let variantAttributes: [String: String]
+    let identifiers: [CatalogIdentifier]
+    let alternateCodes: [String]
+    let tags: [String]
+    let media: [BusinessCatalogMediaAsset]
+    let relatedItems: [BusinessCatalogRelatedItem]
+    let bundle: BusinessCatalogBundleDefinition?
+    let pricingMetadata: BusinessCatalogMetadataSnapshot
+    let commercialMetadata: BusinessCatalogMetadataSnapshot
+    let readinessWarnings: [String]
     let taxProfileCode: String?
     let taxProfileName: String?
     let taxProfileId: String?
@@ -189,6 +421,9 @@ struct BusinessCatalogItem: Decodable, Equatable, Identifiable, Sendable {
         id: String,
         name: String,
         itemDescription: String? = nil,
+        displayName: String? = nil,
+        shortDescription: String? = nil,
+        publicDescription: String? = nil,
         sku: String? = nil,
         barcode: String? = nil,
         type: String? = nil,
@@ -206,6 +441,24 @@ struct BusinessCatalogItem: Decodable, Equatable, Identifiable, Sendable {
         requiresReview: Bool? = nil,
         unit: BusinessCatalogUnit? = nil,
         price: MoneyAmount? = nil,
+        compareAtPrice: MoneyAmount? = nil,
+        cost: MoneyAmount? = nil,
+        brandId: String? = nil,
+        categoryId: String? = nil,
+        unitId: String? = nil,
+        publicDiscoveryStatus: String? = nil,
+        productFamilyId: String? = nil,
+        parentProductId: String? = nil,
+        variantAttributes: [String: String] = [:],
+        identifiers: [CatalogIdentifier] = [],
+        alternateCodes: [String] = [],
+        tags: [String] = [],
+        media: [BusinessCatalogMediaAsset] = [],
+        relatedItems: [BusinessCatalogRelatedItem] = [],
+        bundle: BusinessCatalogBundleDefinition? = nil,
+        pricingMetadata: BusinessCatalogMetadataSnapshot = .empty,
+        commercialMetadata: BusinessCatalogMetadataSnapshot = .empty,
+        readinessWarnings: [String] = [],
         taxProfileCode: String? = nil,
         taxProfileName: String? = nil,
         taxProfileId: String? = nil,
@@ -216,6 +469,9 @@ struct BusinessCatalogItem: Decodable, Equatable, Identifiable, Sendable {
         self.id = id
         self.name = name
         self.itemDescription = itemDescription
+        self.displayName = displayName
+        self.shortDescription = shortDescription
+        self.publicDescription = publicDescription
         self.sku = sku
         self.barcode = barcode
         self.type = type
@@ -233,6 +489,24 @@ struct BusinessCatalogItem: Decodable, Equatable, Identifiable, Sendable {
         self.requiresReview = requiresReview
         self.unit = unit
         self.price = price
+        self.compareAtPrice = compareAtPrice
+        self.cost = cost
+        self.brandId = brandId
+        self.categoryId = categoryId
+        self.unitId = unitId
+        self.publicDiscoveryStatus = publicDiscoveryStatus
+        self.productFamilyId = productFamilyId
+        self.parentProductId = parentProductId
+        self.variantAttributes = variantAttributes
+        self.identifiers = identifiers
+        self.alternateCodes = alternateCodes
+        self.tags = tags
+        self.media = media
+        self.relatedItems = relatedItems
+        self.bundle = bundle
+        self.pricingMetadata = pricingMetadata
+        self.commercialMetadata = commercialMetadata
+        self.readinessWarnings = readinessWarnings
         self.taxProfileCode = taxProfileCode
         self.taxProfileName = taxProfileName
         self.taxProfileId = taxProfileId
@@ -247,7 +521,9 @@ struct BusinessCatalogItem: Decodable, Equatable, Identifiable, Sendable {
         case name
         case localName
         case displayName
+        case shortDescription
         case description
+        case publicDescription
         case localDescription
         case sku
         case barcode
@@ -272,6 +548,24 @@ struct BusinessCatalogItem: Decodable, Equatable, Identifiable, Sendable {
         case basePrice
         case unitPrice
         case localPrice
+        case compareAtPrice
+        case cost
+        case brandId
+        case categoryId
+        case unitId
+        case publicDiscoveryStatus
+        case productFamilyId
+        case parentProductId
+        case variantAttributes
+        case identifiers
+        case alternateCodes
+        case tags
+        case media
+        case relatedItems
+        case bundle
+        case pricingMetadata
+        case commercialMetadata
+        case readinessWarnings
         case taxProfileCode
         case defaultTaxProfileCode
         case suggestedTaxProfileCode
@@ -289,7 +583,11 @@ struct BusinessCatalogItem: Decodable, Equatable, Identifiable, Sendable {
 
         id = try container.decodeFirstString(for: [.id, .mongoId])
         name = try container.decodeFirstString(for: [.name, .localName, .displayName])
-        itemDescription = try container.decodeFirstStringIfPresent(for: [.description, .localDescription])
+        displayName = try container.decodeFirstStringIfPresent(for: [.displayName])
+        shortDescription = try container.decodeFirstStringIfPresent(for: [.shortDescription])
+        publicDescription = try container.decodeFirstStringIfPresent(for: [.publicDescription])
+        let decodedDescription = try container.decodeFirstStringIfPresent(for: [.description, .publicDescription, .localDescription])
+        itemDescription = shortDescription ?? decodedDescription
         sku = try container.decodeIfPresent(String.self, forKey: .sku)
         barcode = try container.decodeIfPresent(String.self, forKey: .barcode)
         type = try container.decodeIfPresent(String.self, forKey: .type)
@@ -308,7 +606,25 @@ struct BusinessCatalogItem: Decodable, Equatable, Identifiable, Sendable {
         requiresReview = try container.decodeIfPresent(Bool.self, forKey: .requiresReview)
         unit = try container.decodeIfPresent(BusinessCatalogUnit.self, forKey: .unit)
         price = try container.decodeFirstMoneyIfPresent(for: [.price, .basePrice, .unitPrice, .localPrice])
+        compareAtPrice = try container.decodeFirstMoneyIfPresent(for: [.compareAtPrice])
+        cost = try container.decodeFirstMoneyIfPresent(for: [.cost])
         let decodedAttributes = try container.decodeIfPresent([String: String].self, forKey: .attributes) ?? [:]
+        brandId = try container.decodeIfPresent(String.self, forKey: .brandId)
+        categoryId = try container.decodeIfPresent(String.self, forKey: .categoryId)
+        unitId = try container.decodeIfPresent(String.self, forKey: .unitId)
+        publicDiscoveryStatus = try container.decodeIfPresent(String.self, forKey: .publicDiscoveryStatus)
+        productFamilyId = try container.decodeIfPresent(String.self, forKey: .productFamilyId)
+        parentProductId = try container.decodeIfPresent(String.self, forKey: .parentProductId)
+        variantAttributes = try container.decodeIfPresent([String: String].self, forKey: .variantAttributes) ?? [:]
+        identifiers = try container.decodeIfPresent([CatalogIdentifier].self, forKey: .identifiers) ?? []
+        alternateCodes = try container.decodeLossyStringArrayIfPresent(forKey: .alternateCodes)
+        tags = try container.decodeLossyStringArrayIfPresent(forKey: .tags)
+        media = try container.decodeIfPresent([BusinessCatalogMediaAsset].self, forKey: .media) ?? []
+        relatedItems = try container.decodeIfPresent([BusinessCatalogRelatedItem].self, forKey: .relatedItems) ?? []
+        bundle = try container.decodeIfPresent(BusinessCatalogBundleDefinition.self, forKey: .bundle)
+        pricingMetadata = try container.decodeIfPresent(BusinessCatalogMetadataSnapshot.self, forKey: .pricingMetadata) ?? .empty
+        commercialMetadata = try container.decodeIfPresent(BusinessCatalogMetadataSnapshot.self, forKey: .commercialMetadata) ?? .empty
+        readinessWarnings = try container.decodeLossyStringArrayIfPresent(forKey: .readinessWarnings)
         taxProfileCode = try container.decodeFirstStringIfPresent(for: [.taxProfileCode, .defaultTaxProfileCode, .suggestedTaxProfileCode])
             ?? decodedAttributes.catalogTaxProfileCodeFallback
         taxProfileName = try container.decodeIfPresent(String.self, forKey: .taxProfileName)
@@ -404,6 +720,33 @@ private extension KeyedDecodingContainer where Key == BusinessCatalogItem.Coding
         }
 
         return nil
+    }
+
+    func decodeLossyStringArrayIfPresent(forKey key: BusinessCatalogItem.CodingKeys) throws -> [String] {
+        if let values = try decodeIfPresent([String].self, forKey: key) {
+            return values
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+        }
+
+        if let value = try decodeIfPresent(String.self, forKey: key) {
+            let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed.isEmpty { return [] }
+            return trimmed
+                .split(separator: ",")
+                .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+        }
+
+        if let values = try decodeIfPresent([Int].self, forKey: key) {
+            return values.map(String.init)
+        }
+
+        if let values = try decodeIfPresent([Double].self, forKey: key) {
+            return values.map { String($0) }
+        }
+
+        return []
     }
 
     func decodeFirstMoneyIfPresent(for keys: [BusinessCatalogItem.CodingKeys]) throws -> MoneyAmount? {
