@@ -13,6 +13,7 @@ enum BusinessExportsRoutes {
     static let dailyZip = "/api/v1/business/exports/daily.zip"
     static let operationalSummary = "/api/v1/business/exports/operational/summary"
     static let operationalZip = "/api/v1/business/exports/operational.zip"
+    static let operationalKardexCSV = "/api/v1/business/exports/inventory/kardex.csv"
     static let accountantPackDraftZip = "/api/v1/business/finance/accountant-pack/draft.zip"
 }
 
@@ -82,6 +83,77 @@ final class BusinessExportsAPIRepository: BusinessExportsRepository, @unchecked 
             response: response,
             fallbackFileName: "nexo_informe_operativo_inteligente.zip"
         )
+    }
+
+    func downloadOperationalKardexCSV(
+        organizationId: String,
+        branchId: String,
+        itemId: String,
+        warehouseId: String? = nil,
+        from: String,
+        to: String
+    ) async throws -> BusinessExportDownloadedFile {
+        try await downloadKardexCSV(
+            organizationId: organizationId, branchId: branchId,
+            activityId: nil, itemId: itemId, warehouseId: warehouseId,
+            movementType: nil, from: from, to: to,
+            fallbackFileName: "nexo_kardex_operativo.csv"
+        )
+    }
+
+    func downloadConsolidatedKardexCSV(
+        organizationId: String,
+        branchId: String,
+        activityId: String,
+        warehouseId: String? = nil,
+        movementType: String? = nil,
+        from: String,
+        to: String
+    ) async throws -> BusinessExportDownloadedFile {
+        try await downloadKardexCSV(
+            organizationId: organizationId, branchId: branchId,
+            activityId: activityId, itemId: nil, warehouseId: warehouseId,
+            movementType: movementType, from: from, to: to,
+            fallbackFileName: "nexo_kardex_operativo_todos_los_productos.csv"
+        )
+    }
+
+    private func downloadKardexCSV(
+        organizationId: String,
+        branchId: String,
+        activityId: String?,
+        itemId: String?,
+        warehouseId: String?,
+        movementType: String?,
+        from: String,
+        to: String,
+        fallbackFileName: String
+    ) async throws -> BusinessExportDownloadedFile {
+        guard let dataClient = apiClient as? APIDataClient else {
+            throw APIError.transport("El cliente HTTP no soporta descarga de archivos.")
+        }
+        var queryItems = Self.periodQueryItems(branchId: branchId, from: from, to: to, label: nil)
+        if let activityId = activityId?.trimmingCharacters(in: .whitespacesAndNewlines), !activityId.isEmpty {
+            queryItems.append(URLQueryItem(name: "activityId", value: activityId))
+        }
+        if let itemId = itemId?.trimmingCharacters(in: .whitespacesAndNewlines), !itemId.isEmpty {
+            queryItems.append(URLQueryItem(name: "itemId", value: itemId))
+        }
+        if let warehouseId = warehouseId?.trimmingCharacters(in: .whitespacesAndNewlines), !warehouseId.isEmpty {
+            queryItems.append(URLQueryItem(name: "warehouseId", value: warehouseId))
+        }
+        if let movementType = movementType?.trimmingCharacters(in: .whitespacesAndNewlines), !movementType.isEmpty {
+            queryItems.append(URLQueryItem(name: "movementType", value: movementType))
+        }
+        let response = try await dataClient.sendData(
+            APIRequest<EmptyResponse>(
+                method: .get,
+                path: BusinessExportsRoutes.operationalKardexCSV,
+                queryItems: queryItems,
+                headers: Self.headers(organizationId: organizationId, branchId: branchId)
+            )
+        )
+        return try persistDownloadedFile(response: response, fallbackFileName: fallbackFileName)
     }
 
     func dailyMetadata(

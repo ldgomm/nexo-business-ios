@@ -9,6 +9,7 @@ import SwiftUI
 
 struct InventoryItemDetailView: View {
     @Bindable private var viewModel: InventoryItemDetailViewModel
+    @State private var selectedMovement: InventoryMovement?
     private let onItemUpdated: (InventoryItem) -> Void
 
     init(
@@ -23,12 +24,11 @@ struct InventoryItemDetailView: View {
         ScrollView {
             LazyVStack(spacing: 12) {
                 itemSection
-
                 messagesSection
-
                 adjustmentSection
                     .inventoryItemDetailSurface()
-
+                advancedOperationsSection
+                    .inventoryItemDetailSurface()
                 movementsSection
                     .inventoryItemDetailSurface()
             }
@@ -63,6 +63,12 @@ struct InventoryItemDetailView: View {
         .onChange(of: viewModel.item) { _, newItem in
             onItemUpdated(newItem)
         }
+        .sheet(item: $selectedMovement) { movement in
+            InventoryMovementDetailSheet(
+                movement: movement,
+                item: viewModel.item
+            )
+        }
     }
 
     private var itemSection: some View {
@@ -77,10 +83,18 @@ struct InventoryItemDetailView: View {
                         .textCase(.uppercase)
                         .tracking(0.6)
 
-                    Text(viewModel.item.name)
+                    Text(viewModel.item.displayName)
                         .font(.title2.weight(.bold))
                         .lineLimit(2)
                         .minimumScaleFactor(0.72)
+
+                    if viewModel.item.displayName == "Producto sin nombre",
+                       let reference = viewModel.item.technicalReference {
+                        Text("Referencia técnica: \(reference)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
 
                     Text("Detalle de stock, umbrales y movimientos operativos.")
                         .font(.subheadline.weight(.semibold))
@@ -93,7 +107,7 @@ struct InventoryItemDetailView: View {
 
             HStack(spacing: 8) {
                 InventoryItemDetailPill(
-                    title: InventoryStatusPresentation.displayName(viewModel.item.stockStatus ?? viewModel.item.status),
+                    title: InventoryStatusPresentation.displayName(viewModel.item),
                     systemImage: InventoryStatusPresentation.stockSystemImage(viewModel.item),
                     tint: stockTint
                 )
@@ -106,10 +120,18 @@ struct InventoryItemDetailView: View {
             }
 
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
+                if let onHand = viewModel.item.onHand {
+                    InventoryItemDetailMetricCard(
+                        title: "En mano",
+                        value: onHand.displayText,
+                        systemImage: "shippingbox.fill"
+                    )
+                }
+
                 InventoryItemDetailMetricCard(
                     title: "Disponible",
                     value: viewModel.item.available.displayText,
-                    systemImage: "shippingbox"
+                    systemImage: "checkmark.seal"
                 )
 
                 if let reserved = viewModel.item.reserved {
@@ -123,6 +145,22 @@ struct InventoryItemDetailView: View {
                         title: "Reservado",
                         value: "—",
                         systemImage: "lock"
+                    )
+                }
+
+                if let damaged = viewModel.item.damaged {
+                    InventoryItemDetailMetricCard(
+                        title: "Dañado",
+                        value: damaged.displayText,
+                        systemImage: "exclamationmark.triangle"
+                    )
+                }
+
+                if let inTransit = viewModel.item.inTransit {
+                    InventoryItemDetailMetricCard(
+                        title: "En tránsito",
+                        value: inTransit.displayText,
+                        systemImage: "truck.box"
                     )
                 }
 
@@ -143,10 +181,16 @@ struct InventoryItemDetailView: View {
                 }
             }
 
+            InventoryItemDetailFactRow(
+                title: "Fuente",
+                value: "Stock confirmado por backend",
+                systemImage: "server.rack"
+            )
+
             if let updatedAt = viewModel.item.updatedAt {
                 InventoryItemDetailFactRow(
                     title: "Actualizado",
-                    value: updatedAt.formatted(date: .abbreviated, time: .shortened),
+                    value: InventoryPresentationFormatter.dateTime(updatedAt),
                     systemImage: "clock"
                 )
             }
@@ -178,35 +222,60 @@ struct InventoryItemDetailView: View {
             systemImage: "plus.forwardslash.minus"
         ) {
             if viewModel.item.trackStock {
-                VStack(alignment: .leading, spacing: 12) {
-                    Picker("Tipo", selection: $viewModel.adjustmentType) {
+                VStack(alignment: .leading, spacing: 14) {
+                    Text("¿Qué ocurrió?")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+
+                    HStack(spacing: 8) {
                         ForEach(InventoryAdjustmentType.allCases) { type in
-                            Text(type.displayName).tag(type)
+                            InventoryAdjustmentTypeButton(
+                                type: type,
+                                isSelected: viewModel.adjustmentType == type
+                            ) {
+                                viewModel.selectAdjustmentType(type)
+                            }
                         }
                     }
-                    .pickerStyle(.segmented)
 
-                    InventoryItemDetailInputRow(
-                        title: "Cantidad",
-                        placeholder: "0",
-                        text: $viewModel.adjustmentQuantity,
-                        systemImage: "number"
-                    )
-                    .keyboardType(.decimalPad)
-
-                    InventoryItemDetailMultilineInputRow(
-                        title: "Motivo",
-                        placeholder: "Ej. compra, merma, corrección de conteo",
-                        text: $viewModel.adjustmentReason,
-                        systemImage: "text.quote"
+                    InventoryAdjustmentQuantityControl(
+                        quantity: $viewModel.adjustmentQuantity,
+                        decrease: viewModel.decrementAdjustmentQuantity,
+                        increase: viewModel.incrementAdjustmentQuantity
                     )
 
-                    InventoryItemDetailMultilineInputRow(
-                        title: "Nota",
-                        placeholder: "Opcional",
-                        text: $viewModel.adjustmentNote,
-                        systemImage: "note.text"
-                    )
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Motivo")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
+
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 8) {
+                                ForEach(viewModel.adjustmentReasonPresets, id: \.self) { reason in
+                                    InventoryAdjustmentReasonButton(
+                                        title: reason,
+                                        isSelected: viewModel.adjustmentReason == reason
+                                    ) {
+                                        viewModel.selectAdjustmentReason(reason)
+                                    }
+                                }
+                            }
+                            .padding(.vertical, 1)
+                        }
+                    }
+
+                    DisclosureGroup {
+                        InventoryItemDetailMultilineInputRow(
+                            title: "Nota",
+                            placeholder: "Información adicional (opcional)",
+                            text: $viewModel.adjustmentNote,
+                            systemImage: "note.text"
+                        )
+                        .padding(.top, 8)
+                    } label: {
+                        Label("Agregar nota opcional", systemImage: "note.text")
+                            .font(.footnote.weight(.semibold))
+                    }
 
                     Button {
                         NexoKeyboard.dismiss()
@@ -220,7 +289,7 @@ struct InventoryItemDetailView: View {
                                 Image(systemName: "plus.forwardslash.minus")
                             }
 
-                            Text(viewModel.isAdjusting ? "Registrando ajuste…" : "Registrar ajuste")
+                            Text(viewModel.isAdjusting ? "Registrando ajuste…" : adjustmentActionTitle)
                                 .fontWeight(.semibold)
                         }
                         .frame(maxWidth: .infinity)
@@ -240,11 +309,50 @@ struct InventoryItemDetailView: View {
         }
     }
 
+    private var adjustmentActionTitle: String {
+        switch viewModel.adjustmentType {
+        case .increase:
+            return "Registrar entrada"
+        case .decrease:
+            return "Registrar salida"
+        case .set:
+            return "Fijar saldo"
+        }
+    }
+
+    @ViewBuilder
+    private var advancedOperationsSection: some View {
+        InventoryItemDetailSectionCard(
+            title: "Operaciones avanzadas",
+            subtitle: "Disponibilidad confirmada sin crear acciones incompletas en Business.",
+            systemImage: "shippingbox.and.arrow.backward"
+        ) {
+            InventoryItemDetailNoticeCard(
+                title: "Conteo físico · Admin",
+                message: viewModel.physicalCountGuidance,
+                systemImage: "checklist",
+                tint: .secondary
+            )
+
+            InventoryItemDetailNoticeCard(
+                title: "Transferencia entre bodegas · Admin",
+                message: viewModel.transferGuidance,
+                systemImage: "arrow.left.arrow.right.square",
+                tint: .secondary
+            )
+
+            Text("No hay botones deshabilitados ni navegación pendiente: estas operaciones continúan en la fase Admin 26R.P.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
     @ViewBuilder
     private var movementsSection: some View {
         InventoryItemDetailSectionCard(
-            title: "Movimientos",
-            subtitle: "Historial operativo de entradas, salidas y ajustes.",
+            title: "Kardex operativo",
+            subtitle: "Historial referencial de entradas, salidas y ajustes. No sustituye un Kardex contable o legal.",
             systemImage: "clock.arrow.circlepath"
         ) {
             if viewModel.isLoadingMovements && viewModel.movements.isEmpty {
@@ -261,7 +369,46 @@ struct InventoryItemDetailView: View {
             } else {
                 VStack(spacing: 10) {
                     ForEach(viewModel.movements) { movement in
-                        InventoryMovementCard(movement: movement)
+                        InventoryMovementCard(movement: movement) {
+                            selectedMovement = movement
+                        }
+                    }
+                }
+            }
+
+            if viewModel.canExportOperationalKardex {
+                Divider()
+
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Exporta los últimos 30 días del producto y bodega actuales.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    Button {
+                        Task { await viewModel.exportOperationalKardex() }
+                    } label: {
+                        HStack(spacing: 9) {
+                            if viewModel.isExportingKardex {
+                                ProgressView()
+                                    .controlSize(.small)
+                            } else {
+                                Image(systemName: "square.and.arrow.up")
+                            }
+                            Text(viewModel.isExportingKardex ? "Preparando CSV…" : "Exportar Kardex operativo CSV")
+                                .fontWeight(.semibold)
+                        }
+                        .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(viewModel.isExportingKardex)
+
+                    if let file = viewModel.downloadedKardexFile {
+                        ShareLink(item: file.localURL) {
+                            Label("Compartir \(file.fileName)", systemImage: "square.and.arrow.up.fill")
+                                .font(.subheadline.weight(.semibold))
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.borderedProminent)
                     }
                 }
             }
@@ -292,7 +439,7 @@ struct InventoryItemDetailView: View {
     }
 
     private var stockTint: Color {
-        let normalized = InventoryStatusPresentation.displayName(viewModel.item.stockStatus ?? viewModel.item.status).lowercased()
+        let normalized = InventoryStatusPresentation.displayName(viewModel.item).lowercased()
         if normalized.contains("sin") || normalized.contains("agot") || normalized.contains("out") {
             return .red
         }
@@ -447,6 +594,118 @@ private struct InventoryItemDetailFactRow: View {
     }
 }
 
+private struct InventoryAdjustmentTypeButton: View {
+    let type: InventoryAdjustmentType
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 5) {
+                Image(systemName: systemImage)
+                    .font(.subheadline.weight(.semibold))
+
+                Text(type.operationTitle)
+                    .font(.caption.weight(.semibold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+            }
+            .foregroundStyle(isSelected ? Color.accentColor : Color.secondary)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 10)
+            .background(
+                (isSelected ? Color.accentColor : Color.secondary).opacity(isSelected ? 0.12 : 0.07),
+                in: RoundedRectangle(cornerRadius: 14, style: .continuous)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .strokeBorder(
+                        (isSelected ? Color.accentColor : Color.primary).opacity(isSelected ? 0.2 : 0.06),
+                        lineWidth: 1
+                    )
+            )
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
+
+    private var systemImage: String {
+        switch type {
+        case .increase:
+            return "plus"
+        case .decrease:
+            return "minus"
+        case .set:
+            return "equal"
+        }
+    }
+}
+
+private struct InventoryAdjustmentQuantityControl: View {
+    @Binding var quantity: String
+    let decrease: () -> Void
+    let increase: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Cantidad")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+
+            HStack(spacing: 12) {
+                Button(action: decrease) {
+                    Image(systemName: "minus")
+                        .font(.body.weight(.bold))
+                        .frame(width: 42, height: 42)
+                }
+                .buttonStyle(.bordered)
+                .accessibilityLabel("Disminuir cantidad")
+
+                TextField("1", text: $quantity)
+                    .keyboardType(.decimalPad)
+                    .multilineTextAlignment(.center)
+                    .font(.title3.weight(.bold))
+                    .monospacedDigit()
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 9)
+                    .background(
+                        Color(uiColor: .tertiarySystemGroupedBackground),
+                        in: RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    )
+
+                Button(action: increase) {
+                    Image(systemName: "plus")
+                        .font(.body.weight(.bold))
+                        .frame(width: 42, height: 42)
+                }
+                .buttonStyle(.borderedProminent)
+                .accessibilityLabel("Aumentar cantidad")
+            }
+        }
+    }
+}
+
+private struct InventoryAdjustmentReasonButton: View {
+    let title: String
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Label(title, systemImage: isSelected ? "checkmark.circle.fill" : "circle")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(isSelected ? Color.accentColor : Color.secondary)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 7)
+                .background(
+                    (isSelected ? Color.accentColor : Color.secondary).opacity(isSelected ? 0.12 : 0.07),
+                    in: Capsule(style: .continuous)
+                )
+        }
+        .buttonStyle(.plain)
+    }
+}
+
 private struct InventoryItemDetailInputRow: View {
     let title: String
     let placeholder: String
@@ -567,17 +826,30 @@ private struct InventoryItemDetailEmptyState: View {
 
 private struct InventoryMovementCard: View {
     let movement: InventoryMovement
+    let action: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .firstTextBaseline, spacing: 10) {
-                VStack(alignment: .leading, spacing: 3) {
+        Button(action: action) {
+            HStack(spacing: 12) {
+                Image(systemName: "arrow.left.arrow.right.circle.fill")
+                    .font(.title3)
+                    .symbolRenderingMode(.hierarchical)
+                    .foregroundStyle(Color.accentColor)
+
+                VStack(alignment: .leading, spacing: 4) {
                     Text(InventoryStatusPresentation.movementDisplayName(movement.type))
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(.primary)
 
+                    if let reason = movement.reasonDisplayText {
+                        Text(reason)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+
                     if let createdAt = movement.createdAt {
-                        Text(createdAt.formatted(date: .abbreviated, time: .shortened))
+                        Text(InventoryPresentationFormatter.dateTime(createdAt))
                             .font(.caption2)
                             .foregroundStyle(.secondary)
                     }
@@ -585,27 +857,26 @@ private struct InventoryMovementCard: View {
 
                 Spacer(minLength: 8)
 
-                Text(movement.quantity.displayText)
-                    .font(.subheadline.weight(.bold))
-                    .monospacedDigit()
-            }
+                VStack(alignment: .trailing, spacing: 4) {
+                    Text(movement.quantityChangeDisplayText)
+                        .font(.subheadline.weight(.bold))
+                        .monospacedDigit()
+                        .foregroundStyle(.primary)
 
-            if let previous = movement.previousQuantity,
-               let new = movement.newQuantity {
-                InventoryItemDetailFactRow(
-                    title: "Cambio",
-                    value: "\(previous.displayText) → \(new.displayText)",
-                    systemImage: "arrow.left.arrow.right"
-                )
-            }
+                    if let balance = movement.balanceTransitionDisplayText {
+                        Text(balance)
+                            .font(.caption2.weight(.medium))
+                            .monospacedDigit()
+                            .foregroundStyle(.secondary)
+                    }
+                }
 
-            if let reason = movement.reason, !reason.isEmpty {
-                Text(reason)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(.tertiary)
             }
         }
+        .buttonStyle(.plain)
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color(uiColor: .tertiarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
@@ -613,6 +884,150 @@ private struct InventoryMovementCard: View {
             RoundedRectangle(cornerRadius: 18, style: .continuous)
                 .strokeBorder(Color.primary.opacity(0.045), lineWidth: 1)
         )
+        .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .accessibilityHint("Abre el detalle del movimiento")
+    }
+}
+
+private struct InventoryMovementDetailSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    let movement: InventoryMovement
+    let item: InventoryItem
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                LazyVStack(spacing: 12) {
+                    InventoryItemDetailSectionCard(
+                        title: InventoryStatusPresentation.movementDisplayName(movement.type),
+                        subtitle: item.displayName,
+                        systemImage: "arrow.left.arrow.right.circle"
+                    ) {
+                        InventoryItemDetailFactRow(
+                            title: "Variación",
+                            value: movement.quantityChangeDisplayText,
+                            systemImage: "plus.forwardslash.minus"
+                        )
+
+                        if let balance = movement.balanceTransitionDisplayText {
+                            InventoryItemDetailFactRow(
+                                title: "Saldo",
+                                value: balance,
+                                systemImage: "arrow.left.arrow.right"
+                            )
+                        }
+
+                        if let reason = movement.reasonDisplayText {
+                            InventoryItemDetailFactRow(
+                                title: "Motivo",
+                                value: reason,
+                                systemImage: "text.quote"
+                            )
+                        }
+
+                        if let createdAt = movement.createdAt {
+                            InventoryItemDetailFactRow(
+                                title: "Fecha",
+                                value: InventoryPresentationFormatter.dateTime(createdAt),
+                                systemImage: "calendar"
+                            )
+                        }
+                    }
+                    .inventoryItemDetailSurface()
+
+                    if let movementDescription {
+                        InventoryItemDetailSectionCard(
+                            title: "Descripción",
+                            subtitle: "Información registrada con el movimiento.",
+                            systemImage: "note.text"
+                        ) {
+                            Text(movementDescription)
+                                .font(.body)
+                                .foregroundStyle(.primary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        .inventoryItemDetailSurface()
+                    }
+
+                    InventoryItemDetailSectionCard(
+                        title: "Referencia técnica",
+                        subtitle: "Datos para soporte y auditoría.",
+                        systemImage: "wrench.and.screwdriver"
+                    ) {
+                        InventoryItemDetailFactRow(
+                            title: "Movimiento",
+                            value: movement.id,
+                            systemImage: "number"
+                        )
+
+                        if let productReference = item.technicalReference {
+                            InventoryItemDetailFactRow(
+                                title: "Producto",
+                                value: productReference,
+                                systemImage: "shippingbox"
+                            )
+                        }
+
+                        if let sourceName = InventoryStatusPresentation.sourceDisplayName(movement.sourceType) {
+                            InventoryItemDetailFactRow(
+                                title: "Origen",
+                                value: sourceName,
+                                systemImage: "link"
+                            )
+                        }
+
+                        if let sourceId = movement.sourceId, !sourceId.isEmpty {
+                            InventoryItemDetailFactRow(
+                                title: "Referencia origen",
+                                value: sourceId,
+                                systemImage: "link.badge.plus"
+                            )
+                        }
+
+                        if let warehouseId = movement.warehouseId, !warehouseId.isEmpty {
+                            InventoryItemDetailFactRow(
+                                title: "Bodega",
+                                value: warehouseId,
+                                systemImage: "building.2"
+                            )
+                        }
+
+                        if let createdBy = movement.createdBy, !createdBy.isEmpty {
+                            InventoryItemDetailFactRow(
+                                title: "Registrado por",
+                                value: createdBy,
+                                systemImage: "person"
+                            )
+                        }
+                    }
+                    .inventoryItemDetailSurface()
+                }
+                .padding(12)
+                .padding(.bottom, 24)
+            }
+            .background(Color(uiColor: .systemGroupedBackground).ignoresSafeArea())
+            .navigationTitle("Detalle del movimiento")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Cerrar") {
+                        dismiss()
+                    }
+                }
+            }
+        }
+    }
+
+    private var movementDescription: String? {
+        if let reasonText = movement.reasonText?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !reasonText.isEmpty {
+            return reasonText
+        }
+        if let reason = movement.reason?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !reason.isEmpty {
+            return reason
+        }
+        return nil
     }
 }
 
@@ -621,6 +1036,7 @@ private struct InventoryMovementCard: View {
         InventoryItemDetailView(
             viewModel: InventoryItemDetailViewModel(
                 organizationId: PreviewData.businessContext.organization.id,
+                branchId: PreviewData.businessContext.branches[0].id,
                 catalogRevision: PreviewData.businessContext.revisions.catalogRevision,
                 item: PreviewInventoryData.items[0],
                 effectivePermissions: PreviewData.businessContext.effectivePermissions,

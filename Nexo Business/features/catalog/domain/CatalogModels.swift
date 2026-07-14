@@ -413,7 +413,12 @@ struct BusinessCatalogItem: Decodable, Equatable, Identifiable, Sendable {
     let taxProfileCode: String?
     let taxProfileName: String?
     let taxProfileId: String?
+    let tracksInventory: Bool?
+    let hasStockProfile: Bool?
+    let stockStatus: String?
     let availableStock: String?
+    let allowNegativeStock: Bool?
+    let blockSaleWhenInsufficientStock: Bool?
     let allowsDecimalQuantity: Bool?
     let attributes: [String: String]
 
@@ -462,7 +467,12 @@ struct BusinessCatalogItem: Decodable, Equatable, Identifiable, Sendable {
         taxProfileCode: String? = nil,
         taxProfileName: String? = nil,
         taxProfileId: String? = nil,
+        tracksInventory: Bool? = nil,
+        hasStockProfile: Bool? = nil,
+        stockStatus: String? = nil,
         availableStock: String? = nil,
+        allowNegativeStock: Bool? = nil,
+        blockSaleWhenInsufficientStock: Bool? = nil,
         allowsDecimalQuantity: Bool? = nil,
         attributes: [String: String] = [:],
     ) {
@@ -510,7 +520,12 @@ struct BusinessCatalogItem: Decodable, Equatable, Identifiable, Sendable {
         self.taxProfileCode = taxProfileCode
         self.taxProfileName = taxProfileName
         self.taxProfileId = taxProfileId
+        self.tracksInventory = tracksInventory
+        self.hasStockProfile = hasStockProfile
+        self.stockStatus = stockStatus
         self.availableStock = availableStock
+        self.allowNegativeStock = allowNegativeStock
+        self.blockSaleWhenInsufficientStock = blockSaleWhenInsufficientStock
         self.allowsDecimalQuantity = allowsDecimalQuantity
         self.attributes = attributes
     }
@@ -571,8 +586,13 @@ struct BusinessCatalogItem: Decodable, Equatable, Identifiable, Sendable {
         case suggestedTaxProfileCode
         case taxProfileName
         case taxProfileId
+        case tracksInventory
+        case hasStockProfile
+        case stockStatus
         case availableStock
         case stock
+        case allowNegativeStock
+        case blockSaleWhenInsufficientStock
         case allowsDecimalQuantity
         case attributes
         case restaurantAttributes
@@ -629,9 +649,90 @@ struct BusinessCatalogItem: Decodable, Equatable, Identifiable, Sendable {
             ?? decodedAttributes.catalogTaxProfileCodeFallback
         taxProfileName = try container.decodeIfPresent(String.self, forKey: .taxProfileName)
         taxProfileId = try container.decodeIfPresent(String.self, forKey: .taxProfileId)
+        tracksInventory = try container.decodeIfPresent(Bool.self, forKey: .tracksInventory)
+        hasStockProfile = try container.decodeIfPresent(Bool.self, forKey: .hasStockProfile)
+        stockStatus = try container.decodeIfPresent(String.self, forKey: .stockStatus)
         availableStock = try container.decodeFirstStringIfPresent(for: [.availableStock, .stock])
+        allowNegativeStock = try container.decodeIfPresent(Bool.self, forKey: .allowNegativeStock)
+        blockSaleWhenInsufficientStock = try container.decodeIfPresent(
+            Bool.self,
+            forKey: .blockSaleWhenInsufficientStock
+        )
         allowsDecimalQuantity = try container.decodeIfPresent(Bool.self, forKey: .allowsDecimalQuantity)
         attributes = decodedAttributes
+    }
+}
+
+extension BusinessCatalogItem {
+    var saleInventoryStatusLabel: String? {
+        guard let tracksInventory else { return nil }
+        guard tracksInventory else {
+            return isPhysicalProductWithoutInventoryControl
+                ? "Inventario no configurado"
+                : "Sin control de stock"
+        }
+        if hasStockProfile == false || normalizedStockStatus == "no_profile" {
+            return "Sin perfil de stock"
+        }
+        if isSaleOutOfStock {
+            return "Sin stock"
+        }
+        if normalizedStockStatus == "low_stock" {
+            return availableStock.map { "Stock bajo · \(InventoryPresentationFormatter.number($0)) disponibles" }
+                ?? "Stock bajo"
+        }
+        return availableStock.map { "\(InventoryPresentationFormatter.number($0)) disponibles" }
+    }
+
+    var saleStockRiskMessage: String? {
+        if isPhysicalProductWithoutInventoryControl {
+            return "Este producto no tiene control de inventario configurado. Actívalo en Admin antes de venderlo."
+        }
+        guard tracksInventory == true else { return nil }
+        if hasStockProfile == false || normalizedStockStatus == "no_profile" {
+            return saleStockRiskBlocksSale
+                ? "Este producto todavía no tiene un perfil de stock. No se puede agregar a la venta."
+                : "Este producto todavía no tiene un perfil de stock. El backend validará la política al previsualizar."
+        }
+        if normalizedStockStatus == "low_stock" {
+            return "Stock bajo confirmado por backend. Revisa la cantidad antes de continuar."
+        }
+        if isSaleOutOfStock {
+            return saleStockRiskBlocksSale
+                ? "Sin stock disponible. El backend no permite agregar este producto a la venta."
+                : "Sin stock disponible confirmado. El backend validará la política al previsualizar la venta."
+        }
+
+        return nil
+    }
+
+    var saleStockRiskBlocksSale: Bool {
+        if isPhysicalProductWithoutInventoryControl { return true }
+        guard tracksInventory == true, blockSaleWhenInsufficientStock == true else { return false }
+        return hasStockProfile == false || normalizedStockStatus == "no_profile" || isSaleOutOfStock
+    }
+
+    private var isPhysicalProductWithoutInventoryControl: Bool {
+        type?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == "product"
+            && tracksInventory == false
+    }
+
+    private var normalizedStockStatus: String? {
+        stockStatus?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    }
+
+    private var availableStockDecimal: Decimal? {
+        availableStock.flatMap {
+            Decimal(
+                string: $0.trimmingCharacters(in: .whitespacesAndNewlines).replacingOccurrences(of: ",", with: "."),
+                locale: Locale(identifier: "en_US_POSIX")
+            )
+        }
+    }
+
+    private var isSaleOutOfStock: Bool {
+        normalizedStockStatus.map { ["out_of_stock", "out-of-stock", "sold_out", "empty"].contains($0) } == true
+            || availableStockDecimal.map { $0 <= .zero } == true
     }
 }
 

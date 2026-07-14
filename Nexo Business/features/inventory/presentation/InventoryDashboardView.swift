@@ -18,11 +18,9 @@ struct InventoryDashboardView: View {
         ScrollView {
             LazyVStack(spacing: 12) {
                 filtersSection
-
                 summarySection
-
                 messagesSection
-
+                consolidatedKardexSection
                 itemsSection
                     .inventoryDashboardSurface()
             }
@@ -264,6 +262,47 @@ struct InventoryDashboardView: View {
     }
 
     @ViewBuilder
+    private var consolidatedKardexSection: some View {
+        if viewModel.canExportConsolidatedKardex {
+            InventoryDashboardSectionCard(
+                title: "Kardex operativo",
+                subtitle: "Exporta todos los productos y movimientos de esta sucursal y actividad.",
+                systemImage: "clock.arrow.circlepath"
+            ) {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Incluye los últimos 30 días. Es un reporte operativo/referencial; no sustituye un Kardex contable o legal.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Button {
+                        Task { await viewModel.exportConsolidatedKardex() }
+                    } label: {
+                        HStack(spacing: 8) {
+                            if viewModel.isExportingKardex {
+                                ProgressView().controlSize(.small)
+                            } else {
+                                Image(systemName: "square.and.arrow.down")
+                            }
+                            Text(viewModel.isExportingKardex ? "Preparando CSV…" : "Exportar Kardex consolidado CSV")
+                                .fontWeight(.semibold)
+                        }
+                        .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(viewModel.isExportingKardex)
+                    if let file = viewModel.downloadedKardexFile {
+                        ShareLink(item: file.localURL) {
+                            Label("Compartir \(file.fileName)", systemImage: "square.and.arrow.up")
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.borderedProminent)
+                    }
+                }
+            }
+            .inventoryDashboardSurface()
+        }
+    }
+
+    @ViewBuilder
     private var itemsSection: some View {
         InventoryDashboardSectionCard(
             title: "Productos",
@@ -307,6 +346,25 @@ struct InventoryDashboardView: View {
                             }
                             .buttonStyle(.plain)
                         }
+
+                        if viewModel.hasMore {
+                            Button {
+                                Task { await viewModel.loadMore() }
+                            } label: {
+                                HStack(spacing: 8) {
+                                    if viewModel.isLoadingMore {
+                                        ProgressView()
+                                            .controlSize(.small)
+                                    }
+                                    Text(viewModel.isLoadingMore ? "Cargando más…" : "Cargar más productos")
+                                        .fontWeight(.semibold)
+                                }
+                                .frame(maxWidth: .infinity)
+                            }
+                            .buttonStyle(.bordered)
+                            .controlSize(.large)
+                            .disabled(viewModel.isLoadingMore)
+                        }
                     }
                 }
             }
@@ -318,7 +376,13 @@ struct InventoryDashboardView: View {
             return "Consultando inventario"
         }
 
+        let query = viewModel.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
         if let total = viewModel.totalCount {
+            if !query.isEmpty {
+                return total == 1
+                    ? "1 resultado para “\(query)”"
+                    : "\(total) resultados para “\(query)”"
+            }
             return total == 1 ? "1 producto encontrado" : "\(total) productos encontrados"
         }
 
@@ -526,7 +590,7 @@ private struct InventoryItemRow: View {
             VStack(alignment: .leading, spacing: 8) {
                 HStack(alignment: .firstTextBaseline, spacing: 10) {
                     VStack(alignment: .leading, spacing: 3) {
-                        Text(item.name)
+                        Text(item.displayName)
                             .font(.subheadline.weight(.semibold))
                             .foregroundStyle(.primary)
                             .lineLimit(2)
@@ -536,31 +600,70 @@ private struct InventoryItemRow: View {
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                                 .lineLimit(1)
+                        } else if item.displayName == "Producto sin nombre",
+                                  let reference = item.technicalReference {
+                            Text("Referencia: \(reference)")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
                         }
                     }
 
                     Spacer(minLength: 8)
 
-                    Text(item.available.displayText)
-                        .font(.subheadline.weight(.bold))
-                        .foregroundStyle(.primary)
-                        .monospacedDigit()
-                        .lineLimit(1)
+                    VStack(alignment: .trailing, spacing: 2) {
+                        if !item.hasStockProfile {
+                            Text(item.trackStock ? "Sin perfil" : "No controlado")
+                                .font(.caption.weight(.bold))
+                                .foregroundStyle(.secondary)
+                                .multilineTextAlignment(.trailing)
+                        } else if let onHand = item.onHand {
+                            Text(onHand.displayText)
+                                .font(.subheadline.weight(.bold))
+                                .foregroundStyle(.primary)
+                                .monospacedDigit()
+                                .lineLimit(1)
+
+                            Text("en mano")
+                                .font(.caption2.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                        } else {
+                            Text(item.available.displayText)
+                                .font(.subheadline.weight(.bold))
+                                .foregroundStyle(.primary)
+                                .monospacedDigit()
+                                .lineLimit(1)
+
+                            Text("disponible")
+                                .font(.caption2.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                        }
+                    }
                 }
 
-                HStack(spacing: 8) {
+                HStack(alignment: .center, spacing: 10) {
                     InventoryDashboardStatusPill(
-                        title: InventoryStatusPresentation.displayName(item.stockStatus ?? item.status),
+                        title: stockLabel,
                         systemImage: InventoryStatusPresentation.stockSystemImage(item),
                         tint: stockTint
                     )
 
-                    if let lowStockThreshold = item.lowStockThreshold {
-                        InventoryDashboardStatusPill(
-                            title: "Mín. \(lowStockThreshold.displayText)",
-                            systemImage: "gauge.with.dots.needle.bottom.50percent",
-                            tint: .secondary
-                        )
+                    Spacer(minLength: 4)
+
+                    if item.hasStockProfile {
+                        HStack(spacing: 12) {
+                            InventoryDashboardStockFact(
+                                title: "Disponible",
+                                value: item.available.displayText
+                            )
+
+                            if let lowStockThreshold = item.lowStockThreshold {
+                                InventoryDashboardStockFact(
+                                    title: "Mínimo",
+                                    value: lowStockThreshold.displayText
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -580,7 +683,8 @@ private struct InventoryItemRow: View {
     }
 
     private var stockTint: Color {
-        let normalized = InventoryStatusPresentation.displayName(item.stockStatus ?? item.status).lowercased()
+        if !item.trackStock || !item.hasStockProfile { return .secondary }
+        let normalized = stockLabel.lowercased()
         if normalized.contains("sin") || normalized.contains("agot") || normalized.contains("out") {
             return .red
         }
@@ -588,6 +692,30 @@ private struct InventoryItemRow: View {
             return .orange
         }
         return .green
+    }
+
+    private var stockLabel: String {
+        InventoryStatusPresentation.displayName(item)
+    }
+}
+
+private struct InventoryDashboardStockFact: View {
+    let title: String
+    let value: String
+
+    var body: some View {
+        VStack(alignment: .trailing, spacing: 1) {
+            Text(title)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+
+            Text(value)
+                .font(.caption.weight(.semibold))
+                .monospacedDigit()
+                .foregroundStyle(.primary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
+        }
     }
 }
 

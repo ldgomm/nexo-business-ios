@@ -38,6 +38,9 @@ final class ProductsListViewModel {
     let activityId: String
     let catalogRevision: String
     let repository: ProductsRepository
+    let inventoryRepository: InventoryRepository
+    let exportsRepository: BusinessExportsRepository?
+    let effectivePermissions: Set<String>
 
     var products: [BusinessProduct] = []
     var taxProfiles: [BusinessTaxProfile] = []
@@ -55,13 +58,19 @@ final class ProductsListViewModel {
         branchId: String,
         activityId: String,
         catalogRevision: String,
-        repository: ProductsRepository
+        repository: ProductsRepository,
+        inventoryRepository: InventoryRepository,
+        exportsRepository: BusinessExportsRepository? = nil,
+        effectivePermissions: Set<String>
     ) {
         self.organizationId = organizationId
         self.branchId = branchId
         self.activityId = activityId
         self.catalogRevision = catalogRevision
         self.repository = repository
+        self.inventoryRepository = inventoryRepository
+        self.exportsRepository = exportsRepository
+        self.effectivePermissions = effectivePermissions
     }
 
     var hasProducts: Bool { !products.isEmpty }

@@ -38,6 +38,134 @@ final class SaleCartViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.cartItems[0].quantity, "2")
     }
 
+    func testBackendOutOfStockBlockPreventsAddingProduct() {
+        let viewModel = makeViewModel()
+        let item = BusinessCatalogItem(
+            id: "item_blocked",
+            name: "Producto sin stock",
+            type: "product",
+            effectiveStatus: "out_of_stock_by_business",
+            availabilityLabel: "Sin stock",
+            canSell: false,
+            price: MoneyAmount(amount: "10.00"),
+            tracksInventory: true,
+            hasStockProfile: true,
+            stockStatus: "out_of_stock",
+            availableStock: "0",
+            allowNegativeStock: false,
+            blockSaleWhenInsufficientStock: true
+        )
+
+        viewModel.addToCart(item)
+
+        XCTAssertTrue(viewModel.cartItems.isEmpty)
+        XCTAssertTrue(viewModel.errorMessage?.contains("backend no permite") == true)
+        XCTAssertFalse(viewModel.canAddCatalogItem(item))
+    }
+
+    func testZeroStockWithPermissiveBackendWarnsButKeepsSaleFlow() {
+        let viewModel = makeViewModel()
+        let item = BusinessCatalogItem(
+            id: "item_negative_allowed",
+            name: "Producto con política permisiva",
+            type: "product",
+            canSell: true,
+            price: MoneyAmount(amount: "10.00"),
+            tracksInventory: true,
+            hasStockProfile: true,
+            stockStatus: "out_of_stock",
+            availableStock: "0",
+            allowNegativeStock: true,
+            blockSaleWhenInsufficientStock: false
+        )
+
+        viewModel.addToCart(item)
+
+        XCTAssertEqual(viewModel.cartItems.count, 1)
+        XCTAssertTrue(viewModel.infoMessage?.contains("backend validará la política") == true)
+    }
+
+    func testUntrackedServiceDoesNotMakeStockPromise() {
+        let viewModel = makeViewModel()
+        let service = BusinessCatalogItem(
+            id: "service_1",
+            name: "Mano de obra",
+            type: "service",
+            canSell: true,
+            price: MoneyAmount(amount: "20.00"),
+            tracksInventory: false,
+            availableStock: "0"
+        )
+
+        viewModel.addToCart(service)
+
+        XCTAssertNil(service.saleStockRiskMessage)
+        XCTAssertEqual(viewModel.cartItems.count, 1)
+        XCTAssertNil(viewModel.infoMessage)
+    }
+
+    func testUntrackedPhysicalProductCannotBeAddedUntilInventoryIsConfigured() {
+        let viewModel = makeViewModel()
+        let product = BusinessCatalogItem(
+            id: "item_untracked_product",
+            name: "Cuy entero",
+            type: "PRODUCT",
+            canSell: true,
+            price: MoneyAmount(amount: "24.00"),
+            tracksInventory: false,
+            availableStock: "0"
+        )
+
+        viewModel.addToCart(product)
+
+        XCTAssertTrue(viewModel.cartItems.isEmpty)
+        XCTAssertFalse(viewModel.canAddCatalogItem(product))
+        XCTAssertTrue(product.saleStockRiskBlocksSale)
+        XCTAssertEqual(product.saleInventoryStatusLabel, "Inventario no configurado")
+        XCTAssertTrue(viewModel.errorMessage?.contains("Actívalo en Admin") == true)
+    }
+
+    func testTrackedProductWithoutProfileIsBlockedByExplicitBackendPolicy() {
+        let viewModel = makeViewModel()
+        let item = BusinessCatalogItem(
+            id: "item_no_profile",
+            name: "Cuy entero",
+            type: "product",
+            canSell: true,
+            price: MoneyAmount(amount: "24.00"),
+            tracksInventory: true,
+            hasStockProfile: false,
+            stockStatus: "no_profile",
+            availableStock: nil,
+            allowNegativeStock: false,
+            blockSaleWhenInsufficientStock: true
+        )
+
+        viewModel.addToCart(item)
+
+        XCTAssertTrue(viewModel.cartItems.isEmpty)
+        XCTAssertEqual(item.saleInventoryStatusLabel, "Sin perfil de stock")
+        XCTAssertTrue(item.saleStockRiskBlocksSale)
+    }
+
+    func testBackendPreviewWarningsRemainVisibleWithoutChangingTotals() async {
+        let baseline = PreviewData.previewResponse
+        let sales = SalesRepositorySpy(
+            previewResponse: SalesPreviewResponse(
+                items: baseline.items,
+                totals: baseline.totals,
+                warnings: ["Stock bajo confirmado por backend"]
+            )
+        )
+        let viewModel = makeViewModel(salesRepository: sales)
+        viewModel.addToCart(Self.item)
+
+        await viewModel.loadPreview()
+
+        XCTAssertEqual(viewModel.backendPreviewWarnings, ["Stock bajo confirmado por backend"])
+        XCTAssertEqual(viewModel.preview?.totals, baseline.totals)
+    }
+
     func testPreviewSendsCartItemsAndRevisions() async {
         let sales = SalesRepositorySpy(
             previewResponse: PreviewData.previewResponse

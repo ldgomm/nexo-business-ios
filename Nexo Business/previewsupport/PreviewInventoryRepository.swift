@@ -50,13 +50,14 @@ final class PreviewInventoryRepository: InventoryRepository, @unchecked Sendable
 
     func listMovements(
         organizationId: String,
-        inventoryItemId: String,
+        branchId: String,
+        catalogItemId: String,
         limit: Int
     ) async throws -> InventoryMovementsResponse {
         InventoryMovementsResponse(
             movements: Array(
                 PreviewInventoryData.movements
-                    .filter { $0.inventoryItemId == inventoryItemId }
+                    .filter { $0.catalogItemId == catalogItemId || $0.inventoryItemId == catalogItemId }
                     .prefix(limit)
             )
         )
@@ -64,14 +65,16 @@ final class PreviewInventoryRepository: InventoryRepository, @unchecked Sendable
 
     func adjust(
         organizationId: String,
-        inventoryItemId: String,
+        branchId: String,
+        catalogItemId: String,
         catalogRevision: String,
         idempotencyKey: IdempotencyKey,
         request: InventoryAdjustmentRequest
     ) async throws -> InventoryAdjustmentResponse {
-        let current = PreviewInventoryData.items.first { $0.id == inventoryItemId } ?? PreviewInventoryData.items[0]
+        let current = PreviewInventoryData.items.first { $0.catalogItemId == catalogItemId } ?? PreviewInventoryData.items[0]
         let updated = InventoryItem(
             id: current.id,
+            branchId: current.branchId,
             catalogItemId: current.catalogItemId,
             name: current.name,
             sku: current.sku,
@@ -79,20 +82,34 @@ final class PreviewInventoryRepository: InventoryRepository, @unchecked Sendable
             status: current.status,
             stockStatus: "active",
             trackStock: current.trackStock,
+            onHand: InventoryQuantity(
+                quantity: request.quantity,
+                unitCode: current.available.unitCode,
+                unitName: current.available.unitName
+            ),
             available: InventoryQuantity(
                 quantity: request.quantity,
                 unitCode: current.available.unitCode,
                 unitName: current.available.unitName
             ),
             reserved: current.reserved,
+            damaged: current.damaged,
+            inTransit: current.inTransit,
             lowStockThreshold: current.lowStockThreshold,
+            warehouseId: current.warehouseId,
+            allowNegativeStock: current.allowNegativeStock,
+            blockSaleWhenInsufficientStock: current.blockSaleWhenInsufficientStock,
+            averageCost: current.averageCost,
+            lastCost: current.lastCost,
+            referenceValue: current.referenceValue,
             price: current.price,
             updatedAt: Date()
         )
 
         let movement = InventoryMovement(
             id: "mov_adjust_preview",
-            inventoryItemId: inventoryItemId,
+            inventoryItemId: catalogItemId,
+            catalogItemId: catalogItemId,
             type: request.type.rawValue,
             quantity: InventoryQuantity(
                 quantity: request.quantity,

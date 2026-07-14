@@ -1397,6 +1397,13 @@ final class SaleCartViewModel {
 
         errorMessage = nil
         infoMessage = nil
+        if item.saleStockRiskBlocksSale {
+            errorMessage = item.saleStockRiskMessage ?? "El backend no permite vender este producto con el stock actual."
+            return
+        }
+        if let stockRisk = item.saleStockRiskMessage {
+            infoMessage = stockRisk
+        }
         if let index = cartItems.firstIndex(where: { $0.catalogItem.id == item.id }) {
             cartItems[index].quantity = incrementQuantity(cartItems[index].quantity)
             markCalculationDirty(shouldScheduleAutomaticPreview: true)
@@ -1411,6 +1418,16 @@ final class SaleCartViewModel {
             )
         )
         markCalculationDirty(shouldScheduleAutomaticPreview: true)
+    }
+
+    func canAddCatalogItem(_ item: BusinessCatalogItem) -> Bool {
+        canEditCart && !item.saleStockRiskBlocksSale
+    }
+
+    var backendPreviewWarnings: [String] {
+        preview?.warnings
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty } ?? []
     }
 
     func updateQuantity(cartItemId: String, quantity: String) {

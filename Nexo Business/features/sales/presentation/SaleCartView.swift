@@ -143,6 +143,7 @@ struct SaleCartView: View {
         viewModel.createdSale != nil ||
         viewModel.errorMessage != nil ||
         viewModel.finalConsumerInvoiceWarning != nil ||
+        !viewModel.backendPreviewWarnings.isEmpty ||
         viewModel.infoMessage != nil
     }
 
@@ -420,7 +421,7 @@ struct SaleCartView: View {
                     CatalogResultRow(item: item)
                 }
                 .buttonStyle(.plain)
-                .disabled(!viewModel.canEditCart)
+                .disabled(!viewModel.canAddCatalogItem(item))
 
                 if item.id != viewModel.searchResults.last?.id {
                     Divider()
@@ -883,6 +884,10 @@ struct SaleCartView: View {
         }
 
         if let warning = viewModel.finalConsumerInvoiceWarning {
+            NexoMessageBanner(warning, style: .warning)
+        }
+
+        ForEach(Array(viewModel.backendPreviewWarnings.enumerated()), id: \.offset) { _, warning in
             NexoMessageBanner(warning, style: .warning)
         }
 
@@ -2095,6 +2100,13 @@ private struct CatalogResultRow: View {
                         .foregroundStyle(.secondary)
                         .lineLimit(2)
                 }
+
+                if let stockStatus = item.saleInventoryStatusLabel {
+                    Label(stockStatus, systemImage: stockStatusImage)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(stockStatusColor)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
 
             Spacer()
@@ -2106,11 +2118,29 @@ private struct CatalogResultRow: View {
                         .foregroundStyle(.primary)
                 }
 
-                Image(systemName: "plus.circle.fill")
-                    .foregroundStyle(.tint)
+                Image(systemName: item.saleStockRiskBlocksSale ? "xmark.circle.fill" : "plus.circle.fill")
+                    .foregroundStyle(item.saleStockRiskBlocksSale ? Color.secondary : Color.accentColor)
             }
         }
         .padding(.vertical, 4)
+    }
+
+    private var stockStatusImage: String {
+        if item.saleStockRiskBlocksSale { return "xmark.octagon.fill" }
+        if item.tracksInventory == false { return "info.circle" }
+        if ["low_stock", "out_of_stock", "no_profile"].contains(item.stockStatus?.lowercased() ?? "") {
+            return "exclamationmark.triangle.fill"
+        }
+        return "checkmark.circle.fill"
+    }
+
+    private var stockStatusColor: Color {
+        if item.saleStockRiskBlocksSale { return .red }
+        if item.tracksInventory == false { return .secondary }
+        if ["low_stock", "out_of_stock", "no_profile"].contains(item.stockStatus?.lowercased() ?? "") {
+            return .orange
+        }
+        return .green
     }
 
     private var iconName: String {

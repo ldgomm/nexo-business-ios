@@ -49,6 +49,38 @@ final class CatalogModelsDecodingTests: XCTestCase {
         XCTAssertEqual(response.catalogRevision, "cat_rev_001")
     }
 
+    func testDecodesQuickSaleInventoryTruthContract() throws {
+        let json = #"""
+        {
+          "items": [
+            {
+              "id": "item_staging_medio_cuy",
+              "name": "Medio cuy",
+              "price": { "amount": "12.00", "currency": "USD" },
+              "tracksInventory": true,
+              "hasStockProfile": true,
+              "stockStatus": "out_of_stock",
+              "availableStock": "0",
+              "allowNegativeStock": false,
+              "blockSaleWhenInsufficientStock": true
+            }
+          ]
+        }
+        """#.data(using: .utf8)!
+
+        let response = try JSONDecoder.nexoDefault.decode(CatalogSearchResponse.self, from: json)
+        let item = try XCTUnwrap(response.items.first)
+
+        XCTAssertEqual(item.tracksInventory, true)
+        XCTAssertEqual(item.hasStockProfile, true)
+        XCTAssertEqual(item.stockStatus, "out_of_stock")
+        XCTAssertEqual(item.availableStock, "0")
+        XCTAssertEqual(item.allowNegativeStock, false)
+        XCTAssertEqual(item.blockSaleWhenInsufficientStock, true)
+        XCTAssertTrue(item.saleStockRiskBlocksSale)
+        XCTAssertEqual(item.saleInventoryStatusLabel, "Sin stock")
+    }
+
     func testDecodesCatalogItemsFromCatalogItemsKey() throws {
         let json = #"""
         {

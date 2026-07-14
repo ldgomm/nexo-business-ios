@@ -85,7 +85,11 @@ struct ProductsListView: View {
                     organizationId: viewModel.organizationId,
                     branchId: viewModel.branchId,
                     activityId: viewModel.activityId,
+                    catalogRevision: viewModel.catalogRevision,
                     repository: viewModel.repository,
+                    inventoryRepository: viewModel.inventoryRepository,
+                    exportsRepository: viewModel.exportsRepository,
+                    effectivePermissions: viewModel.effectivePermissions,
                     taxProfiles: viewModel.taxProfiles,
                     onSaved: { updated in
                         viewModel.replace(updated)
@@ -608,11 +612,19 @@ private struct ProductDetailView: View {
     @State private var errorMessage: String?
     @State private var successMessage: String?
     @State private var isShowingPauseConfirmation = false
+    @State private var inventoryItem: InventoryItem?
+    @State private var isLoadingInventory = false
+    @State private var didLoadInventory = false
+    @State private var inventoryErrorMessage: String?
     
     let organizationId: String
     let branchId: String
     let activityId: String
+    let catalogRevision: String
     let repository: ProductsRepository
+    let inventoryRepository: InventoryRepository
+    let exportsRepository: BusinessExportsRepository?
+    let effectivePermissions: Set<String>
     let taxProfiles: [BusinessTaxProfile]
     let onSaved: (BusinessProduct) -> Void
     
@@ -623,7 +635,11 @@ private struct ProductDetailView: View {
         organizationId: String,
         branchId: String,
         activityId: String,
+        catalogRevision: String,
         repository: ProductsRepository,
+        inventoryRepository: InventoryRepository,
+        exportsRepository: BusinessExportsRepository?,
+        effectivePermissions: Set<String>,
         taxProfiles: [BusinessTaxProfile],
         onSaved: @escaping (BusinessProduct) -> Void
     ) {
@@ -631,7 +647,11 @@ private struct ProductDetailView: View {
         self.organizationId = organizationId
         self.branchId = branchId
         self.activityId = activityId
+        self.catalogRevision = catalogRevision
         self.repository = repository
+        self.inventoryRepository = inventoryRepository
+        self.exportsRepository = exportsRepository
+        self.effectivePermissions = effectivePermissions
         self.taxProfiles = taxProfiles
         self.onSaved = onSaved
     }
@@ -660,6 +680,8 @@ private struct ProductDetailView: View {
                     ProductDetailRow(title: "Moneda", value: product.price?.currency ?? "USD")
                     ProductDetailRow(title: "Unidad de medida", value: "Unidad")
                 }
+
+                inventorySummarySection
 
                 ProductDetailSection(title: "ProductModel V1C", systemImage: "square.stack.3d.up", tint: .indigo) {
                     ProductDetailRow(title: "Media", value: product.v1cMediaSummary)
@@ -696,6 +718,9 @@ private struct ProductDetailView: View {
         .background(Color(uiColor: .systemGroupedBackground).ignoresSafeArea())
         .navigationTitle("Detalle del producto")
         .navigationBarTitleDisplayMode(.inline)
+        .task {
+            await loadInventory()
+        }
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
                 Button("Cerrar") { dismiss() }
@@ -817,6 +842,143 @@ private struct ProductDetailView: View {
             RoundedRectangle(cornerRadius: 24, style: .continuous)
                 .strokeBorder(Color.primary.opacity(0.05))
         )
+    }
+
+    private var inventorySummarySection: some View {
+        ProductDetailSection(title: "Inventario", systemImage: "shippingbox.fill", tint: inventoryTint) {
+            if isLoadingInventory && !didLoadInventory {
+                HStack(spacing: 10) {
+                    ProgressView()
+                    Text("Consultando stock confirmado…")
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            } else if let inventoryErrorMessage {
+                VStack(alignment: .leading, spacing: 10) {
+                    Label(inventoryErrorMessage, systemImage: "exclamationmark.triangle")
+                        .font(.subheadline)
+                        .foregroundStyle(.orange)
+
+                    Button("Reintentar") {
+                        Task { await loadInventory(force: true) }
+                    }
+                    .buttonStyle(.bordered)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            } else if let item = inventoryItem, item.hasStockProfile {
+                ProductDetailStatusRow(
+                    title: "Estado",
+                    value: InventoryStatusPresentation.displayName(item.stockStatus ?? item.status),
+                    tint: inventoryTint
+                )
+                ProductDetailRow(title: "Disponible", value: item.available.displayText)
+                ProductDetailRow(title: "En mano", value: item.onHand?.displayText ?? "No informado")
+                ProductDetailRow(title: "Reservado", value: item.reserved?.displayText ?? "No informado")
+                ProductDetailRow(title: "Mínimo", value: item.lowStockThreshold?.displayText ?? "No configurado")
+                ProductDetailRow(title: "Política", value: inventoryPolicySummary(item))
+
+                if canViewInventoryValuation {
+                    if let averageCost = item.averageCost {
+                        ProductDetailRow(title: "Costo promedio", value: averageCost)
+                    }
+                    if let referenceValue = item.referenceValue {
+                        ProductDetailRow(title: "Valor de referencia", value: referenceValue)
+                    }
+                }
+
+                NavigationLink {
+                    InventoryItemDetailView(
+                        viewModel: InventoryItemDetailViewModel(
+                            organizationId: organizationId,
+                            branchId: branchId,
+                            catalogRevision: catalogRevision,
+                            item: item,
+                            effectivePermissions: effectivePermissions,
+                            inventoryRepository: inventoryRepository,
+                            exportsRepository: exportsRepository
+                        ),
+                        onItemUpdated: { inventoryItem = $0 }
+                    )
+                } label: {
+                    Label("Ver stock y movimientos", systemImage: "arrow.right.circle.fill")
+                        .font(.headline)
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+            } else {
+                ProductDetailStatusRow(title: "Estado", value: "Sin perfil de stock", tint: .secondary)
+                Text("Este producto todavía no tiene un saldo de inventario confirmado para la sucursal seleccionada.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Button {
+                Task { await loadInventory(force: true) }
+            } label: {
+                Label(isLoadingInventory ? "Actualizando…" : "Actualizar stock", systemImage: "arrow.clockwise")
+            }
+            .disabled(isLoadingInventory)
+        }
+    }
+
+    @MainActor
+    private func loadInventory(force: Bool = false) async {
+        guard force || !didLoadInventory else { return }
+        guard !isLoadingInventory else { return }
+
+        isLoadingInventory = true
+        inventoryErrorMessage = nil
+        defer {
+            isLoadingInventory = false
+            didLoadInventory = true
+        }
+
+        do {
+            let response = try await inventoryRepository.lookupStock(
+                organizationId: organizationId,
+                branchId: branchId,
+                itemId: product.id,
+                catalogRevision: catalogRevision
+            )
+            inventoryItem = response.item?.withCatalogIdentity(
+                name: product.name,
+                sku: product.sku,
+                barcode: product.barcode
+            )
+        } catch let apiError as APIError {
+            inventoryErrorMessage = apiError.userMessage
+        } catch {
+            inventoryErrorMessage = "No se pudo consultar el stock. Revisa conexión o permisos."
+        }
+    }
+
+    private func inventoryPolicySummary(_ item: InventoryItem) -> String {
+        if item.blockSaleWhenInsufficientStock == true {
+            return "Bloquea venta sin stock suficiente"
+        }
+        if item.allowNegativeStock == true {
+            return "Permite stock negativo"
+        }
+        return "Política confirmada por backend"
+    }
+
+    private var canViewInventoryValuation: Bool {
+        let permissions = [
+            "business.inventory.valuation.view",
+            "inventory.valuation.view",
+            "catalog.cost.view"
+        ]
+        return effectivePermissions.contains("*") || permissions.contains { effectivePermissions.contains($0) }
+    }
+
+    private var inventoryTint: Color {
+        guard let item = inventoryItem, item.hasStockProfile else { return .secondary }
+        switch (item.stockStatus ?? item.status).lowercased() {
+        case "out_of_stock", "outofstock": return .red
+        case "low_stock", "lowstock": return .orange
+        default: return .green
+        }
     }
     
     private var detailActions: some View {
@@ -1245,7 +1407,7 @@ private extension BusinessProduct {
         if ["KIT", "COMBO", "PACK", "PACKAGE", "SERVICE_PACKAGE"].contains(upperType) {
             return "\(upperType.readableV1CLabel): se vende como una línea; inventario por componentes entra en 26R"
         }
-        if let value = v1cAttributeValue(for: ["bundle", "bundleType", "bundle_type", "components", "componentCount", "component_count", "combo"] ) {
+        if let value = v1cAttributeValue(for: ["bundle", "components", "combo"] ) {
             return "Metadata preparada: \(value)"
         }
         return "No configurado como pack/combo"

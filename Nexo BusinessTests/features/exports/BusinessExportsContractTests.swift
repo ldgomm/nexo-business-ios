@@ -15,6 +15,7 @@ final class BusinessExportsContractTests: XCTestCase {
         XCTAssertEqual(BusinessExportsRoutes.dailyZip, "/api/v1/business/exports/daily.zip")
         XCTAssertEqual(BusinessExportsRoutes.operationalSummary, "/api/v1/business/exports/operational/summary")
         XCTAssertEqual(BusinessExportsRoutes.operationalZip, "/api/v1/business/exports/operational.zip")
+        XCTAssertEqual(BusinessExportsRoutes.operationalKardexCSV, "/api/v1/business/exports/inventory/kardex.csv")
     }
 
     func testDecodesExportsCatalog() throws {
@@ -40,6 +41,13 @@ final class BusinessExportsContractTests: XCTestCase {
         XCTAssertEqual(response.exports.first?.version, "21D.2-21F.4")
         XCTAssertEqual(response.exports.first?.title, "Informe operativo inteligente")
         XCTAssertEqual(response.exports.first?.contentType, "application/zip")
+    }
+
+    func testUnknownInventoryMovementTypeHasReadableFallback() {
+        XCTAssertEqual(
+            InventoryStatusPresentation.movementDisplayName("cycle_count_correction"),
+            "Cycle Count Correction"
+        )
     }
 
     func testDecodesOperationalSummary() throws {

@@ -14,22 +14,28 @@ final class Inventory21F2ContractTests: XCTestCase {
         XCTAssertEqual(BusinessInventoryRoutes.adjustments, "/api/v1/business/inventory/adjustments")
     }
 
-    func testAdjustmentRequestEncodesItemIdForCanonicalAdjustmentEndpoint() throws {
+    func testAdjustmentRequestEncodesCanonical26RO3AdjustmentContract() throws {
         let request = InventoryAdjustmentRequest(
-            itemId: "item_1",
-            type: .increase,
+            branchId: "br_1",
+            catalogItemId: "item_1",
+            adjustmentType: .increase,
             quantity: "2",
             reason: "Compra de materia prima",
-            note: "Recepción manual"
+            notes: "Recepción manual"
         )
 
         let data = try JSONEncoder.nexoDefault.encode(request)
         let object = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
 
-        XCTAssertEqual(object["itemId"] as? String, "item_1")
-        XCTAssertEqual(object["type"] as? String, "increase")
+        XCTAssertEqual(object["branchId"] as? String, "br_1")
+        XCTAssertEqual(object["catalogItemId"] as? String, "item_1")
+        XCTAssertEqual(object["adjustmentType"] as? String, "increase")
         XCTAssertEqual(object["quantity"] as? String, "2")
         XCTAssertEqual(object["reason"] as? String, "Compra de materia prima")
+        XCTAssertEqual(object["notes"] as? String, "Recepción manual")
+        XCTAssertNil(object["itemId"])
+        XCTAssertNil(object["type"])
+        XCTAssertNil(object["note"])
     }
 
     func testDecodesStockEnvelopeAndMovementAliases() throws {

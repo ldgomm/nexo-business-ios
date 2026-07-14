@@ -40,6 +40,28 @@ final class InventoryAPIRepository: InventoryRepository, @unchecked Sendable {
         stockStatus: InventoryItemStockStatus,
         limit: Int = 50
     ) async throws -> InventoryItemsResponse {
+        try await listItems(
+            organizationId: organizationId,
+            branchId: branchId,
+            activityId: activityId,
+            catalogRevision: catalogRevision,
+            query: query,
+            stockStatus: stockStatus,
+            cursor: nil,
+            limit: limit
+        )
+    }
+
+    func listItems(
+        organizationId: String,
+        branchId: String,
+        activityId: String,
+        catalogRevision: String,
+        query: String,
+        stockStatus: InventoryItemStockStatus,
+        cursor: String? = nil,
+        limit: Int = 50
+    ) async throws -> InventoryItemsResponse {
         var queryItems = [
             URLQueryItem(name: "branchId", value: branchId),
             URLQueryItem(name: "activityId", value: activityId),
@@ -53,6 +75,10 @@ final class InventoryAPIRepository: InventoryRepository, @unchecked Sendable {
 
         if let stockStatus = stockStatus.queryValue {
             queryItems.append(URLQueryItem(name: "stockStatus", value: stockStatus))
+        }
+
+        if let cursor, !cursor.isEmpty {
+            queryItems.append(URLQueryItem(name: "cursor", value: cursor))
         }
 
         return try await apiClient.send(
@@ -70,14 +96,18 @@ final class InventoryAPIRepository: InventoryRepository, @unchecked Sendable {
 
     func listMovements(
         organizationId: String,
-        inventoryItemId: String,
+        branchId: String,
+        catalogItemId: String,
         limit: Int = 30
     ) async throws -> InventoryMovementsResponse {
         try await apiClient.send(
             APIRequest(
                 method: .get,
-                path: BusinessInventoryRoutes.movements(itemId: inventoryItemId),
-                queryItems: [URLQueryItem(name: "limit", value: String(limit))],
+                path: BusinessInventoryRoutes.movements(itemId: catalogItemId),
+                queryItems: [
+                    URLQueryItem(name: "branchId", value: branchId),
+                    URLQueryItem(name: "limit", value: String(limit))
+                ],
                 headers: [
                     BusinessHeaders.organizationId: organizationId
                 ]
@@ -102,9 +132,31 @@ final class InventoryAPIRepository: InventoryRepository, @unchecked Sendable {
         )
     }
 
+    func lookupStock(
+        organizationId: String,
+        branchId: String,
+        itemId: String,
+        catalogRevision: String
+    ) async throws -> InventoryStockLookupResponse {
+        try await apiClient.send(
+            APIRequest(
+                method: .get,
+                path: BusinessInventoryRoutes.stockItem(itemId: itemId),
+                queryItems: [
+                    URLQueryItem(name: "branchId", value: branchId)
+                ],
+                headers: [
+                    BusinessHeaders.organizationId: organizationId,
+                    BusinessHeaders.catalogRevision: catalogRevision
+                ]
+            )
+        )
+    }
+
     func adjust(
         organizationId: String,
-        inventoryItemId: String,
+        branchId: String,
+        catalogItemId: String,
         catalogRevision: String,
         idempotencyKey: IdempotencyKey,
         request body: InventoryAdjustmentRequest
@@ -113,7 +165,7 @@ final class InventoryAPIRepository: InventoryRepository, @unchecked Sendable {
             try APIRequest<InventoryAdjustmentResponse>.json(
                 method: .post,
                 path: BusinessInventoryRoutes.adjustments,
-                body: body.withItemId(inventoryItemId),
+                body: body.withContext(branchId: branchId, catalogItemId: catalogItemId),
                 headers: [
                     BusinessHeaders.organizationId: organizationId,
                     BusinessHeaders.catalogRevision: catalogRevision,

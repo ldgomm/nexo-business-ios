@@ -326,7 +326,10 @@ struct BusinessView: View {
                                 branchId: branchId,
                                 activityId: activityId,
                                 catalogRevision: revisions.catalogRevision,
-                                repository: container.productsRepository
+                                repository: container.productsRepository,
+                                inventoryRepository: container.inventoryRepository,
+                                exportsRepository: container.exportsRepository,
+                                effectivePermissions: permissions
                             )
                         )
                     } label: {
@@ -716,7 +719,8 @@ struct BusinessView: View {
                 activityId: activityId,
                 catalogRevision: revisions.catalogRevision,
                 effectivePermissions: permissions,
-                inventoryRepository: container.inventoryRepository
+                inventoryRepository: container.inventoryRepository,
+                exportsRepository: container.exportsRepository
             )
         )
     }

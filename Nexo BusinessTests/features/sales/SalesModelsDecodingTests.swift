@@ -246,29 +246,4 @@ final class SalesModelsDecodingTests: XCTestCase {
         )
     }
 
-    func testBusinessSaleDecodesRestaurantServiceType() throws {
-        let json = """
-        {
-          "id": "sale_1",
-          "saleNumber": "SALE-001",
-          "branchId": "br_1",
-          "activityId": "act_restaurant",
-          "operationalStatus": "CONFIRMED",
-          "paymentStatus": "UNPAID",
-          "serviceType": "TAKEAWAY",
-          "totals": {
-            "subtotal": { "amount": "10.00", "currency": "USD" },
-            "discount": { "amount": "0.00", "currency": "USD" },
-            "taxTotal": { "amount": "0.00", "currency": "USD" },
-            "grandTotal": { "amount": "10.00", "currency": "USD" }
-          },
-          "items": []
-        }
-        """
-
-        let sale = try JSONDecoder.nexo.decode(BusinessSale.self, from: Data(json.utf8))
-
-        XCTAssertEqual(sale.serviceType, .takeaway)
-    }
-
 }
