@@ -49,7 +49,18 @@ extension AppContainer {
             teamRepository: PreviewBusinessTeamRepository(),
             proformasRepository: PreviewBusinessProformasRepository(),
             supportNotificationsRepository: PreviewBusinessSupportNotificationsRepository(),
+            procurementRepository: BusinessProcurementAPIRepository(
+                apiClient: PreviewUnavailableAPIClient()
+            ),
         )
+    }
+}
+
+private struct PreviewUnavailableAPIClient: APIClient {
+    func send<Response: Decodable>(
+        _ request: APIRequest<Response>
+    ) async throws -> Response {
+        throw APIError.transport("Compras no realiza solicitudes de red durante Preview.")
     }
 }
 
@@ -68,4 +79,3 @@ final class PreviewBusinessSupportNotificationsRepository: BusinessSupportNotifi
         )
     }
 }
-

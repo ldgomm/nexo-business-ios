@@ -53,6 +53,7 @@ struct BusinessView: View {
                     operationHero
                     dailyOperationCard
                     toolsCard
+                    procurementCard
                     reportingCard
                     contextCard
                     businessCard
@@ -441,6 +442,211 @@ struct BusinessView: View {
                 systemImage: "doc.badge.plus",
                 tint: .secondary
             )
+        }
+    }
+
+    @ViewBuilder
+    private var procurementCard: some View {
+        BusinessCard(
+            title: "Compras",
+            subtitle: "Proveedores y abastecimiento con permisos del backend."
+        ) {
+            LazyVGrid(columns: toolColumns, spacing: 12) {
+                if procurementAccessPolicy.allows(BusinessProcurementPermission.suppliersView) {
+                    NavigationLink {
+                        BusinessSuppliersView(
+                            viewModel: BusinessSuppliersViewModel(
+                                organizationId: organizationId,
+                                activeModules: context.activeModules,
+                                effectivePermissions: permissions,
+                                repository: container.procurementRepository
+                            ),
+                            branchId: branchId,
+                            activeModules: context.activeModules,
+                            effectivePermissions: permissions
+                        )
+                    } label: {
+                        BusinessToolTile(
+                            title: "Proveedores",
+                            subtitle: "Directorio y condiciones",
+                            systemImage: "shippingbox",
+                            tint: .orange
+                        )
+                    }
+                    .buttonStyle(.plain)
+                } else {
+                    BusinessToolTile(
+                        title: "Proveedores",
+                        subtitle: procurementUnavailableSubtitle,
+                        systemImage: "lock",
+                        tint: .secondary,
+                        isDisabled: true
+                    )
+                }
+
+                if procurementAccessPolicy.allows(BusinessProcurementPermission.purchaseOrdersView) {
+                    NavigationLink {
+                        BusinessPurchaseOrdersView(
+                            viewModel: BusinessPurchaseOrdersViewModel(
+                                organizationId: organizationId,
+                                branchId: branchId,
+                                activeModules: context.activeModules,
+                                effectivePermissions: permissions,
+                                repository: container.procurementRepository
+                            ),
+                            activeModules: context.activeModules,
+                            effectivePermissions: permissions,
+                            activityId: activityId,
+                            catalogRevision: context.revisions.catalogRevision,
+                            catalogRepository: container.catalogRepository
+                        )
+                    } label: {
+                        BusinessToolTile(
+                            title: "Órdenes de compra",
+                            subtitle: "Seguimiento de órdenes",
+                            systemImage: "doc.text.magnifyingglass",
+                            tint: .indigo
+                        )
+                    }
+                    .buttonStyle(.plain)
+                } else {
+                    BusinessToolTile(
+                        title: "Órdenes de compra",
+                        subtitle: procurementUnavailableSubtitle,
+                        systemImage: "lock",
+                        tint: .secondary,
+                        isDisabled: true
+                    )
+                }
+
+                if procurementAccessPolicy.allows(BusinessProcurementPermission.purchaseReceiptsView) {
+                    NavigationLink {
+                        BusinessPurchaseReceiptsView(
+                            viewModel: BusinessPurchaseReceiptsViewModel(
+                                organizationId: organizationId,
+                                branchId: branchId,
+                                activeModules: context.activeModules,
+                                effectivePermissions: permissions,
+                                repository: container.procurementRepository
+                            ),
+                            activeModules: context.activeModules,
+                            effectivePermissions: permissions
+                        )
+                    } label: {
+                        BusinessToolTile(
+                            title: "Recepciones de compra",
+                            subtitle: "Recepción y evidencia",
+                            systemImage: "shippingbox.and.arrow.backward.fill",
+                            tint: .teal
+                        )
+                    }
+                    .buttonStyle(.plain)
+                } else {
+                    BusinessToolTile(
+                        title: "Recepciones de compra",
+                        subtitle: procurementUnavailableSubtitle,
+                        systemImage: "lock",
+                        tint: .secondary,
+                        isDisabled: true
+                    )
+                }
+
+                if procurementAccessPolicy.allows(BusinessProcurementPermission.supplierDocumentsView) {
+                    NavigationLink {
+                        BusinessSupplierDocumentsView(
+                            viewModel: BusinessSupplierDocumentsViewModel(
+                                organizationId: organizationId,
+                                branchId: branchId,
+                                activeModules: context.activeModules,
+                                effectivePermissions: permissions,
+                                repository: container.procurementRepository
+                            ),
+                            activeModules: context.activeModules,
+                            effectivePermissions: permissions
+                        )
+                    } label: {
+                        BusinessToolTile(
+                            title: "Documentos de proveedor",
+                            subtitle: "Cargos y saldos",
+                            systemImage: "doc.text.fill",
+                            tint: .brown
+                        )
+                    }
+                    .buttonStyle(.plain)
+                } else {
+                    BusinessToolTile(
+                        title: "Documentos de proveedor",
+                        subtitle: procurementUnavailableSubtitle,
+                        systemImage: "lock",
+                        tint: .secondary,
+                        isDisabled: true
+                    )
+                }
+
+                if procurementAccessPolicy.allows(BusinessProcurementPermission.payablesView) {
+                    NavigationLink {
+                        BusinessPayablesView(
+                            viewModel: BusinessPayablesViewModel(
+                                organizationId: organizationId,
+                                branchId: branchId,
+                                activeModules: context.activeModules,
+                                effectivePermissions: permissions,
+                                repository: container.procurementRepository
+                            ),
+                            activeModules: context.activeModules,
+                            effectivePermissions: permissions
+                        )
+                    } label: {
+                        BusinessToolTile(
+                            title: "Cuentas por pagar",
+                            subtitle: "Saldos y vencimientos",
+                            systemImage: "calendar.badge.exclamationmark",
+                            tint: .red
+                        )
+                    }
+                    .buttonStyle(.plain)
+                } else {
+                    BusinessToolTile(
+                        title: "Cuentas por pagar",
+                        subtitle: procurementUnavailableSubtitle,
+                        systemImage: "lock",
+                        tint: .secondary,
+                        isDisabled: true
+                    )
+                }
+
+                if procurementAccessPolicy.allows(BusinessProcurementPermission.supplierPaymentsView) {
+                    NavigationLink {
+                        BusinessSupplierPaymentsView(
+                            viewModel: BusinessSupplierPaymentsViewModel(
+                                organizationId: organizationId,
+                                branchId: branchId,
+                                activeModules: context.activeModules,
+                                effectivePermissions: permissions,
+                                repository: container.procurementRepository
+                            ),
+                            activeModules: context.activeModules,
+                            effectivePermissions: permissions
+                        )
+                    } label: {
+                        BusinessToolTile(
+                            title: "Pagos a proveedores",
+                            subtitle: "Registro y aplicaciones",
+                            systemImage: "creditcard.fill",
+                            tint: .green
+                        )
+                    }
+                    .buttonStyle(.plain)
+                } else {
+                    BusinessToolTile(
+                        title: "Pagos a proveedores",
+                        subtitle: procurementUnavailableSubtitle,
+                        systemImage: "lock",
+                        tint: .secondary,
+                        isDisabled: true
+                    )
+                }
+            }
         }
     }
 
@@ -873,6 +1079,20 @@ struct BusinessView: View {
 
     private var permissionGate: PermissionGate {
         PermissionGate(effectivePermissions: context.effectivePermissions)
+    }
+
+    private var procurementAccessPolicy: BusinessProcurementAccessPolicy {
+        BusinessProcurementAccessPolicy(
+            activeModules: context.activeModules,
+            effectivePermissions: permissions
+        )
+    }
+
+    private var procurementUnavailableSubtitle: String {
+        if !procurementAccessPolicy.isModuleActive {
+            return "Módulo no activo"
+        }
+        return "Sin permiso"
     }
 
     private var canAccessTeamManagement: Bool {

@@ -2,7 +2,7 @@
 //  BusinessProformaModelsDecodingTests.swift
 //  Nexo BusinessTests
 //
-//  21J.10 — Business iOS Proformas MVP
+//  Created by José Ruiz on 29/5/26.
 //
 
 import XCTest

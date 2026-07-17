@@ -2,16 +2,16 @@
 //  BusinessProformasBoundaryContractTests.swift
 //  Nexo BusinessTests
 //
-//  21J.10 — Business iOS Proformas MVP
+//  Created by José Ruiz on 29/5/26.
 //
 
+import Foundation
 import XCTest
 
 final class BusinessProformasBoundaryContractTests: XCTestCase {
     func testBusinessProformasSurfaceKeepsFiscalAndCashBoundaryTextual() throws {
-        let source = try String(
-            contentsOfFile: "Nexo Business/features/proformas/presentation/BusinessProformasView.swift",
-            encoding: .utf8
+        let source = try sourceText(
+            at: "Nexo Business/features/proformas/presentation/BusinessProformasView.swift"
         )
 
         XCTAssertTrue(source.contains("no es factura"))
@@ -23,9 +23,8 @@ final class BusinessProformasBoundaryContractTests: XCTestCase {
     }
 
     func testBusinessProformasApiDoesNotReferencePaymentCashInvoiceOrSriModules() throws {
-        let source = try String(
-            contentsOfFile: "Nexo Business/features/proformas/data/BusinessProformasAPIRepository.swift",
-            encoding: .utf8
+        let source = try sourceText(
+            at: "Nexo Business/features/proformas/data/BusinessProformasAPIRepository.swift"
         )
 
         XCTAssertTrue(source.contains("/api/v1/business/proformas"))
@@ -35,6 +34,25 @@ final class BusinessProformasBoundaryContractTests: XCTestCase {
         XCTAssertFalse(source.contains("BusinessDocumentsAPIRepository"))
         XCTAssertFalse(source.contains("electronic-documents"))
         XCTAssertFalse(source.contains("/invoice"))
-        XCTAssertFalse(source.contains("SRI"))
+
+        let forbiddenSideEffectMessage =
+            "La conversión reportó efectos prohibidos: pago, caja, factura, XML, RIDE o SRI."
+        XCTAssertTrue(source.contains("if response.hasForbiddenSideEffects"))
+        XCTAssertTrue(source.contains(forbiddenSideEffectMessage))
+        XCTAssertFalse(
+            source
+                .replacingOccurrences(of: forbiddenSideEffectMessage, with: "")
+                .contains("SRI")
+        )
+    }
+
+    private func sourceText(at repositoryRelativePath: String) throws -> String {
+        let repositoryRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let sourceURL = repositoryRoot.appendingPathComponent(repositoryRelativePath)
+        return try String(contentsOf: sourceURL, encoding: .utf8)
     }
 }

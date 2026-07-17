@@ -31,6 +31,7 @@ final class AppContainer: @unchecked Sendable {
     let teamRepository: BusinessTeamRepository
     let proformasRepository: BusinessProformasRepository
     let supportNotificationsRepository: BusinessSupportNotificationsRepository
+    let procurementRepository: BusinessProcurementRepository
 
     init(
         tokenStore: AuthTokenStoring,
@@ -56,6 +57,7 @@ final class AppContainer: @unchecked Sendable {
         teamRepository: BusinessTeamRepository,
         proformasRepository: BusinessProformasRepository,
         supportNotificationsRepository: BusinessSupportNotificationsRepository,
+        procurementRepository: BusinessProcurementRepository,
     ) {
         self.tokenStore = tokenStore
         self.selectionStore = selectionStore
@@ -80,6 +82,7 @@ final class AppContainer: @unchecked Sendable {
         self.teamRepository = teamRepository
         self.proformasRepository = proformasRepository
         self.supportNotificationsRepository = supportNotificationsRepository
+        self.procurementRepository = procurementRepository
     }
 
     static func live(config: RuntimeConfig) -> AppContainer {
@@ -130,6 +133,7 @@ final class AppContainer: @unchecked Sendable {
             teamRepository: BusinessTeamAPIRepository(apiClient: apiClient),
             proformasRepository: BusinessProformasAPIRepository(apiClient: apiClient),
             supportNotificationsRepository: BusinessSupportNotificationsAPIRepository(apiClient: apiClient),
+            procurementRepository: BusinessProcurementAPIRepository(apiClient: apiClient),
         )
     }
 }

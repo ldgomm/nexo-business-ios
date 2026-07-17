@@ -23,7 +23,10 @@ final class SaleDetailViewModelTests: XCTestCase {
 
     func testConfirmUsesIdempotencyAndRevisions() async {
         let repository = SaleLifecycleRepositorySpy()
-        let viewModel = makeViewModel(repository: repository)
+        let viewModel = makeViewModel(
+            repository: repository,
+            initialSale: makeSale(status: "draft")
+        )
 
         await viewModel.confirm()
 
@@ -71,7 +74,10 @@ final class SaleDetailViewModelTests: XCTestCase {
                 requestId: "req_1"
             )
         )
-        let viewModel = makeViewModel(repository: repository)
+        let viewModel = makeViewModel(
+            repository: repository,
+            initialSale: makeSale(status: "draft")
+        )
 
         await viewModel.confirm()
 
@@ -189,6 +195,7 @@ final class SaleDetailViewModelTests: XCTestCase {
 
     private func makeSale(
         electronicDocumentSummary: BusinessDocument? = nil,
+        status: String = "confirmed",
         paymentStatus: String = "paid",
         customerId: String? = nil,
         receivableId: String? = nil
@@ -199,7 +206,7 @@ final class SaleDetailViewModelTests: XCTestCase {
             branchId: "br_1",
             activityId: "act_1",
             customerId: customerId,
-            status: "confirmed",
+            status: status,
             paymentStatus: paymentStatus,
             documentStatus: electronicDocumentSummary?.effectiveStatus ?? "not_required",
             electronicDocumentSummary: electronicDocumentSummary,
