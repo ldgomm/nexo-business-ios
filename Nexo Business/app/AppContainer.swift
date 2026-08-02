@@ -7,7 +7,7 @@
 
 import Foundation
 
-final class AppContainer: @unchecked Sendable {
+class AppContainer: @unchecked Sendable {
     let tokenStore: AuthTokenStoring
     let selectionStore: BusinessSelectionStoring
     let networkStatusProvider: NetworkStatusProviding
@@ -32,6 +32,7 @@ final class AppContainer: @unchecked Sendable {
     let proformasRepository: BusinessProformasRepository
     let supportNotificationsRepository: BusinessSupportNotificationsRepository
     let procurementRepository: BusinessProcurementRepository
+    let financeControlRepository: any BusinessFinanceControlRepository
 
     init(
         tokenStore: AuthTokenStoring,
@@ -58,6 +59,7 @@ final class AppContainer: @unchecked Sendable {
         proformasRepository: BusinessProformasRepository,
         supportNotificationsRepository: BusinessSupportNotificationsRepository,
         procurementRepository: BusinessProcurementRepository,
+        financeControlRepository: any BusinessFinanceControlRepository = BusinessFinanceControlDeferredRepository()
     ) {
         self.tokenStore = tokenStore
         self.selectionStore = selectionStore
@@ -83,6 +85,7 @@ final class AppContainer: @unchecked Sendable {
         self.proformasRepository = proformasRepository
         self.supportNotificationsRepository = supportNotificationsRepository
         self.procurementRepository = procurementRepository
+        self.financeControlRepository = financeControlRepository
     }
 
     static func live(config: RuntimeConfig) -> AppContainer {
@@ -134,6 +137,7 @@ final class AppContainer: @unchecked Sendable {
             proformasRepository: BusinessProformasAPIRepository(apiClient: apiClient),
             supportNotificationsRepository: BusinessSupportNotificationsAPIRepository(apiClient: apiClient),
             procurementRepository: BusinessProcurementAPIRepository(apiClient: apiClient),
+            financeControlRepository: BusinessFinanceControlAPIRepository(apiClient: apiClient),
         )
     }
 }

@@ -54,6 +54,7 @@ struct BusinessView: View {
                     dailyOperationCard
                     toolsCard
                     procurementCard
+                    financeControlCard
                     reportingCard
                     contextCard
                     businessCard
@@ -651,6 +652,52 @@ struct BusinessView: View {
     }
 
     @ViewBuilder
+    private var financeControlCard: some View {
+        BusinessCard(
+            title: "Control financiero",
+            subtitle: "Movimientos, saldos, importaciones y conciliación con datos del backend."
+        ) {
+            LazyVGrid(columns: toolColumns, spacing: 12) {
+                if financeControlAccessPolicy.canViewSurface {
+                    NavigationLink {
+                        BusinessFinanceControlSurfaceView(
+                            scope: BusinessFinanceControlScope(
+                                organizationId: organizationId,
+                                branchId: branchId,
+                                activityId: activityId
+                            ),
+                            effectivePermissions: permissions,
+                            repository: container.financeControlRepository
+                        )
+                    } label: {
+                        BusinessToolTile(
+                            title: "Finanzas operativas",
+                            subtitle: "Operativo · no contabilizado",
+                            systemImage: "chart.line.uptrend.xyaxis",
+                            tint: .cyan
+                        )
+                    }
+                    .buttonStyle(.plain)
+                } else {
+                    BusinessToolTile(
+                        title: "Finanzas operativas",
+                        subtitle: "Sin permiso",
+                        systemImage: "lock",
+                        tint: .secondary,
+                        isDisabled: true
+                    )
+                }
+            }
+
+            BusinessInlineMessage(
+                message: "Nexo muestra valores autoritativos del backend. Esta vista no calcula totales ni crea asientos.",
+                systemImage: "checkmark.shield",
+                tint: .secondary
+            )
+        }
+    }
+
+    @ViewBuilder
     private var reportingCard: some View {
         BusinessCard(
             title: "Reportes y documentos",
@@ -1079,6 +1126,10 @@ struct BusinessView: View {
 
     private var permissionGate: PermissionGate {
         PermissionGate(effectivePermissions: context.effectivePermissions)
+    }
+
+    private var financeControlAccessPolicy: BusinessFinanceControlAccessPolicy {
+        BusinessFinanceControlAccessPolicy(effectivePermissions: permissions)
     }
 
     private var procurementAccessPolicy: BusinessProcurementAccessPolicy {
