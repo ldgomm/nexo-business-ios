@@ -32,7 +32,7 @@ struct BusinessPayablePresentation: Equatable, Identifiable, Sendable {
 
 @MainActor
 @Observable
-final class BusinessPayablesViewModel {
+class BusinessPayablesViewModel {
     enum StatusFilter: String, CaseIterable, Identifiable, Sendable {
         case all
         case outstanding
@@ -429,7 +429,7 @@ final class BusinessPayablesViewModel {
 
 @MainActor
 @Observable
-final class BusinessPayableDetailViewModel {
+class BusinessPayableDetailViewModel {
     private(set) var payable: BusinessProcurementPayableResponse
     private(set) var supplierName: String?
     private(set) var sourceDocument: BusinessProcurementSupplierDocumentResponse?
@@ -643,7 +643,7 @@ struct BusinessSupplierPaymentRecordResult: Equatable, Sendable {
 
 @MainActor
 @Observable
-final class BusinessSupplierPaymentFormViewModel {
+class BusinessSupplierPaymentFormViewModel {
     var paymentDate: String
     var amount: String
     var method: BusinessSupplierPaymentMethod

@@ -138,7 +138,7 @@ struct BusinessSupplierDocumentLineDraft: Equatable, Identifiable, Sendable {
 
 @MainActor
 @Observable
-final class BusinessSupplierDocumentFormViewModel {
+class BusinessSupplierDocumentFormViewModel {
     var selectedSupplierId: String {
         didSet {
             guard !isEditing,

@@ -58,7 +58,7 @@ enum PaymentRegisterMode: String, CaseIterable, Identifiable, Sendable, Hashable
 
 @MainActor
 @Observable
-final class PaymentRegisterViewModel {
+class PaymentRegisterViewModel {
     private(set) var sale: BusinessSale
     private(set) var currentCashSession: CashSession?
     private(set) var selectedCustomer: BusinessCustomer?

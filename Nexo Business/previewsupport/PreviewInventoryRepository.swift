@@ -7,7 +7,7 @@
 
 import Foundation
 
-final class PreviewInventoryRepository: InventoryRepository, @unchecked Sendable {
+class PreviewInventoryRepository: InventoryRepository, @unchecked Sendable {
     init() {}
 
     func listItems(

@@ -1,6 +1,6 @@
 //
 //  LoginView.swift
-//  Nexo Admin
+//  Nexo Business
 //
 //  Created by José Ruiz on 29/5/26.
 //
@@ -228,7 +228,7 @@ struct LoginView: View {
 
 @MainActor
 @Observable
-final class AuthSessionsViewModel {
+class AuthSessionsViewModel {
     enum State: Equatable {
         case idle
         case loading

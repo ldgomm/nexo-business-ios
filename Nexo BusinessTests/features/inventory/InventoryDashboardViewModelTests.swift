@@ -1,6 +1,6 @@
 //
 //  InventoryDashboardViewModelTests.swift
-//  Nexo BusinessTests
+//  Nexo Business
 //
 //  Created by José Ruiz on 29/5/26.
 //
@@ -9,7 +9,7 @@ import XCTest
 @testable import Nexo_Business
 
 @MainActor
-final class InventoryDashboardViewModelTests: XCTestCase {
+class InventoryDashboardViewModelTests: XCTestCase {
     func testOverviewResponseDecodesIdentityProfileAndPaging() throws {
         let json = """
         {
@@ -121,7 +121,7 @@ final class InventoryDashboardViewModelTests: XCTestCase {
 }
 
 @MainActor
-final class InventoryItemDetailViewModelTests: XCTestCase {
+class InventoryItemDetailViewModelTests: XCTestCase {
     func testAdvancedOperationsAreTruthfullyDeferredToAdmin() {
         let repository = InventoryRepositorySpy(itemsResponse: InventoryItemsResponse(items: []))
         let viewModel = makeDetail(repository: repository)
@@ -395,7 +395,7 @@ private func makeItem(
     )
 }
 
-private final class InventoryRepositorySpy: InventoryRepository, @unchecked Sendable {
+private class InventoryRepositorySpy: InventoryRepository, @unchecked Sendable {
     var itemsResponse: InventoryItemsResponse
     var movementsResponse: InventoryMovementsResponse
     var adjustmentResponse: InventoryAdjustmentResponse?

@@ -1,6 +1,6 @@
 //
 //  BusinessProformasBoundaryContractTests.swift
-//  Nexo BusinessTests
+//  Nexo Business
 //
 //  Created by José Ruiz on 29/5/26.
 //
@@ -8,7 +8,7 @@
 import Foundation
 import XCTest
 
-final class BusinessProformasBoundaryContractTests: XCTestCase {
+class BusinessProformasBoundaryContractTests: XCTestCase {
     func testBusinessProformasSurfaceKeepsFiscalAndCashBoundaryTextual() throws {
         let source = try sourceText(
             at: "Nexo Business/features/proformas/presentation/BusinessProformasView.swift"

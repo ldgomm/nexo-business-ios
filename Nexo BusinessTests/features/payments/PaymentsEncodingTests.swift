@@ -1,6 +1,6 @@
 //
-//  Payments16CEncodingTests.swift
-//  Nexo BusinessTests
+//  PaymentsEncodingTests.swift
+//  Nexo Business
 //
 //  Created by José Ruiz on 29/5/26.
 //
@@ -8,7 +8,7 @@
 import XCTest
 @testable import Nexo_Business
 
-final class Payments16CEncodingTests: XCTestCase {
+class Payments16CEncodingTests: XCTestCase {
     func testRegisterPaymentEncodesBackendShape() throws {
         let request = RegisterPaymentRequest(
             saleId: "sale_1",

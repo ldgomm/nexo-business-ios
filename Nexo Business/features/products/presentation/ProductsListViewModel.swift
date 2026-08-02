@@ -8,7 +8,7 @@
 import Foundation
 
 @Observable
-final class ProductsListViewModel {
+class ProductsListViewModel {
     enum Filter: String, CaseIterable, Identifiable {
         case all
         case active

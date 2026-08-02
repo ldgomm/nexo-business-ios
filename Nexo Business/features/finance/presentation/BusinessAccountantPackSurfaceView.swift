@@ -574,7 +574,7 @@ private struct BusinessAccountantPackLimitRow: View {
 }
 
 @MainActor
-final class BusinessAccountantPackViewModel: ObservableObject {
+class BusinessAccountantPackViewModel: ObservableObject {
     @Published var year: Int
     @Published var month: Int
     @Published var branchId: String = "br_staging_matriz"

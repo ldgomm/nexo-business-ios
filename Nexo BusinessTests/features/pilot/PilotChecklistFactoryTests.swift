@@ -1,6 +1,6 @@
 //
 //  PilotChecklistFactoryTests.swift
-//  Nexo BusinessTests
+//  Nexo Business
 //
 //  Created by José Ruiz on 29/5/26.
 //
@@ -8,7 +8,7 @@
 import XCTest
 @testable import Nexo_Business
 
-final class PilotChecklistFactoryTests: XCTestCase {
+class PilotChecklistFactoryTests: XCTestCase {
     func testDefaultItemsContainRequiredOperationalSmokeChecks() {
         let items = PilotChecklistFactory.defaultItems()
         let ids = Set(items.map(\.id))

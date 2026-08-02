@@ -7,7 +7,7 @@
 
 import Foundation
 
-final class PreviewAuthRepository: AuthRepository, @unchecked Sendable {
+class PreviewAuthRepository: AuthRepository, @unchecked Sendable {
     init() {}
 
     func login(email: String, password: String) async throws -> LoginResponse {
@@ -75,7 +75,7 @@ final class PreviewAuthRepository: AuthRepository, @unchecked Sendable {
     func logout() async throws {}
 }
 
-final class PreviewBusinessContextRepository: BusinessContextRepository, @unchecked Sendable {
+class PreviewBusinessContextRepository: BusinessContextRepository, @unchecked Sendable {
     private let context: BusinessContextResponse
 
     init(context: BusinessContextResponse = PreviewData.businessContext) {
@@ -87,7 +87,7 @@ final class PreviewBusinessContextRepository: BusinessContextRepository, @unchec
     }
 }
 
-final class PreviewCatalogRepository: CatalogRepository, @unchecked Sendable {
+class PreviewCatalogRepository: CatalogRepository, @unchecked Sendable {
     init() {}
 
     func search(
@@ -171,7 +171,7 @@ final class PreviewCatalogRepository: CatalogRepository, @unchecked Sendable {
     }
 }
 
-final class PreviewSalesRepository: SalesRepository, @unchecked Sendable {
+class PreviewSalesRepository: SalesRepository, @unchecked Sendable {
     
     init() {}
 
@@ -260,7 +260,7 @@ final class PreviewSalesRepository: SalesRepository, @unchecked Sendable {
     }
 }
 
-final class PreviewCashRepository: CashRepository, @unchecked Sendable {
+class PreviewCashRepository: CashRepository, @unchecked Sendable {
     init() {}
 
     func current(
@@ -341,7 +341,7 @@ final class PreviewCashRepository: CashRepository, @unchecked Sendable {
     }
 }
 
-final class PreviewPaymentsRepository: PaymentsRepository, @unchecked Sendable {
+class PreviewPaymentsRepository: PaymentsRepository, @unchecked Sendable {
     init() {}
 
     func register(
@@ -363,7 +363,7 @@ final class PreviewPaymentsRepository: PaymentsRepository, @unchecked Sendable {
     }
 }
 
-final class PreviewBusinessDocumentsRepository: BusinessDocumentsRepository, @unchecked Sendable {
+class PreviewBusinessDocumentsRepository: BusinessDocumentsRepository, @unchecked Sendable {
     init() {}
 
     func list(
@@ -690,7 +690,7 @@ final class PreviewBusinessDocumentsRepository: BusinessDocumentsRepository, @un
 
 }
 
-final class PreviewReceivablesRepository: ReceivablesRepository, @unchecked Sendable {
+class PreviewReceivablesRepository: ReceivablesRepository, @unchecked Sendable {
     init() {}
 
     func list(
@@ -830,7 +830,7 @@ final class PreviewReceivablesRepository: ReceivablesRepository, @unchecked Send
     }
 }
 
-final class PreviewPendingOperationsRepository: PendingOperationsRepository, @unchecked Sendable {
+class PreviewPendingOperationsRepository: PendingOperationsRepository, @unchecked Sendable {
     init() {}
 
     func pendingSales(
@@ -867,7 +867,7 @@ final class PreviewPendingOperationsRepository: PendingOperationsRepository, @un
     }
 }
 
-final class PreviewBusinessDailyReportRepository: BusinessDailyReportRepository, @unchecked Sendable {
+class PreviewBusinessDailyReportRepository: BusinessDailyReportRepository, @unchecked Sendable {
     init() {}
 
     func dailyReport(

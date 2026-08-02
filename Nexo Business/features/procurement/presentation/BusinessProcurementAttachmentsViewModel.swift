@@ -28,7 +28,7 @@ struct BusinessProcurementPendingAttachmentUpload: Equatable, Sendable {
 
 @MainActor
 @Observable
-final class BusinessProcurementAttachmentsViewModel {
+class BusinessProcurementAttachmentsViewModel {
     private(set) var downloadedFiles: [String: BusinessProcurementDownloadedFile] = [:]
     private(set) var downloadingAttachmentIds: Set<String> = []
     private(set) var lastFailedAttachmentId: String?

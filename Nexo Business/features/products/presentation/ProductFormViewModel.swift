@@ -8,7 +8,7 @@
 import Foundation
 
 @Observable
-final class ProductFormViewModel {
+class ProductFormViewModel {
     enum Mode: Equatable {
         case adopt(BusinessMasterCatalogItem)
         case edit(BusinessProduct)

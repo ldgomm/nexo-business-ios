@@ -1,6 +1,6 @@
 //
-//  Receivables16CEncodingDecodingTests.swift
-//  Nexo BusinessTests
+//  ReceivablesEncodingDecodingTests.swift
+//  Nexo Business
 //
 //  Created by José Ruiz on 29/5/26.
 //
@@ -8,7 +8,7 @@
 import XCTest
 @testable import Nexo_Business
 
-final class Receivables16CEncodingDecodingTests: XCTestCase {
+class Receivables16CEncodingDecodingTests: XCTestCase {
     func testCreateReceivableEncodesDueAtAndReasonOnly() throws {
         let request = CreateReceivableRequest(
             saleId: "sale_1",

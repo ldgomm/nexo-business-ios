@@ -7,7 +7,7 @@
 
 import Foundation
 
-final class BusinessProcurementAPIRepository: BusinessProcurementRepository, @unchecked Sendable {
+class BusinessProcurementAPIRepository: BusinessProcurementRepository, @unchecked Sendable {
     private let apiClient: APIClient
     private let dataClient: APIDataClient?
     private let fileManager: FileManager

@@ -9,7 +9,7 @@ import XCTest
 @testable import Nexo_Business
 
 @MainActor
-final class PaymentRegisterViewModelTests: XCTestCase {
+class PaymentRegisterViewModelTests: XCTestCase {
     func testUserWithoutPaymentOrReceivablePermissionDoesNotQueryCash() async {
         let cash = SpyCashRepository(currentSession: openCashSession())
         let viewModel = makeViewModel(
@@ -334,7 +334,7 @@ final class PaymentRegisterViewModelTests: XCTestCase {
     }
 }
 
-private final class SpyCashRepository: CashRepository, @unchecked Sendable {
+private class SpyCashRepository: CashRepository, @unchecked Sendable {
     private let currentSession: CashSession?
     private let currentError: Error?
     var currentCalls = 0
@@ -383,7 +383,7 @@ private final class SpyCashRepository: CashRepository, @unchecked Sendable {
     }
 }
 
-private final class SpyPaymentsRepository: PaymentsRepository, @unchecked Sendable {
+private class SpyPaymentsRepository: PaymentsRepository, @unchecked Sendable {
     var lastIdempotencyKey: IdempotencyKey?
     var lastRequest: RegisterPaymentRequest?
     private let error: Error?
@@ -418,7 +418,7 @@ private final class SpyPaymentsRepository: PaymentsRepository, @unchecked Sendab
 }
 
 
-private final class SpyPaymentSalesRepository: SalesRepository, @unchecked Sendable {
+private class SpyPaymentSalesRepository: SalesRepository, @unchecked Sendable {
     var sale: BusinessSale
     var lastUpdateCustomerRequest: UpdateSaleCustomerRequest?
     var lastUpdateCustomerIdempotencyKey: IdempotencyKey?
@@ -505,7 +505,7 @@ private final class SpyPaymentSalesRepository: SalesRepository, @unchecked Senda
     ) async throws -> CancelSaleResponse { fatalError("Not needed in this test") }
 }
 
-private final class SpyReceivablesRepository: ReceivablesRepository, @unchecked Sendable {
+private class SpyReceivablesRepository: ReceivablesRepository, @unchecked Sendable {
     var lastCreateIdempotencyKey: IdempotencyKey?
     var lastCreateRequest: CreateReceivableRequest?
 

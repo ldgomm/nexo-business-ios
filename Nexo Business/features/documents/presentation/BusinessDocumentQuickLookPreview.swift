@@ -26,7 +26,7 @@ struct BusinessDocumentQuickLookPreview: UIViewControllerRepresentable {
         Coordinator(fileURL: fileURL)
     }
 
-    final class Coordinator: NSObject, QLPreviewControllerDataSource {
+    class Coordinator: NSObject, QLPreviewControllerDataSource {
         var fileURL: URL
 
         init(fileURL: URL) {

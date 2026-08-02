@@ -10,7 +10,7 @@ import Observation
 
 @MainActor
 @Observable
-final class BusinessPurchaseOrdersViewModel {
+class BusinessPurchaseOrdersViewModel {
     enum StatusFilter: String, CaseIterable, Identifiable, Sendable {
         case all
         case draft
@@ -252,7 +252,7 @@ struct BusinessPurchaseOrderActionIdempotencyKeys: Equatable, Sendable {
 
 @MainActor
 @Observable
-final class BusinessPurchaseOrderDetailViewModel {
+class BusinessPurchaseOrderDetailViewModel {
     private(set) var purchaseOrder: BusinessProcurementPurchaseOrderResponse
     private(set) var isLoading = false
     private(set) var isPerformingAction = false

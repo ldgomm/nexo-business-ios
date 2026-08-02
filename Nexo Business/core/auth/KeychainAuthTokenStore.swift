@@ -11,7 +11,7 @@ import Foundation
 import Security
 #endif
 
-final class KeychainAuthTokenStore: AuthTokenStoring, @unchecked Sendable {
+class KeychainAuthTokenStore: AuthTokenStoring, @unchecked Sendable {
     private let service: String
     private let account: String
 

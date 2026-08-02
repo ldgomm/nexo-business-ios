@@ -1,6 +1,6 @@
 //
 //  BusinessPurchaseOrderFormViewModelTests.swift
-//  Nexo BusinessTests
+//  Nexo Business
 //
 //  Created by José Ruiz on 16/7/26.
 //
@@ -10,7 +10,7 @@ import XCTest
 @testable import Nexo_Business
 
 @MainActor
-final class BusinessPurchaseOrderFormViewModelTests: XCTestCase {
+class BusinessPurchaseOrderFormViewModelTests: XCTestCase {
     func testCreateRequiresPermissionBeforeNetworkCall() async {
         let client = PurchaseOrderMutationAPIClient(outcomes: [
             .response(Self.envelopeJSON(status: "DRAFT", version: 1))
@@ -406,7 +406,7 @@ private struct PurchaseOrderMutationRequest {
     }
 }
 
-private final class PurchaseOrderMutationAPIClient: APIClient, @unchecked Sendable {
+private class PurchaseOrderMutationAPIClient: APIClient, @unchecked Sendable {
     enum Outcome {
         case response(String)
         case error(APIError)

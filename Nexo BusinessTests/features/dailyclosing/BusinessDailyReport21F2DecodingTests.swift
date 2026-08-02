@@ -1,12 +1,14 @@
 //
 //  BusinessDailyReport21F2DecodingTests.swift
-//  Nexo BusinessTests
+//  Nexo Business
+//
+//  Created by José Ruiz on 29/7/26.
 //
 
 import XCTest
 @testable import Nexo_Business
 
-final class BusinessDailyReport21F2DecodingTests: XCTestCase {
+class BusinessDailyReport21F2DecodingTests: XCTestCase {
     func testDecodes21CSummarySectionsWithoutLosingLegacyConvenienceFields() throws {
         let json = #"""
         {

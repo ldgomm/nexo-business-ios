@@ -10,7 +10,7 @@ import Observation
 
 @MainActor
 @Observable
-final class InventoryDashboardViewModel {
+class InventoryDashboardViewModel {
     private(set) var state: AsyncViewState<[InventoryItem]> = .idle
     private(set) var items: [InventoryItem] = []
     private(set) var isLoading = false

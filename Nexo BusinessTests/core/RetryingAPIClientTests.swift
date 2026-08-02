@@ -1,6 +1,6 @@
 //
 //  RetryingAPIClientTests.swift
-//  Nexo BusinessTests
+//  Nexo Business
 //
 //  Created by José Ruiz on 29/5/26.
 //
@@ -8,7 +8,7 @@
 import XCTest
 @testable import Nexo_Business
 
-final class RetryingAPIClientTests: XCTestCase {
+class RetryingAPIClientTests: XCTestCase {
     func testRetriesRetriableServerErrorAndReturnsResponse() async throws {
         let wrapped = FlakyAPIClient(
             failuresBeforeSuccess: 1,
@@ -58,7 +58,7 @@ final class RetryingAPIClientTests: XCTestCase {
     }
 }
 
-private final class FlakyAPIClient: APIClient, @unchecked Sendable {
+private class FlakyAPIClient: APIClient, @unchecked Sendable {
     private let failuresBeforeSuccess: Int
     private let error: Error
     private(set) var attempts = 0

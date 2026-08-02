@@ -1,6 +1,6 @@
 //
 //  BusinessProcurementContractTests.swift
-//  Nexo BusinessTests
+//  Nexo Business
 //
 //  Created by José Ruiz on 29/5/26.
 //
@@ -8,7 +8,7 @@
 import XCTest
 @testable import Nexo_Business
 
-final class BusinessProcurementContractTests: XCTestCase {
+class BusinessProcurementContractTests: XCTestCase {
     func testBusinessRoutesMatchAcceptedBackendContract() {
         XCTAssertEqual(BusinessProcurementRoutes.suppliers, "/api/v1/business/procurement/suppliers")
         XCTAssertEqual(BusinessProcurementRoutes.supplier("sup_1"), "/api/v1/business/procurement/suppliers/sup_1")

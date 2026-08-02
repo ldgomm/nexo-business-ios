@@ -1,6 +1,6 @@
 //
-//  Cash16CEncodingDecodingTests.swift
-//  Nexo BusinessTests
+//  CashEncodingDecodingTests.swift
+//  Nexo Business
 //
 //  Created by José Ruiz on 29/5/26.
 //
@@ -8,7 +8,7 @@
 import XCTest
 @testable import Nexo_Business
 
-final class Cash16CEncodingDecodingTests: XCTestCase {
+class Cash16CEncodingDecodingTests: XCTestCase {
     func testOpenCashSessionEncodesBackendMoneyObject() throws {
         let request = OpenCashSessionRequest(
             branchId: "br_1",

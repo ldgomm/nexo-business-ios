@@ -10,7 +10,7 @@ import Observation
 
 @MainActor
 @Observable
-final class PilotReadinessViewModel {
+class PilotReadinessViewModel {
     private(set) var items: [PilotChecklistItem] = []
     private(set) var isLoading = false
     private(set) var isSaving = false

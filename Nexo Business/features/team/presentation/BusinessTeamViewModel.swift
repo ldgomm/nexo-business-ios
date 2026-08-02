@@ -11,7 +11,7 @@ import SwiftUI
 
 @MainActor
 @Observable
-final class BusinessTeamViewModel {
+class BusinessTeamViewModel {
     enum State: Equatable {
         case idle
         case loading

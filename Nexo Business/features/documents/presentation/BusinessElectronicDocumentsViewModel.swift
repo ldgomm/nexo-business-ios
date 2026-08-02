@@ -10,7 +10,7 @@ import Observation
 
 @MainActor
 @Observable
-final class BusinessElectronicDocumentsViewModel {
+class BusinessElectronicDocumentsViewModel {
     private(set) var documents: [BusinessDocument] = []
     private(set) var isLoading = false
     private(set) var isRetryingDocumentId: String?

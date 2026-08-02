@@ -91,7 +91,7 @@ struct BusinessSupplierContactDraft: Equatable, Identifiable, Sendable {
 
 @MainActor
 @Observable
-final class BusinessSupplierFormViewModel {
+class BusinessSupplierFormViewModel {
     var legalName: String
     var tradeName: String
     var identificationKind: BusinessSupplierIdentificationKind

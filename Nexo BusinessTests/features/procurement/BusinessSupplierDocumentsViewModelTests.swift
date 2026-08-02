@@ -1,6 +1,6 @@
 //
 //  BusinessSupplierDocumentsViewModelTests.swift
-//  Nexo BusinessTests
+//  Nexo Business
 //
 //  Created by José Ruiz on 15/7/26.
 //
@@ -10,7 +10,7 @@ import XCTest
 @testable import Nexo_Business
 
 @MainActor
-final class BusinessSupplierDocumentsViewModelTests: XCTestCase {
+class BusinessSupplierDocumentsViewModelTests: XCTestCase {
     func testLoadRequiresActivePurchasesModuleBeforeNetworkCall() async {
         let client = QueuedSupplierDocumentsAPIClient(responses: [Self.emptyListJSON])
         let viewModel = makeListViewModel(
@@ -421,7 +421,7 @@ private struct CapturedSupplierDocumentRequest {
     }
 }
 
-private final class QueuedSupplierDocumentsAPIClient: APIClient, @unchecked Sendable {
+private class QueuedSupplierDocumentsAPIClient: APIClient, @unchecked Sendable {
     private var responses: [Data]
     private var failures: [APIError]
     private(set) var capturedRequests: [CapturedSupplierDocumentRequest] = []

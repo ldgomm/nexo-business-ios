@@ -64,7 +64,7 @@ private struct PreviewUnavailableAPIClient: APIClient {
     }
 }
 
-final class PreviewBusinessSupportNotificationsRepository: BusinessSupportNotificationsRepository, @unchecked Sendable {
+class PreviewBusinessSupportNotificationsRepository: BusinessSupportNotificationsRepository, @unchecked Sendable {
     func listNotifications(
         organizationId: String,
         branchId: String,

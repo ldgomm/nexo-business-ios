@@ -10,7 +10,7 @@ import Observation
 
 @MainActor
 @Observable
-final class SaleBuilderViewModel {
+class SaleBuilderViewModel {
     var catalogItemId = ""
     var quantity = "1"
     var cashSessionId: String?

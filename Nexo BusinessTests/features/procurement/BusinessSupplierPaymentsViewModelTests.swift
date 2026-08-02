@@ -1,8 +1,8 @@
 //
 //  BusinessSupplierPaymentsViewModelTests.swift
-//  Nexo BusinessTests
+//  Nexo Business
 //
-//  27R.M.9A–9C — supplier-payment list, detail and void-action acceptance.
+//  Created by José Ruiz on 29/7/26.
 //
 
 import Foundation
@@ -10,7 +10,7 @@ import XCTest
 @testable import Nexo_Business
 
 @MainActor
-final class BusinessSupplierPaymentsViewModelTests: XCTestCase {
+class BusinessSupplierPaymentsViewModelTests: XCTestCase {
     func testLoadRequiresActivePurchasesModuleBeforeNetworkCall() async {
         let client = QueuedSupplierPaymentsAPIClient(responses: [Self.emptyListJSON])
         let viewModel = makeListViewModel(
@@ -724,7 +724,7 @@ private struct CapturedSupplierPaymentRequest {
     }
 }
 
-private final class QueuedSupplierPaymentsAPIClient: APIClient, @unchecked Sendable {
+private class QueuedSupplierPaymentsAPIClient: APIClient, @unchecked Sendable {
     private var responses: [Data]
     private var failures: [APIError]
     private(set) var capturedRequests: [CapturedSupplierPaymentRequest] = []

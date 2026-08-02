@@ -1,6 +1,6 @@
 //
 //  BusinessSessionViewModelTests.swift
-//  Nexo BusinessTests
+//  Nexo Business
 //
 //  Created by José Ruiz on 29/5/26.
 //
@@ -9,7 +9,7 @@ import XCTest
 @testable import Nexo_Business
 
 @MainActor
-final class BusinessSessionViewModelTests: XCTestCase {
+class BusinessSessionViewModelTests: XCTestCase {
     func testBootstrapWithoutStoredTokensShowsLogin() async {
         let tokenStore = InMemoryAuthTokenStore()
         let selectionStore = InMemoryBusinessSelectionStore(
@@ -331,7 +331,7 @@ final class BusinessSessionViewModelTests: XCTestCase {
     }
 }
 
-private final class OrganizationAccessRepositoryStub: BusinessOrganizationAccessRepository, @unchecked Sendable {
+private class OrganizationAccessRepositoryStub: BusinessOrganizationAccessRepository, @unchecked Sendable {
     private let result: Result<BusinessOrganizationAccessResponse, Error>
 
     init(result: Result<BusinessOrganizationAccessResponse, Error>) {
@@ -343,7 +343,7 @@ private final class OrganizationAccessRepositoryStub: BusinessOrganizationAccess
     }
 }
 
-private final class BusinessContextRepositoryStub: BusinessContextRepository, @unchecked Sendable {
+private class BusinessContextRepositoryStub: BusinessContextRepository, @unchecked Sendable {
     private let result: Result<BusinessContextResponse, Error>
 
     init(result: Result<BusinessContextResponse, Error>) {

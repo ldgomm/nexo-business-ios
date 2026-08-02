@@ -1,6 +1,6 @@
 //
 //  BusinessSupplierDocumentFormViewModelTests.swift
-//  Nexo BusinessTests
+//  Nexo Business
 //
 //  Created by José Ruiz on 15/7/26.
 //
@@ -10,7 +10,7 @@ import XCTest
 @testable import Nexo_Business
 
 @MainActor
-final class BusinessSupplierDocumentFormViewModelTests: XCTestCase {
+class BusinessSupplierDocumentFormViewModelTests: XCTestCase {
     func testCreateRequiresPermissionBeforeNetworkCall() async {
         let client = SupplierDocumentMutationAPIClient(outcomes: [
             .response(Self.envelopeJSON(status: "DRAFT", version: 1)),
@@ -650,7 +650,7 @@ private struct SupplierDocumentMutationRequest {
     }
 }
 
-private final class SupplierDocumentMutationAPIClient: APIClient, @unchecked Sendable {
+private class SupplierDocumentMutationAPIClient: APIClient, @unchecked Sendable {
     enum Outcome {
         case response(String)
         case error(APIError)

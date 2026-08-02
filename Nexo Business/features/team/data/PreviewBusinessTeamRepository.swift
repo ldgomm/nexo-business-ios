@@ -7,7 +7,7 @@
 
 import Foundation
 
-final class PreviewBusinessTeamRepository: BusinessTeamRepository, @unchecked Sendable {
+class PreviewBusinessTeamRepository: BusinessTeamRepository, @unchecked Sendable {
     private let createdAt = Date().addingTimeInterval(-86_400)
 
     private var roles: [BusinessTeamRole] {

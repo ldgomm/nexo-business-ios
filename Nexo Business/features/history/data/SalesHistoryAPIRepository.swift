@@ -11,7 +11,7 @@ enum BusinessSalesHistoryRoutes {
     static let sales = "/api/v1/business/sales"
 }
 
-final class SalesHistoryAPIRepository: SalesHistoryRepository, @unchecked Sendable {
+class SalesHistoryAPIRepository: SalesHistoryRepository, @unchecked Sendable {
     private let apiClient: APIClient
     private let dateFormatter: DateFormatter
 

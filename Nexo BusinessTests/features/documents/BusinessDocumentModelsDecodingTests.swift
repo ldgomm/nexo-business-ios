@@ -8,7 +8,7 @@
 import XCTest
 @testable import Nexo_Business
 
-final class BusinessDocumentModelsDecodingTests: XCTestCase {
+class BusinessDocumentModelsDecodingTests: XCTestCase {
     func testDecodesBusinessDocumentsResponse() throws {
         let json = #"""
         {

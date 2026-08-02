@@ -2,7 +2,7 @@
 //  BusinessSupplierPaymentsView.swift
 //  Nexo Business
 //
-//  27R.M.9A–9C — supplier-payment list, detail and controlled void action.
+//  Created by José Ruiz on 29/7/26.
 //
 
 import SwiftUI

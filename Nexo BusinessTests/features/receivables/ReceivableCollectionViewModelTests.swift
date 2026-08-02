@@ -1,6 +1,6 @@
 //
 //  ReceivableCollectionViewModelTests.swift
-//  Nexo BusinessTests
+//  Nexo Business
 //
 //  Created by José Ruiz on 29/5/26.
 //
@@ -9,7 +9,7 @@ import XCTest
 @testable import Nexo_Business
 
 @MainActor
-final class ReceivableCollectionViewModelTests: XCTestCase {
+class ReceivableCollectionViewModelTests: XCTestCase {
     func testCashCollectionRequiresOpenCashSession() async {
         let viewModel = ReceivableCollectionViewModel(
             organizationId: PreviewData.businessContext.organization.id,
@@ -274,7 +274,7 @@ final class ReceivableCollectionViewModelTests: XCTestCase {
 
 }
 
-private final class CollectionSpyCashRepository: CashRepository, @unchecked Sendable {
+private class CollectionSpyCashRepository: CashRepository, @unchecked Sendable {
     private let currentSession: CashSession?
 
     init(currentSession: CashSession?) {
@@ -310,7 +310,7 @@ private final class CollectionSpyCashRepository: CashRepository, @unchecked Send
 }
 
 
-private final class CollectionSpyCustomersRepository: CustomersRepository, @unchecked Sendable {
+private class CollectionSpyCustomersRepository: CustomersRepository, @unchecked Sendable {
     var lastSearchQuery: String?
     private let customers: [BusinessCustomer]
 
@@ -334,7 +334,7 @@ private final class CollectionSpyCustomersRepository: CustomersRepository, @unch
     ) async throws -> CustomerResponse { fatalError("Not needed") }
 }
 
-private final class CollectionSpyReceivablesRepository: ReceivablesRepository, @unchecked Sendable {
+private class CollectionSpyReceivablesRepository: ReceivablesRepository, @unchecked Sendable {
     var lastListCustomerId: String?
     var lastListStatus: String?
     var listResponse = ReceivablesListResponse(receivables: [])

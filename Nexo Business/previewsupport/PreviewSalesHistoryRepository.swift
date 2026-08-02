@@ -7,7 +7,7 @@
 
 import Foundation
 
-final class PreviewSalesHistoryRepository: SalesHistoryRepository, @unchecked Sendable {
+class PreviewSalesHistoryRepository: SalesHistoryRepository, @unchecked Sendable {
     init() {}
 
     func searchSales(

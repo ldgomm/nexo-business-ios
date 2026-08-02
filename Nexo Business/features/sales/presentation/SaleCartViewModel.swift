@@ -386,7 +386,7 @@ enum SaleCartOrderState: Equatable, Sendable {
 
 @MainActor
 @Observable
-final class SaleCartViewModel {
+class SaleCartViewModel {
     var searchQuery = ""
     var cashSessionId: String?
     private(set) var searchResults: [BusinessCatalogItem] = []

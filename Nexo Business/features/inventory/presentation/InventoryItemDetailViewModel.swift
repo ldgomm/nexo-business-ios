@@ -10,7 +10,7 @@ import Observation
 
 @MainActor
 @Observable
-final class InventoryItemDetailViewModel {
+class InventoryItemDetailViewModel {
     private(set) var item: InventoryItem
     private(set) var movements: [InventoryMovement] = []
     private(set) var isLoadingMovements = false

@@ -1,6 +1,6 @@
 //
 //  BusinessSelectionStoreTests.swift
-//  Nexo BusinessTests
+//  Nexo Business
 //
 //  Created by José Ruiz on 29/5/26.
 //
@@ -8,7 +8,7 @@
 import XCTest
 @testable import Nexo_Business
 
-final class BusinessSelectionStoreTests: XCTestCase {
+class BusinessSelectionStoreTests: XCTestCase {
     func testInMemorySelectionPersistsOrganizationAndOperationalContext() async throws {
         let store = InMemoryBusinessSelectionStore()
 

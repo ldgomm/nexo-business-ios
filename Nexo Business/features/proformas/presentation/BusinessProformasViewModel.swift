@@ -2,7 +2,7 @@
 //  BusinessProformasViewModel.swift
 //  Nexo Business
 //
-//  21J.10 — Business iOS Proformas MVP
+//  Created by José Ruiz on 29/7/26.
 //
 
 import Foundation
@@ -10,7 +10,7 @@ import Observation
 
 @MainActor
 @Observable
-final class BusinessProformasViewModel {
+class BusinessProformasViewModel {
     private(set) var proformas: [BusinessProforma] = []
     private(set) var isLoading = false
     var errorMessage: String?
@@ -123,7 +123,7 @@ final class BusinessProformasViewModel {
 
 @MainActor
 @Observable
-final class BusinessProformaDetailViewModel {
+class BusinessProformaDetailViewModel {
     private(set) var proforma: BusinessProforma?
     private(set) var isLoading = false
     private(set) var isMutating = false
@@ -829,7 +829,7 @@ struct BusinessProformaLineDraft: Identifiable, Equatable {
 
 @MainActor
 @Observable
-final class BusinessProformaFormViewModel {
+class BusinessProformaFormViewModel {
     enum Mode: Equatable {
         case create
         case edit(BusinessProforma)

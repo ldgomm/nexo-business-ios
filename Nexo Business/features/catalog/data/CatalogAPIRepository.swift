@@ -19,7 +19,7 @@ enum BusinessCatalogRoutes {
     }
 }
 
-final class CatalogAPIRepository: CatalogRepository, @unchecked Sendable {
+class CatalogAPIRepository: CatalogRepository, @unchecked Sendable {
     private let apiClient: APIClient
     private let revisionRegistry: BusinessRevisionRegistry
 

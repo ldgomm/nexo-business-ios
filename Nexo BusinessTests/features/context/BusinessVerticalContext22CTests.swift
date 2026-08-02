@@ -1,14 +1,14 @@
 //
 //  BusinessVerticalContext22CTests.swift
-//  Nexo BusinessTests
+//  Nexo Business
 //
-//  Created for Nexo 22C.
+//  Created by José Ruiz on 29/7/26.
 //
 
 import XCTest
 @testable import Nexo_Business
 
-final class BusinessVerticalContext22CTests: XCTestCase {
+class BusinessVerticalContext22CTests: XCTestCase {
 
     func testMissingVerticalsIsBackwardsCompatible() throws {
         let json = #"""

@@ -10,7 +10,7 @@ import Observation
 
 @MainActor
 @Observable
-final class ReceivableCollectionViewModel {
+class ReceivableCollectionViewModel {
     let receivable: ReceivableRecord
     private(set) var currentCashSession: CashSession?
     private(set) var isLoadingCash = false

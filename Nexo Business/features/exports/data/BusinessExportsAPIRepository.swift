@@ -17,7 +17,7 @@ enum BusinessExportsRoutes {
     static let accountantPackDraftZip = "/api/v1/business/finance/accountant-pack/draft.zip"
 }
 
-final class BusinessExportsAPIRepository: BusinessExportsRepository, @unchecked Sendable {
+class BusinessExportsAPIRepository: BusinessExportsRepository, @unchecked Sendable {
     private let apiClient: APIClient
     private let fileManager: FileManager
     private let baseDirectory: URL

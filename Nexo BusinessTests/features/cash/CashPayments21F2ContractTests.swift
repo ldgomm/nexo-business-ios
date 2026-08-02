@@ -1,12 +1,14 @@
 //
 //  CashPayments21F2ContractTests.swift
-//  Nexo BusinessTests
+//  Nexo Business
+//
+//  Created by José Ruiz on 29/7/26.
 //
 
 import XCTest
 @testable import Nexo_Business
 
-final class CashPayments21F2ContractTests: XCTestCase {
+class CashPayments21F2ContractTests: XCTestCase {
     func testCashRoutesExpose21BOperationalEndpoints() {
         XCTAssertEqual(BusinessCashRoutes.current, "/api/v1/business/cash/current")
         XCTAssertEqual(BusinessCashRoutes.sessions, "/api/v1/business/cash/sessions")

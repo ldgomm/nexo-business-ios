@@ -24,7 +24,7 @@ struct BusinessSupplierPaymentPresentation: Equatable, Identifiable, Sendable {
 
 @MainActor
 @Observable
-final class BusinessSupplierPaymentsViewModel {
+class BusinessSupplierPaymentsViewModel {
     enum StatusFilter: String, CaseIterable, Identifiable, Sendable {
         case all
         case processing
@@ -396,7 +396,7 @@ final class BusinessSupplierPaymentsViewModel {
 
 @MainActor
 @Observable
-final class BusinessSupplierPaymentDetailViewModel {
+class BusinessSupplierPaymentDetailViewModel {
     private(set) var supplierPayment: BusinessProcurementSupplierPaymentResponse
     private(set) var supplierName: String?
     private(set) var payableReferences: [String: String] = [:]

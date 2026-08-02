@@ -13,7 +13,7 @@ protocol AppLogging: Sendable {
     func error(_ message: String)
 }
 
-final class AppLogger: AppLogging, @unchecked Sendable {
+class AppLogger: AppLogging, @unchecked Sendable {
     static let shared = AppLogger()
 
     private init() {}
@@ -37,7 +37,7 @@ final class AppLogger: AppLogging, @unchecked Sendable {
     }
 }
 
-final class MemoryAppLogger: AppLogging, @unchecked Sendable {
+class MemoryAppLogger: AppLogging, @unchecked Sendable {
     private(set) var entries: [String] = []
 
     init() {}

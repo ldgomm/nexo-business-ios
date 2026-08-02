@@ -9,7 +9,7 @@ import XCTest
 @testable import Nexo_Business
 
 @MainActor
-final class SaleCartRevisionConflictTests: XCTestCase {
+class SaleCartRevisionConflictTests: XCTestCase {
     override func tearDown() async throws {
         await BusinessRevisionRegistry.shared.clear()
         try await super.tearDown()
@@ -103,7 +103,7 @@ final class SaleCartRevisionConflictTests: XCTestCase {
     }
 }
 
-private final class SalesRevisionConflictCatalogSpy: CatalogRepository, @unchecked Sendable {
+private class SalesRevisionConflictCatalogSpy: CatalogRepository, @unchecked Sendable {
     func search(
         organizationId: String,
         branchId: String,
@@ -116,7 +116,7 @@ private final class SalesRevisionConflictCatalogSpy: CatalogRepository, @uncheck
     }
 }
 
-private final class SalesRevisionConflictContextRepositorySpy: BusinessContextRepository, @unchecked Sendable {
+private class SalesRevisionConflictContextRepositorySpy: BusinessContextRepository, @unchecked Sendable {
     private let context: BusinessContextResponse
     private(set) var getContextCallCount = 0
     
@@ -130,7 +130,7 @@ private final class SalesRevisionConflictContextRepositorySpy: BusinessContextRe
     }
 }
 
-private final class RevisionConflictSalesRepositorySpy: SalesRepository, @unchecked Sendable {
+private class RevisionConflictSalesRepositorySpy: SalesRepository, @unchecked Sendable {
     func updateCustomer(organizationId: String, saleId: String, revisions: Nexo_Business.BusinessRevisions, idempotencyKey: Nexo_Business.IdempotencyKey, request: Nexo_Business.UpdateSaleCustomerRequest) async throws -> Nexo_Business.QuickSaleResponse {
         lastUpdateCustomerRequest = request
         lastUpdateCustomerIdempotencyKey = idempotencyKey

@@ -1,12 +1,14 @@
 //
 //  Inventory21F2ContractTests.swift
-//  Nexo BusinessTests
+//  Nexo Business
+//
+//  Created by José Ruiz on 29/7/26.
 //
 
 import XCTest
 @testable import Nexo_Business
 
-final class Inventory21F2ContractTests: XCTestCase {
+class Inventory21F2ContractTests: XCTestCase {
     func testBusinessInventoryRoutesUse21AStockContract() {
         XCTAssertEqual(BusinessInventoryRoutes.stock, "/api/v1/business/inventory/stock")
         XCTAssertEqual(BusinessInventoryRoutes.stockItem(itemId: "item_1"), "/api/v1/business/inventory/stock/item_1")

@@ -1771,7 +1771,7 @@ private extension String {
     }
 }
 
-private final class PreviewSaleCartSalesHistoryRepository: SalesHistoryRepository, @unchecked Sendable {
+private class PreviewSaleCartSalesHistoryRepository: SalesHistoryRepository, @unchecked Sendable {
     func searchSales(
         organizationId: String,
         request: SalesHistorySearchRequest

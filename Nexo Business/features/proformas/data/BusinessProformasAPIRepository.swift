@@ -2,7 +2,7 @@
 //  BusinessProformasAPIRepository.swift
 //  Nexo Business
 //
-//  21J.10 — Business iOS Proformas MVP
+//  Created by José Ruiz on 29/7/26.
 //
 
 import Foundation
@@ -43,7 +43,7 @@ enum BusinessProformaRoutes {
     }
 }
 
-final class BusinessProformasAPIRepository: BusinessProformasRepository, @unchecked Sendable {
+class BusinessProformasAPIRepository: BusinessProformasRepository, @unchecked Sendable {
     private let apiClient: APIClient
     private let dataClient: APIDataClient?
     private let fileManager: FileManager

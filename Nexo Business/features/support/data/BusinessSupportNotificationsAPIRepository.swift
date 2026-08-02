@@ -20,7 +20,7 @@ enum BusinessSupportNotificationRoutes {
     static let list = "/api/v1/business/support/notifications"
 }
 
-final class BusinessSupportNotificationsAPIRepository: BusinessSupportNotificationsRepository, @unchecked Sendable {
+class BusinessSupportNotificationsAPIRepository: BusinessSupportNotificationsRepository, @unchecked Sendable {
     private let apiClient: APIClient
 
     init(apiClient: APIClient) {

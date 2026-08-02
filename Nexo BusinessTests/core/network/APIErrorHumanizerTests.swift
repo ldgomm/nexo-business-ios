@@ -8,7 +8,7 @@
 import XCTest
 @testable import Nexo_Business
 
-final class APIErrorHumanizerTests: XCTestCase {
+class APIErrorHumanizerTests: XCTestCase {
     func testMapsRevisionErrorsToHumanMessage() {
         let error = APIError.server(
             statusCode: 428,

@@ -8,7 +8,7 @@
 import SwiftUI
 
 @Observable
-final class MasterCatalogAdoptionViewModel {
+class MasterCatalogAdoptionViewModel {
     let organizationId: String
     let branchId: String
     let activityId: String

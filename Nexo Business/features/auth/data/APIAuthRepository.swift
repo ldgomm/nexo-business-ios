@@ -7,7 +7,7 @@
 
 import Foundation
 
-final class APIAuthRepository: AuthRepository, @unchecked Sendable {
+class APIAuthRepository: AuthRepository, @unchecked Sendable {
     private let apiClient: APIClient
     private let tokenStore: AuthTokenStoring
 

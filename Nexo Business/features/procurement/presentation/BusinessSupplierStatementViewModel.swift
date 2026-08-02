@@ -10,7 +10,7 @@ import Observation
 
 @MainActor
 @Observable
-final class BusinessSupplierStatementViewModel {
+class BusinessSupplierStatementViewModel {
     private(set) var lines: [BusinessProcurementSupplierStatementLineResponse] = []
     private(set) var openingBalance: BusinessProcurementMoneyResponse?
     private(set) var closingBalance: BusinessProcurementMoneyResponse?

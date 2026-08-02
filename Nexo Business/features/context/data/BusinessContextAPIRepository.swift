@@ -7,7 +7,7 @@
 
 import Foundation
 
-final class BusinessContextAPIRepository: BusinessContextRepository, @unchecked Sendable {
+class BusinessContextAPIRepository: BusinessContextRepository, @unchecked Sendable {
     private let apiClient: APIClient
 
     init(apiClient: APIClient) {

@@ -1,6 +1,6 @@
 //
 //  BusinessSessionOperationalSelectionTests.swift
-//  Nexo BusinessTests
+//  Nexo Business
 //
 //  Created by José Ruiz on 29/5/26.
 //
@@ -9,7 +9,7 @@ import XCTest
 @testable import Nexo_Business
 
 @MainActor
-final class BusinessSessionOperationalSelectionTests: XCTestCase {
+class BusinessSessionOperationalSelectionTests: XCTestCase {
     func testBootstrapWithoutTokenSignsOut() async {
         let viewModel = makeViewModel(tokenStore: InMemoryAuthTokenStore())
 
@@ -154,7 +154,7 @@ final class BusinessSessionOperationalSelectionTests: XCTestCase {
     }
 }
 
-private final class OrganizationAccessRepositoryStub: BusinessOrganizationAccessRepository, @unchecked Sendable {
+private class OrganizationAccessRepositoryStub: BusinessOrganizationAccessRepository, @unchecked Sendable {
     let organizations: [BusinessOrganizationAccess]
 
     init(organizations: [BusinessOrganizationAccess]) {
@@ -166,7 +166,7 @@ private final class OrganizationAccessRepositoryStub: BusinessOrganizationAccess
     }
 }
 
-private final class BusinessContextRepositoryStub: BusinessContextRepository, @unchecked Sendable {
+private class BusinessContextRepositoryStub: BusinessContextRepository, @unchecked Sendable {
     let context: BusinessContextResponse
 
     init(context: BusinessContextResponse) {

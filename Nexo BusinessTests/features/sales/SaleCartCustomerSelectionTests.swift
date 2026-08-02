@@ -1,6 +1,6 @@
 //
 //  SaleCartCustomerSelectionTests.swift
-//  Nexo BusinessTests
+//  Nexo Business
 //
 //  Created by José Ruiz on 29/5/26.
 //
@@ -9,7 +9,7 @@ import XCTest
 @testable import Nexo_Business
 
 @MainActor
-final class SaleCartCustomerSelectionTests: XCTestCase {
+class SaleCartCustomerSelectionTests: XCTestCase {
     func testSelectingFinalConsumerDoesNotSendCustomerId() async {
         let salesRepository = SaleCartSalesRepositorySpy()
         let viewModel = makeViewModel(salesRepository: salesRepository)
@@ -57,7 +57,7 @@ final class SaleCartCustomerSelectionTests: XCTestCase {
     }
 }
 
-final class SaleCartSalesRepositorySpy: SalesRepository, @unchecked Sendable {
+class SaleCartSalesRepositorySpy: SalesRepository, @unchecked Sendable {
     
     func updateCustomer(
         organizationId: String,

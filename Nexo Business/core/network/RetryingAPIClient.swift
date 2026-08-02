@@ -7,7 +7,7 @@
 
 import Foundation
 
-final class RetryingAPIClient: APIDataClient, @unchecked Sendable {
+class RetryingAPIClient: APIDataClient, @unchecked Sendable {
     private let wrapped: APIClient
     private let policy: RetryPolicy
     private let logger: AppLogging?

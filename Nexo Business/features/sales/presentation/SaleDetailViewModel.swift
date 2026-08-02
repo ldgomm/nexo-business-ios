@@ -10,7 +10,7 @@ import Observation
 
 @MainActor
 @Observable
-final class SaleDetailViewModel {
+class SaleDetailViewModel {
     private(set) var sale: BusinessSale?
     private(set) var isLoading = false
     private(set) var hasAttemptedLoad = false

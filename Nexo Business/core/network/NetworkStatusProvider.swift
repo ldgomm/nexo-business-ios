@@ -47,7 +47,7 @@ protocol NetworkStatusProviding: Sendable {
     func currentStatus() async -> NetworkConnectionStatus
 }
 
-final class StaticNetworkStatusProvider: NetworkStatusProviding, @unchecked Sendable {
+class StaticNetworkStatusProvider: NetworkStatusProviding, @unchecked Sendable {
     private let status: NetworkConnectionStatus
 
     init(status: NetworkConnectionStatus) {
@@ -59,7 +59,7 @@ final class StaticNetworkStatusProvider: NetworkStatusProviding, @unchecked Send
     }
 }
 
-final class SystemNetworkStatusProvider: NetworkStatusProviding, @unchecked Sendable {
+class SystemNetworkStatusProvider: NetworkStatusProviding, @unchecked Sendable {
     init() {}
 
     func currentStatus() async -> NetworkConnectionStatus {

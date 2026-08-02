@@ -2,7 +2,7 @@
 //  BusinessProformaModels.swift
 //  Nexo Business
 //
-//  21J.10 — Business iOS Proformas MVP
+//  Created by José Ruiz on 29/7/26.
 //
 
 import Foundation

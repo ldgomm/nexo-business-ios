@@ -9,7 +9,7 @@ import XCTest
 @testable import Nexo_Business
 
 @MainActor
-final class SaleCartViewModelTests: XCTestCase {
+class SaleCartViewModelTests: XCTestCase {
     func testSearchCatalogLoadsResults() async {
         let catalog = CatalogRepositorySpy(
             response: CatalogSearchResponse(items: [Self.item])
@@ -334,7 +334,7 @@ final class SaleCartViewModelTests: XCTestCase {
     )
 }
 
-private final class CatalogRepositorySpy: CatalogRepository, @unchecked Sendable {
+private class CatalogRepositorySpy: CatalogRepository, @unchecked Sendable {
     var response: CatalogSearchResponse
     var error: Error?
     var lastQuery: String?
@@ -367,7 +367,7 @@ private final class CatalogRepositorySpy: CatalogRepository, @unchecked Sendable
     }
 }
 
-private final class SalesRepositorySpy: SalesRepository, @unchecked Sendable {
+private class SalesRepositorySpy: SalesRepository, @unchecked Sendable {
     func updateCustomer(organizationId: String, saleId: String, revisions: Nexo_Business.BusinessRevisions, idempotencyKey: Nexo_Business.IdempotencyKey, request: Nexo_Business.UpdateSaleCustomerRequest) async throws -> Nexo_Business.QuickSaleResponse {
         lastUpdateCustomerRequest = request
         lastUpdateCustomerIdempotencyKey = idempotencyKey

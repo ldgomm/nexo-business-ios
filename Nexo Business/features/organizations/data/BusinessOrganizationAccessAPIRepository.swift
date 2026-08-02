@@ -11,7 +11,7 @@ enum BusinessOrganizationAccessRoutes {
     static let organizations = "/api/v1/business/organizations"
 }
 
-final class BusinessOrganizationAccessAPIRepository: BusinessOrganizationAccessRepository, @unchecked Sendable {
+class BusinessOrganizationAccessAPIRepository: BusinessOrganizationAccessRepository, @unchecked Sendable {
     private let apiClient: APIClient
 
     init(apiClient: APIClient) {

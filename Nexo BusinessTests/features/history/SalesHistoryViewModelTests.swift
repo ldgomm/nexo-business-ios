@@ -1,6 +1,6 @@
 //
 //  SalesHistoryViewModelTests.swift
-//  Nexo BusinessTests
+//  Nexo Business
 //
 //  Created by José Ruiz on 29/5/26.
 //
@@ -9,7 +9,7 @@ import XCTest
 @testable import Nexo_Business
 
 @MainActor
-final class SalesHistoryViewModelTests: XCTestCase {
+class SalesHistoryViewModelTests: XCTestCase {
     func testLoadSearchesSalesWithFilters() async {
         let repository = SalesHistoryRepositorySpy(
             response: BusinessSalesHistoryResponse(
@@ -154,7 +154,7 @@ final class SalesHistoryViewModelTests: XCTestCase {
     }
 }
 
-private final class SalesHistoryRepositorySpy: SalesHistoryRepository, @unchecked Sendable {
+private class SalesHistoryRepositorySpy: SalesHistoryRepository, @unchecked Sendable {
     private let response: BusinessSalesHistoryResponse?
     private let error: Error?
     private(set) var lastOrganizationId: String?

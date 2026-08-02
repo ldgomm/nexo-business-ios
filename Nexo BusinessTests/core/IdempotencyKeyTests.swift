@@ -8,7 +8,7 @@
 import XCTest
 @testable import Nexo_Business
 
-final class IdempotencyKeyTests: XCTestCase {
+class IdempotencyKeyTests: XCTestCase {
     func testGeneratesPrefixedUniqueKeys() {
         let first = IdempotencyKey.generate(prefix: "quick-sale")
         let second = IdempotencyKey.generate(prefix: "quick-sale")

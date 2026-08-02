@@ -1,6 +1,6 @@
 //
 //  BusinessPurchaseReceiptFormViewModelTests.swift
-//  Nexo BusinessTests
+//  Nexo Business
 //
 //  Created by José Ruiz on 16/7/26.
 //
@@ -10,7 +10,7 @@ import XCTest
 @testable import Nexo_Business
 
 @MainActor
-final class BusinessPurchaseReceiptFormViewModelTests: XCTestCase {
+class BusinessPurchaseReceiptFormViewModelTests: XCTestCase {
     func testCreateRequiresModulePermissionAndReceivableOrderStatusBeforeNetwork() async throws {
         let sent = try Self.decodePurchaseOrderEnvelope(
             Self.purchaseOrderEnvelopeJSON(status: "SENT")
@@ -907,7 +907,7 @@ private struct CapturedPurchaseReceiptMutationRequest {
     }
 }
 
-private final class PurchaseReceiptMutationAPIClient: APIClient, @unchecked Sendable {
+private class PurchaseReceiptMutationAPIClient: APIClient, @unchecked Sendable {
     enum Outcome {
         case response(String)
         case error(APIError)

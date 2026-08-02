@@ -21,7 +21,7 @@ protocol CustomersRepository: Sendable {
     ) async throws -> CustomerResponse
 }
 
-final class UnavailableCustomersRepository: CustomersRepository, @unchecked Sendable {
+class UnavailableCustomersRepository: CustomersRepository, @unchecked Sendable {
     init() {}
 
     func search(

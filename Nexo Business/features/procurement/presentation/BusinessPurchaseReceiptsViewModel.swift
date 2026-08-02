@@ -29,7 +29,7 @@ struct BusinessPurchaseReceiptPresentation: Equatable, Identifiable, Sendable {
 
 @MainActor
 @Observable
-final class BusinessPurchaseReceiptsViewModel {
+class BusinessPurchaseReceiptsViewModel {
     enum StatusFilter: String, CaseIterable, Identifiable, Sendable {
         case all
         case draft
@@ -411,7 +411,7 @@ struct BusinessPurchaseReceiptActionIdempotencyKeys: Equatable, Sendable {
 
 @MainActor
 @Observable
-final class BusinessPurchaseReceiptDetailViewModel {
+class BusinessPurchaseReceiptDetailViewModel {
     private(set) var purchaseReceipt: BusinessProcurementPurchaseReceiptResponse
     private(set) var supplierName: String?
     private(set) var purchaseOrder: BusinessProcurementPurchaseOrderResponse?

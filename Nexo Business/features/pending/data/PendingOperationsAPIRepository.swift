@@ -13,7 +13,7 @@ enum BusinessPendingRoutes {
     static let documents = "/api/v1/business/documents"
 }
 
-final class PendingOperationsAPIRepository: PendingOperationsRepository, @unchecked Sendable {
+class PendingOperationsAPIRepository: PendingOperationsRepository, @unchecked Sendable {
     private let apiClient: APIClient
 
     init(apiClient: APIClient) {

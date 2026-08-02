@@ -1,6 +1,6 @@
 //
 //  BusinessSupplierFormViewModelTests.swift
-//  Nexo BusinessTests
+//  Nexo Business
 //
 //  Created by José Ruiz on 16/7/26.
 //
@@ -10,7 +10,7 @@ import XCTest
 @testable import Nexo_Business
 
 @MainActor
-final class BusinessSupplierFormViewModelTests: XCTestCase {
+class BusinessSupplierFormViewModelTests: XCTestCase {
     func testCreateRequiresPermissionBeforeNetworkCall() async {
         let client = SupplierFormAPIClient(outcomes: [.response(Self.createdEnvelopeJSON)])
         let viewModel = makeCreateViewModel(permissions: [], client: client)
@@ -315,7 +315,7 @@ private struct CapturedSupplierFormRequest {
     }
 }
 
-private final class SupplierFormAPIClient: APIClient, @unchecked Sendable {
+private class SupplierFormAPIClient: APIClient, @unchecked Sendable {
     enum Outcome {
         case response(String)
         case error(APIError)

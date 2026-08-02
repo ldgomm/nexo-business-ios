@@ -10,7 +10,7 @@ import Observation
 
 @MainActor
 @Observable
-final class BusinessElectronicDocumentDetailViewModel {
+class BusinessElectronicDocumentDetailViewModel {
     private(set) var detail: BusinessElectronicDocumentDetail?
     private(set) var timeline: [BusinessElectronicDocumentTimelineEvent] = []
     private(set) var lastArtifact: BusinessDocumentArtifact?

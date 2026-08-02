@@ -13,7 +13,7 @@ protocol PilotChecklistStoring: Sendable {
     func reset(organizationId: String) async throws
 }
 
-final class UserDefaultsPilotChecklistStore: PilotChecklistStoring, @unchecked Sendable {
+class UserDefaultsPilotChecklistStore: PilotChecklistStoring, @unchecked Sendable {
     private let userDefaults: UserDefaults
     private let encoder: JSONEncoder
     private let decoder: JSONDecoder

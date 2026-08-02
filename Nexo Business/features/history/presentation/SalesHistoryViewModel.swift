@@ -10,7 +10,7 @@ import Observation
 
 @MainActor
 @Observable
-final class SalesHistoryViewModel {
+class SalesHistoryViewModel {
     private(set) var sales: [BusinessSale] = []
     private(set) var primaryDocumentBySaleId: [String: BusinessDocument] = [:]
     private(set) var total: Int?

@@ -1,6 +1,6 @@
 //
 //  BusinessPurchaseReceiptsViewModelTests.swift
-//  Nexo BusinessTests
+//  Nexo Business
 //
 //  Created by José Ruiz on 16/7/26.
 //
@@ -10,7 +10,7 @@ import XCTest
 @testable import Nexo_Business
 
 @MainActor
-final class BusinessPurchaseReceiptsViewModelTests: XCTestCase {
+class BusinessPurchaseReceiptsViewModelTests: XCTestCase {
     func testLoadRequiresActivePurchasesModuleBeforeNetworkCall() async {
         let client = QueuedPurchaseReceiptsAPIClient(responses: [Self.emptyListJSON])
         let viewModel = makeListViewModel(
@@ -374,7 +374,7 @@ private struct CapturedPurchaseReceiptRequest {
     }
 }
 
-private final class QueuedPurchaseReceiptsAPIClient: APIClient, @unchecked Sendable {
+private class QueuedPurchaseReceiptsAPIClient: APIClient, @unchecked Sendable {
     private var responses: [Data]
     private var failures: [APIError]
     private(set) var capturedRequests: [CapturedPurchaseReceiptRequest] = []

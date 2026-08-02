@@ -12,7 +12,7 @@ enum BusinessPaymentsRoutes {
     static let register = "/api/v1/business/payments/register"
 }
 
-final class PaymentsAPIRepository: PaymentsRepository, @unchecked Sendable {
+class PaymentsAPIRepository: PaymentsRepository, @unchecked Sendable {
     private let apiClient: APIClient
 
     init(apiClient: APIClient) {

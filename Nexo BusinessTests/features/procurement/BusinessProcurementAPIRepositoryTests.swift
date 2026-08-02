@@ -1,6 +1,6 @@
 //
 //  BusinessProcurementAPIRepositoryTests.swift
-//  Nexo BusinessTests
+//  Nexo Business
 //
 //  Created by José Ruiz on 29/5/26.
 //
@@ -9,7 +9,7 @@ import Foundation
 import XCTest
 @testable import Nexo_Business
 
-final class BusinessProcurementAPIRepositoryTests: XCTestCase {
+class BusinessProcurementAPIRepositoryTests: XCTestCase {
     func testListFiltersUseCanonicalQueriesAndContextHeaders() async throws {
         let client = CapturingProcurementAPIClient(responseJSON: Self.emptySupplierListJSON)
         let repository = BusinessProcurementAPIRepository(apiClient: client)
@@ -447,7 +447,7 @@ private struct CapturedProcurementRequest {
     }
 }
 
-private final class CapturingProcurementAPIClient: APIDataClient, @unchecked Sendable {
+private class CapturingProcurementAPIClient: APIDataClient, @unchecked Sendable {
     var responseData: Data
     var dataResponse = APIDataResponse(data: Data(), statusCode: 200, headers: [:])
     private(set) var capturedRequests: [CapturedProcurementRequest] = []

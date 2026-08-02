@@ -21,7 +21,7 @@ enum BusinessCashRoutes {
     }
 }
 
-final class CashAPIRepository: CashRepository, @unchecked Sendable {
+class CashAPIRepository: CashRepository, @unchecked Sendable {
     private let apiClient: APIClient
     
     init(apiClient: APIClient) {

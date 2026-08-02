@@ -1,6 +1,6 @@
 //
 //  OperationalHardeningViewModelTests.swift
-//  Nexo BusinessTests
+//  Nexo Business
 //
 //  Created by José Ruiz on 29/5/26.
 //
@@ -9,7 +9,7 @@ import XCTest
 @testable import Nexo_Business
 
 @MainActor
-final class OperationalHardeningViewModelTests: XCTestCase {
+class OperationalHardeningViewModelTests: XCTestCase {
     func testReadyContextProducesNoBlockers() async throws {
         let viewModel = OperationalHardeningViewModel(
             context: makeContext(readinessStatus: "ready"),

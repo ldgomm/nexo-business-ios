@@ -8,7 +8,7 @@
 import XCTest
 @testable import Nexo_Business
 
-final class BusinessContext16CDecodingTests: XCTestCase {
+class BusinessContext16CDecodingTests: XCTestCase {
     func testDecodesBackendRealContextShapeAndComputesCompatibilityFields() throws {
         let json = #"""
         {

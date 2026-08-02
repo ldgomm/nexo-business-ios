@@ -10,7 +10,7 @@ import Observation
 
 @MainActor
 @Observable
-final class BusinessSuppliersViewModel {
+class BusinessSuppliersViewModel {
     enum StatusFilter: String, CaseIterable, Identifiable, Sendable {
         case all
         case active
@@ -178,7 +178,7 @@ final class BusinessSuppliersViewModel {
 
 @MainActor
 @Observable
-final class BusinessSupplierDetailViewModel {
+class BusinessSupplierDetailViewModel {
     private(set) var supplier: BusinessProcurementSupplierResponse
     private(set) var isLoading = false
     private(set) var hasLoaded = false

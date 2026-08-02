@@ -13,7 +13,7 @@ enum BusinessReceivablesRoutes {
     static let collect = "/api/v1/business/receivables/collect"
 }
 
-final class ReceivablesAPIRepository: ReceivablesRepository, @unchecked Sendable {
+class ReceivablesAPIRepository: ReceivablesRepository, @unchecked Sendable {
     private let apiClient: APIClient
 
     init(apiClient: APIClient) {

@@ -10,7 +10,7 @@ import Observation
 
 @MainActor
 @Observable
-final class CashDashboardViewModel {
+class CashDashboardViewModel {
     private(set) var state: AsyncViewState<CashSession?> = .idle
     private(set) var currentSession: CashSession?
     private(set) var lastMovement: CashMovement?

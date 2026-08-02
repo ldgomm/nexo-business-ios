@@ -167,7 +167,7 @@ struct BusinessPurchaseReceiptLineDraft: Equatable, Identifiable, Sendable {
 
 @MainActor
 @Observable
-final class BusinessPurchaseReceiptFormViewModel {
+class BusinessPurchaseReceiptFormViewModel {
     var receivedAt: Date
     var notes: String
     var lines: [BusinessPurchaseReceiptLineDraft]

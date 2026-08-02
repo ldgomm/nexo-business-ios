@@ -1,6 +1,6 @@
 //
-//  Customers16CDecodingEncodingTests.swift
-//  Nexo BusinessTests
+//  CustomersDecodingEncodingTests.swift
+//  Nexo Business
 //
 //  Created by José Ruiz on 29/5/26.
 //
@@ -8,7 +8,7 @@
 import XCTest
 @testable import Nexo_Business
 
-final class Customers16CDecodingEncodingTests: XCTestCase {
+class Customers16CDecodingEncodingTests: XCTestCase {
     func testDecodesBackendIdentificationField() throws {
         let json = #"""
         {

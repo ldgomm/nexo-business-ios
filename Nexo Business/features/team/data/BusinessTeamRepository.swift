@@ -29,7 +29,7 @@ protocol BusinessTeamRepository: Sendable {
     func listBranches() async throws -> [BusinessTeamBranch]
 }
 
-final class BusinessTeamAPIRepository: BusinessTeamRepository, @unchecked Sendable {
+class BusinessTeamAPIRepository: BusinessTeamRepository, @unchecked Sendable {
     private let apiClient: APIClient
 
     init(apiClient: APIClient) {

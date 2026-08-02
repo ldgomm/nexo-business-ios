@@ -24,7 +24,7 @@ enum BusinessInventoryRoutes {
     }
 }
 
-final class InventoryAPIRepository: InventoryRepository, @unchecked Sendable {
+class InventoryAPIRepository: InventoryRepository, @unchecked Sendable {
     private let apiClient: APIClient
 
     init(apiClient: APIClient) {

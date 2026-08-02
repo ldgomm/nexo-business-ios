@@ -10,7 +10,7 @@ import Observation
 
 @MainActor
 @Observable
-final class LoginViewModel {
+class LoginViewModel {
     var email = ""
     var password = ""
     var isLoading = false

@@ -8,7 +8,7 @@
 import XCTest
 @testable import Nexo_Business
 
-final class GatesTests: XCTestCase {
+class GatesTests: XCTestCase {
     func testModuleGateAllowsOnlyActiveModules() {
         let gate = ModuleGate(activeModules: [.coreSales])
 

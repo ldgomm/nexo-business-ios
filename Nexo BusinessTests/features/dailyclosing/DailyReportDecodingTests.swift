@@ -1,4 +1,11 @@
 //
+//  DailyReportDecodingTests.swift
+//  Nexo Business
+//
+//  Created by José Ruiz on 29/7/26.
+//
+
+//
 //  DailyReport16CDecodingTests.swift
 //  Nexo BusinessTests
 //
@@ -6,7 +13,7 @@
 import XCTest
 @testable import Nexo_Business
 
-final class DailyReport16CDecodingTests: XCTestCase {
+class DailyReport16CDecodingTests: XCTestCase {
     func testDecodesBackendDailyReportEnvelope() throws {
         let json = #"""
         {

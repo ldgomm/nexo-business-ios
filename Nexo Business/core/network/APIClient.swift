@@ -15,7 +15,7 @@ struct EmptyResponse: Decodable, Sendable {
     init() {}
 }
 
-final class URLSessionAPIClient: APIDataClient, @unchecked Sendable {
+class URLSessionAPIClient: APIDataClient, @unchecked Sendable {
     private let environment: AppEnvironment
     private let session: URLSession
     private let tokenStore: AuthTokenStoring

@@ -45,7 +45,7 @@ enum BusinessSalesRoutes {
 
 }
 
-final class SalesAPIRepository: SalesRepository, @unchecked Sendable {
+class SalesAPIRepository: SalesRepository, @unchecked Sendable {
     private let apiClient: APIClient
     private let revisionRegistry: BusinessRevisionRegistry
 

@@ -57,7 +57,7 @@ protocol ProductsRepository: Sendable {
     ) async throws -> BusinessProductMutationResponse
 }
 
-final class PreviewProductsRepository: ProductsRepository, @unchecked Sendable {
+class PreviewProductsRepository: ProductsRepository, @unchecked Sendable {
     private let previewTaxProfiles = [
         BusinessTaxProfile(
             code: "iva_full",

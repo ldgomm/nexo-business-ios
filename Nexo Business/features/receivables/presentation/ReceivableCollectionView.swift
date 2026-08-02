@@ -221,7 +221,7 @@ enum ReceivablesListFilter: String, CaseIterable, Identifiable, Sendable {
 
 @MainActor
 @Observable
-final class ReceivablesListViewModel {
+class ReceivablesListViewModel {
     private(set) var receivables: [ReceivableRecord] = []
     private(set) var total: Int?
     private(set) var hasMore: Bool?

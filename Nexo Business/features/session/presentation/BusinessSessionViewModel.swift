@@ -10,7 +10,7 @@ import Observation
 
 @MainActor
 @Observable
-final class BusinessSessionViewModel {
+class BusinessSessionViewModel {
     private(set) var state: BusinessSessionState = .bootstrapping
     private(set) var context: BusinessContextResponse?
     private(set) var operationalSelection: BusinessOperationalSelection?

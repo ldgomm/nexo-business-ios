@@ -1,3 +1,10 @@
+//
+//  BusinessSupportEntryPoints.swift
+//  Nexo Business
+//
+//  Created by José Ruiz on 29/7/26.
+//
+
 import SwiftUI
 import Foundation
 #if canImport(UIKit)
@@ -515,7 +522,7 @@ enum BusinessSupportEntryPointsCatalog {
 }
 
 @Observable
-final class BusinessSupportNotificationsViewModel {
+class BusinessSupportNotificationsViewModel {
     private let repository: BusinessSupportNotificationsRepository
     private let organizationId: String
     private let branchId: String

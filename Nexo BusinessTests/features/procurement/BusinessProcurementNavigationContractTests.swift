@@ -1,6 +1,6 @@
 //
 //  BusinessProcurementNavigationContractTests.swift
-//  Nexo BusinessTests
+//  Nexo Business
 //
 //  Created by José Ruiz on 16/7/26.
 //
@@ -9,7 +9,7 @@ import Foundation
 import XCTest
 @testable import Nexo_Business
 
-final class BusinessProcurementNavigationContractTests: XCTestCase {
+class BusinessProcurementNavigationContractTests: XCTestCase {
     func testSupplierNavigationRequiresPurchasesModuleAndViewPermission() {
         let noModule = BusinessProcurementAccessPolicy(
             activeModules: [],

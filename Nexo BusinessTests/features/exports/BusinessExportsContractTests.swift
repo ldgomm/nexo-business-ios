@@ -1,6 +1,6 @@
 //
-//  BusinessExports21F2ContractTests.swift
-//  Nexo BusinessTests
+//  BusinessExportsContractTests.swift
+//  Nexo Business
 //
 //  Created by José Ruiz on 29/5/26.
 //
@@ -8,7 +8,7 @@
 import XCTest
 @testable import Nexo_Business
 
-final class BusinessExportsContractTests: XCTestCase {
+class BusinessExportsContractTests: XCTestCase {
     func testExportsRoutesMatch21DOperationalContract() {
         XCTAssertEqual(BusinessExportsRoutes.exports, "/api/v1/business/exports")
         XCTAssertEqual(BusinessExportsRoutes.daily, "/api/v1/business/exports/daily")

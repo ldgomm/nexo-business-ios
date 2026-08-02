@@ -9,7 +9,7 @@ import XCTest
 @testable import Nexo_Business
 
 @MainActor
-final class BusinessDocumentsViewModelTests: XCTestCase {
+class BusinessDocumentsViewModelTests: XCTestCase {
     func testLoadDocumentsUsesRepository() async {
         let repository = MockBusinessDocumentsRepository()
         let viewModel = makeViewModel(repository: repository)
@@ -220,7 +220,7 @@ final class BusinessDocumentsViewModelTests: XCTestCase {
     }
 }
 
-final class MockBusinessDocumentsRepository: BusinessDocumentFileDownloadingRepository, @unchecked Sendable {
+class MockBusinessDocumentsRepository: BusinessDocumentFileDownloadingRepository, @unchecked Sendable {
     var listCalls = 0
     var generateCalls = 0
     var registerPhysicalCalls = 0

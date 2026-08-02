@@ -1,6 +1,6 @@
 //
 //  SaleDetailViewModelTests.swift
-//  Nexo BusinessTests
+//  Nexo Business
 //
 //  Created by José Ruiz on 29/5/26.
 //
@@ -9,7 +9,7 @@ import XCTest
 @testable import Nexo_Business
 
 @MainActor
-final class SaleDetailViewModelTests: XCTestCase {
+class SaleDetailViewModelTests: XCTestCase {
     func testLoadSaleUsesRepository() async {
         let repository = SaleLifecycleRepositorySpy()
         let viewModel = makeViewModel(repository: repository, initialSale: nil)
@@ -241,7 +241,7 @@ final class SaleDetailViewModelTests: XCTestCase {
     )
 }
 
-private final class SaleLifecycleRepositorySpy: SalesRepository, @unchecked Sendable {
+private class SaleLifecycleRepositorySpy: SalesRepository, @unchecked Sendable {
     func updateCustomer(organizationId: String, saleId: String, revisions: Nexo_Business.BusinessRevisions, idempotencyKey: Nexo_Business.IdempotencyKey, request: Nexo_Business.UpdateSaleCustomerRequest) async throws -> Nexo_Business.QuickSaleResponse {
         lastUpdateCustomerRequest = request
         lastUpdateCustomerIdempotencyKey = idempotencyKey

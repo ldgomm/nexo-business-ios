@@ -24,7 +24,7 @@ struct BusinessSupplierDocumentPresentation: Equatable, Identifiable, Sendable {
 
 @MainActor
 @Observable
-final class BusinessSupplierDocumentsViewModel {
+class BusinessSupplierDocumentsViewModel {
     enum StatusFilter: String, CaseIterable, Identifiable, Sendable {
         case all
         case draft
@@ -448,7 +448,7 @@ struct BusinessSupplierDocumentActionIdempotencyKeys: Equatable, Sendable {
 
 @MainActor
 @Observable
-final class BusinessSupplierDocumentDetailViewModel {
+class BusinessSupplierDocumentDetailViewModel {
     private(set) var supplierDocument: BusinessProcurementSupplierDocumentResponse
     private(set) var supplierName: String?
     private(set) var payable: BusinessProcurementPayableResponse?

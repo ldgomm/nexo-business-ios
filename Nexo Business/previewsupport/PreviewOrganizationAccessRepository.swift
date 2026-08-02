@@ -30,7 +30,7 @@ extension PreviewData {
     ]
 }
 
-final class PreviewBusinessOrganizationAccessRepository: BusinessOrganizationAccessRepository, @unchecked Sendable {
+class PreviewBusinessOrganizationAccessRepository: BusinessOrganizationAccessRepository, @unchecked Sendable {
     init() {}
 
     func listOrganizations() async throws -> BusinessOrganizationAccessResponse {

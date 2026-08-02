@@ -9,7 +9,7 @@ import XCTest
 @testable import Nexo_Business
 
 @MainActor
-final class DailyClosureViewModelTests: XCTestCase {
+class DailyClosureViewModelTests: XCTestCase {
     func testLoadFetchesReportCashAndPendingWorkWhenCashCanBeViewed() async {
         let report = makeReport()
         let cashSession = makeCashSession()
@@ -229,7 +229,7 @@ final class DailyClosureViewModelTests: XCTestCase {
     }
 }
 
-private final class PendingOperationsRepositorySpy: PendingOperationsRepository, @unchecked Sendable {
+private class PendingOperationsRepositorySpy: PendingOperationsRepository, @unchecked Sendable {
     var pendingSalesCallCount = 0
     var pendingReceivablesCallCount = 0
     var pendingDocumentsCallCount = 0
@@ -294,7 +294,7 @@ private final class PendingOperationsRepositorySpy: PendingOperationsRepository,
     }
 }
 
-private final class BusinessDailyReportRepositorySpy: BusinessDailyReportRepository, @unchecked Sendable {
+private class BusinessDailyReportRepositorySpy: BusinessDailyReportRepository, @unchecked Sendable {
     var callCount = 0
     var lastBusinessDate: String?
     let response: BusinessDailyReportResponse
@@ -322,7 +322,7 @@ private final class BusinessDailyReportRepositorySpy: BusinessDailyReportReposit
     }
 }
 
-private final class CashRepositorySpyForDailyClosure: CashRepository, @unchecked Sendable {
+private class CashRepositorySpyForDailyClosure: CashRepository, @unchecked Sendable {
     var currentCallCount = 0
     let currentResponse: CashCurrentSessionResponse
     let currentError: Error?

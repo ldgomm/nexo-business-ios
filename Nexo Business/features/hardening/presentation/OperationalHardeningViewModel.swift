@@ -10,7 +10,7 @@ import Observation
 
 @MainActor
 @Observable
-final class OperationalHardeningViewModel {
+class OperationalHardeningViewModel {
     private(set) var state: AsyncViewState<OperationalHardeningReport> = .idle
     private(set) var isRunning = false
 

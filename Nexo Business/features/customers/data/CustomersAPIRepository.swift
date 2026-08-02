@@ -11,7 +11,7 @@ enum BusinessCustomersRoutes {
     static let customers = "/api/v1/business/customers"
 }
 
-final class CustomersAPIRepository: CustomersRepository, @unchecked Sendable {
+class CustomersAPIRepository: CustomersRepository, @unchecked Sendable {
     private let apiClient: APIClient
 
     init(apiClient: APIClient) {

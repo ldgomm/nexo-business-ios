@@ -8,7 +8,7 @@
 import XCTest
 @testable import Nexo_Business
 
-final class APIErrorRevisionConflictTests: XCTestCase {
+class APIErrorRevisionConflictTests: XCTestCase {
     func testBusinessRevisionConflictIsDetectedByBackendCode() {
         let error = APIError.server(
             statusCode: 409,

@@ -118,7 +118,7 @@ struct BusinessPurchaseOrderLineDraft: Equatable, Identifiable, Sendable {
 
 @MainActor
 @Observable
-final class BusinessPurchaseOrderFormViewModel {
+class BusinessPurchaseOrderFormViewModel {
     var selectedSupplierId: String {
         didSet {
             guard let option = supplierOptions.first(where: { $0.id == selectedSupplierId }) else { return }

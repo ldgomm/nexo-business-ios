@@ -9,7 +9,7 @@ import XCTest
 @testable import Nexo_Business
 
 @MainActor
-final class BusinessTeamViewModelTests: XCTestCase {
+class BusinessTeamViewModelTests: XCTestCase {
     func testLoadPublishesUsersRolesTemplatesAndPermissions() async {
         let repository = BusinessTeamRepositorySpy()
         let viewModel = BusinessTeamViewModel(repository: repository)
@@ -152,7 +152,7 @@ final class BusinessTeamViewModelTests: XCTestCase {
     }
 }
 
-private final class BusinessTeamRepositorySpy: BusinessTeamRepository, @unchecked Sendable {
+private class BusinessTeamRepositorySpy: BusinessTeamRepository, @unchecked Sendable {
     var users: [BusinessTeamUser] = [.fixture()]
     var roles: [BusinessTeamRole] = [.cashier, .discountManager]
     var roleTemplates: [BusinessRoleTemplate] = [

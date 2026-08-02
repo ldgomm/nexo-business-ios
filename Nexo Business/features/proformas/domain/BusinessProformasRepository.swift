@@ -2,7 +2,7 @@
 //  BusinessProformasRepository.swift
 //  Nexo Business
 //
-//  21J.10 — Business iOS Proformas MVP
+//  Created by José Ruiz on 29/7/26.
 //
 
 import Foundation
@@ -87,7 +87,7 @@ protocol BusinessProformasRepository: Sendable {
     ) async throws -> BusinessProformaDownloadedDocument
 }
 
-final class PreviewBusinessProformasRepository: BusinessProformasRepository, @unchecked Sendable {
+class PreviewBusinessProformasRepository: BusinessProformasRepository, @unchecked Sendable {
     private var storage: [BusinessProforma]
 
     init(storage: [BusinessProforma] = []) {

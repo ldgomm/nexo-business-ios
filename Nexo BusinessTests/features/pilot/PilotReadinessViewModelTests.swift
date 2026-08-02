@@ -1,6 +1,6 @@
 //
 //  PilotReadinessViewModelTests.swift
-//  Nexo BusinessTests
+//  Nexo Business
 //
 //  Created by José Ruiz on 29/5/26.
 //
@@ -9,7 +9,7 @@ import XCTest
 @testable import Nexo_Business
 
 @MainActor
-final class PilotReadinessViewModelTests: XCTestCase {
+class PilotReadinessViewModelTests: XCTestCase {
     func testInitialLoadUsesDefaultChecklistWhenStoreIsEmpty() async {
         let store = PreviewPilotChecklistStore()
         let viewModel = makeViewModel(store: store)

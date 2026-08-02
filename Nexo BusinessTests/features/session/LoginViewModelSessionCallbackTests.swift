@@ -1,6 +1,6 @@
 //
 //  LoginViewModelSessionCallbackTests.swift
-//  Nexo BusinessTests
+//  Nexo Business
 //
 //  Created by José Ruiz on 29/5/26.
 //
@@ -9,7 +9,7 @@ import XCTest
 @testable import Nexo_Business
 
 @MainActor
-final class LoginViewModelSessionCallbackTests: XCTestCase {
+class LoginViewModelSessionCallbackTests: XCTestCase {
     func testLoginSuccessCallsSessionCallback() async {
         let repository = TestAuthRepository(result: .success(
             LoginResponse(
@@ -67,7 +67,7 @@ final class LoginViewModelSessionCallbackTests: XCTestCase {
     }
 }
 
-private final class TestAuthRepository: AuthRepository, @unchecked Sendable {
+private class TestAuthRepository: AuthRepository, @unchecked Sendable {
     func recoverSessions(email: String, password: String) async throws -> Nexo_Business.LoginResponse {
         throw APIError.server(
             statusCode: 501,

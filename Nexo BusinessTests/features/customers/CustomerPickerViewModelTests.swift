@@ -1,6 +1,6 @@
 //
 //  CustomerPickerViewModelTests.swift
-//  Nexo BusinessTests
+//  Nexo Business
 //
 //  Created by José Ruiz on 29/5/26.
 //
@@ -9,7 +9,7 @@ import XCTest
 @testable import Nexo_Business
 
 @MainActor
-final class CustomerPickerViewModelTests: XCTestCase {
+class CustomerPickerViewModelTests: XCTestCase {
     func testSearchRequiresPermission() async {
         let repository = CustomersRepositorySpy()
         let viewModel = CustomerPickerViewModel(
@@ -81,7 +81,7 @@ final class CustomerPickerViewModelTests: XCTestCase {
     }
 }
 
-final class CustomersRepositorySpy: CustomersRepository, @unchecked Sendable {
+class CustomersRepositorySpy: CustomersRepository, @unchecked Sendable {
     var searchCalls = 0
     var createCalls = 0
     var lastSearchQuery: String?
@@ -130,7 +130,7 @@ final class CustomersRepositorySpy: CustomersRepository, @unchecked Sendable {
 }
 
 @MainActor
-final class CustomerDetail360ViewModelTests: XCTestCase {
+class CustomerDetail360ViewModelTests: XCTestCase {
     func testLoadBuildsCustomer360FromSalesReceivablesAndDocuments() async {
         let customer = BusinessCustomer(
             id: "cus_001",
@@ -321,7 +321,7 @@ final class CustomerDetail360ViewModelTests: XCTestCase {
     }
 }
 
-private final class Customer360SalesHistoryRepositorySpy: SalesHistoryRepository, @unchecked Sendable {
+private class Customer360SalesHistoryRepositorySpy: SalesHistoryRepository, @unchecked Sendable {
     var searchCalls = 0
     var requestedQueries: [String] = []
     let sales: [BusinessSale]
@@ -340,7 +340,7 @@ private final class Customer360SalesHistoryRepositorySpy: SalesHistoryRepository
     }
 }
 
-private final class Customer360ReceivablesRepositorySpy: ReceivablesRepository, @unchecked Sendable {
+private class Customer360ReceivablesRepositorySpy: ReceivablesRepository, @unchecked Sendable {
     var listCalls = 0
     var lastCustomerId: String?
     let receivables: [ReceivableRecord]
@@ -373,7 +373,7 @@ private final class Customer360ReceivablesRepositorySpy: ReceivablesRepository, 
     ) async throws -> ReceivableCollectionResponse { fatalError("Not needed") }
 }
 
-private final class Customer360DocumentsRepositorySpy: BusinessDocumentsRepository, @unchecked Sendable {
+private class Customer360DocumentsRepositorySpy: BusinessDocumentsRepository, @unchecked Sendable {
     var requestedSaleIds: [String] = []
     let documentsBySaleId: [String: [BusinessDocument]]
 

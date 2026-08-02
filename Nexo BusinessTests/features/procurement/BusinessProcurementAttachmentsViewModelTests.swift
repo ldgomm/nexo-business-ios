@@ -1,6 +1,6 @@
 //
 //  BusinessProcurementAttachmentsViewModelTests.swift
-//  Nexo BusinessTests
+//  Nexo Business
 //
 //  Created by José Ruiz on 16/7/26.
 //
@@ -10,7 +10,7 @@ import XCTest
 @testable import Nexo_Business
 
 @MainActor
-final class BusinessProcurementAttachmentsViewModelTests: XCTestCase {
+class BusinessProcurementAttachmentsViewModelTests: XCTestCase {
     func testMutationPermissionsAreExactAndSupplierManagementStaysUnavailable() {
         let client = QueuedProcurementAttachmentAPIClient()
         let readOnly = makeViewModel(
@@ -661,7 +661,7 @@ private enum QueuedProcurementAttachmentResponse {
     case failure(APIError)
 }
 
-private final class QueuedProcurementAttachmentAPIClient: APIDataClient, @unchecked Sendable {
+private class QueuedProcurementAttachmentAPIClient: APIDataClient, @unchecked Sendable {
     private var dataResponses: [APIDataResponse]
     private var dataFailures: [APIError]
     private var responseSteps: [QueuedProcurementAttachmentResponse]

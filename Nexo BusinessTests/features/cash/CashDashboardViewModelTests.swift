@@ -9,7 +9,7 @@ import XCTest
 @testable import Nexo_Business
 
 @MainActor
-final class CashDashboardViewModelTests: XCTestCase {
+class CashDashboardViewModelTests: XCTestCase {
     func testLoadCurrentSessionUpdatesStateWithCanonicalPermissions() async {
         let repository = CashRepositorySpy(
             currentResponse: CashCurrentSessionResponse(
@@ -199,7 +199,7 @@ final class CashDashboardViewModelTests: XCTestCase {
     }
 }
 
-private final class CashRepositorySpy: CashRepository, @unchecked Sendable {
+private class CashRepositorySpy: CashRepository, @unchecked Sendable {
     let currentResponse: CashCurrentSessionResponse
     let openResponse: CashSessionResponse?
     let movementResponse: CashMovementResponse?

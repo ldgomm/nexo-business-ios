@@ -8,7 +8,7 @@
 import XCTest
 @testable import Nexo_Business
 
-final class BusinessDocumentsAPIRepositoryTests: XCTestCase {
+class BusinessDocumentsAPIRepositoryTests: XCTestCase {
 
     func testListUsesCanonicalElectronicDocumentsRouteFilteredBySale() async throws {
         let apiClient = CapturingDocumentsAPIClient(responseJSON: #"{"documents":[]}"#)
@@ -391,7 +391,7 @@ private struct CapturedDocumentsAPIRequest: Equatable {
     let body: Data?
 }
 
-private final class CapturingDocumentsAPIClient: APIDataClient, @unchecked Sendable {
+private class CapturingDocumentsAPIClient: APIDataClient, @unchecked Sendable {
     var responseData: Data
     var dataResponse = APIDataResponse(data: Data(), statusCode: 200, headers: [:])
     private(set) var capturedRequests: [CapturedDocumentsAPIRequest] = []
